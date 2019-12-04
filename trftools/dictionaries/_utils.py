@@ -1,10 +1,18 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
 from pathlib import Path
 from urllib.request import urlretrieve
+from zipfile import ZipFile
 
 
-def download(url: str, dst: Path):
+def download(url: str, dst: Path, unzip: bool = False):
     dst.parent.mkdir(exist_ok=True)
-    if url.endswith('.zip'):
-        raise NotImplementedError(f"Please download the SUBTLEX data from {url}, extract the archive and move the file to {dst}")
-    urlretrieve(url, dst)
+    if unzip:
+        filename, headers = urlretrieve(url)
+        with ZipFile(filename) as zipfile:
+            names = zipfile.namelist()
+            assert len(names) == 1
+            tmp_dst = dst.parent / names.pop()
+            zipfile.extract(tmp_dst.name, dst.parent)
+            tmp_dst.rename(dst)
+    else:
+        urlretrieve(url, dst)

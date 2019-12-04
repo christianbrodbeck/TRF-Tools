@@ -33,7 +33,7 @@ def read_subtlex(lower=False):
     """
     path = Path(__file__).parent / 'data' / 'SUBTLEXus74286wordstextversion.txt'
     if not path.exists():
-        download('https://www.ugent.be/pp/experimentele-psychologie/en/research/documents/subtlexus/subtlexus2.zip', path)
+        download('https://www.ugent.be/pp/experimentele-psychologie/en/research/documents/subtlexus/subtlexus2.zip/at_download/file', path, unzip=True)
     out = {}
     str_trans = str.lower if lower else str.upper
     with path.open() as fid:
@@ -53,7 +53,7 @@ def read_subtlex_pos():
     """Read SUBTLEXus with part-of-speech tags"""
     path = Path(__file__).parent / 'data' / 'SUBTLEX-US-PoS.txt'
     if not path.exists():
-        download('http://crr.ugent.be/papers/SUBTLEX-US_frequency_list_with_PoS_information_final_text_version.zip', path)
+        download('http://crr.ugent.be/papers/SUBTLEX-US_frequency_list_with_PoS_information_final_text_version.zip', path, unzip=True)
     with path.open() as fid:
         keys = next(fid).split()
         i_word = keys.index('Word')
