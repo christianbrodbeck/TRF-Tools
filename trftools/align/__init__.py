@@ -1,2 +1,2 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
-from ._textgrid import fix_word_tier
+from ._textgrid import TextGrid, fix_word_tier
