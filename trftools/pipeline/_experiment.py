@@ -987,10 +987,15 @@ class TRFExperiment(MneExperiment):
             self.add_predictor(ds, code, filter_x, data.y_name)
             xs.append(ds[code.key])
 
-        # reshape data
+        # for NCRF, make sure chunk size is long enough
         if m:
-            pass
-        elif partitions == -1:
+            assert partitions is None
+            if (y.time.nsamples * y.time.tstep) / tstop < 30:
+                partitions = -1
+            else:
+                partitions = -2
+        # reshape data
+        if partitions == -1:
             partitions = None
             y = concatenate(y)
             xs = [concatenate(x) for x in xs]
