@@ -562,6 +562,8 @@ class IncrementalComparisons(Comparisons):
     def coerce(cls, x):
         if isinstance(x, cls):
             return x
+        elif isinstance(x, dict):
+            return IncrementalComparisons.from_effect_dict(x)
         else:
             return IncrementalComparisons(x)
 
@@ -582,6 +584,8 @@ class IncrementalComparisons(Comparisons):
         for term, entry in effects.items():
             if isinstance(entry, int):
                 parent, rand_ = entry, rand
+            elif isinstance(entry, str):
+                parent, rand_ = -1, entry
             else:
                 parent, rand_ = entry
             lines.append([term, rand_, parent])
