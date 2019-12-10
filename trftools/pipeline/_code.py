@@ -33,7 +33,7 @@ class Code(CodeBase):
     _sep = '-'
 
     def __init__(self, string):
-        m = re.match(r'(?:([\w+-]+)\|)?([\w:-]+)(?:\$(\d*)([a-zA-Z]+)(\d*))?$', string)
+        m = re.match(r'(?:([\w+-]+)\|)?([\w:-]+)(?:\$(-?\d*-?)([a-zA-Z]+)(\d*))?$', string)
         if not m:
             raise ValueError(f'{string!r}')
         stim, code_string, shuffle_band, shuffle, angle = m.groups()
@@ -47,7 +47,22 @@ class Code(CodeBase):
                     raise CodeError(string, f"shuffle angle {angle}")
             else:
                 angle = 180
-            shuffle_band = int(shuffle_band) if shuffle_band else None
+
+            if shuffle_band:
+                m = re.match(r'^(-?)(\d+)(-?)$', shuffle_band)
+                if not m:
+                    raise ValueError(f'{string!r} (shuffle index)')
+                pre, index, post = m.groups()
+                if pre:
+                    if post:
+                        raise ValueError(f'{string!r} (shuffle index)')
+                    shuffle_band = slice(int(index))
+                elif post:
+                    shuffle_band = slice(int(index), None)
+                else:
+                    shuffle_band = int(index)
+            else:
+                shuffle_band  = None
         else:
             self.code_with_rand = code_string
             shuffle_band = shuffle = angle = None
