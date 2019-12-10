@@ -8,7 +8,6 @@ import webbrowser
 from eelbrain import fmtxt, save
 from eelbrain._experiment.test_def import TestDims
 
-from ._experiment import TRFExperiment
 from ._model import IncrementalComparisons, Model, ModelArg, parse_comparison
 
 
@@ -62,6 +61,7 @@ class Job:
             report: bool = False,
     ):
         # validate input
+        from ._experiment import TRFExperiment
         if not isinstance(experiment, TRFExperiment):
             raise TypeError(f"experiment={experiment!r}")
 

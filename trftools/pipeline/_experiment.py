@@ -187,6 +187,7 @@ from tqdm import tqdm
 
 from .._ndvar import pad, shuffle
 from ._code import SHUFFLE_METHODS, NDVAR_SHUFFLE_METHODS, Code
+from ._jobs import TRFsJob, ModelJob
 from ._model import Comparison, IncrementalComparisons, Model, is_comparison, load_models, save_models
 from ._predictor import EventPredictor, FilePredictor, MakePredictor
 from ._results import ResultCollection
@@ -705,6 +706,47 @@ class TRFExperiment(MneExperiment):
                 break
             else:
                 self._remove_model(model, files=[])
+
+    def model_job(self, x, report=True, reduce_model=False, **kwargs):
+        """Compute all TRFs needed for a model-test
+
+        Parameters
+        ----------
+        x : str
+            Model or comparison.
+        report : bool
+            Schedule a model-test report.
+        reduce_model : bool
+            Iteratively reduce the model until it only contains predictors
+            significant at the .05 level.
+        priority : bool
+            Prioritize job over others (default ``False``)
+        ...
+            For more arguments see :meth:`.load_model_test`.
+
+        See Also
+        --------
+        .trf_job
+        """
+        return ModelJob(x, self, report, reduce_model, **kwargs)
+
+    def trf_job(self, x, **kwargs):
+        """Compute all TRFs with the given model
+
+        Parameters
+        ----------
+        x : str
+            Model.
+        priority : bool
+            Prioritize job over others (default ``False``)
+        ...
+            For more arguments see :meth:`.load_trf`.
+
+        See Also
+        --------
+        .model_job
+        """
+        return TRFsJob(x, self, **kwargs)
 
     def load_predictor(self, code, tstep=0.01, n_samples=None, tmin=0., filter=False, name=None):
         """Load predictor NDVar
@@ -2372,16 +2414,3 @@ class TRFExperiment(MneExperiment):
                 n = len(self._find_model_files(name))
                 t.cell(n or '')
         return t
-
-    # Tone DSS
-    def load_dss(self, **kwargs):
-        ds = self.load_epochs(**kwargs)
-        todss, fromdss = eelbrain.dss(ds['meg'])
-        la_index = np.logical_and(fromdss.sensor.x < 0, fromdss.sensor.y > 0)
-        sign = (fromdss.mean(sensor=la_index)).sign()
-        fromdss *= sign
-        todss *= sign
-        ds.info['fromdss'] = fromdss
-        ds.info['todss'] = todss
-        ds['dss'] = todss.sub(dss=0).dot(ds['meg'])
-        return ds
