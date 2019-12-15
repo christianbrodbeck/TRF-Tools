@@ -155,11 +155,14 @@ class Dispatcher(object):
         """
         if self._shutdown:
             raise RuntimeError("Dispatcher is shutting down.")
+        n = 0
         with self.e_lock:
             for job in read_job_file(filename):
                 if priority:
                     job.priority = True
                 self._request_queue.put(job)
+                n += 1
+        self.logger.info("%i jobs requested", n)
 
     def _local_io(self):
         n_exceptions = n_trf_exceptions = 0
