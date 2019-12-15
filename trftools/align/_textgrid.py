@@ -386,6 +386,14 @@ def fix_word_tier(
     cmu_dict = read_cmupd(strip_stress, apostrophe=False)
     phone_tier = grid.getFirst('phones')
     word_tier = grid.getFirst('words')
+    # clean up phones in phone tier
+    for phone in phone_tier:
+        phone.mark = phone.mark.strip()
+        if phone.mark in silence:
+            phone.mark = ''
+        elif strip_stress:
+            phone.mark = phone.mark.rstrip('012')
+    # transcript
     if text_filename:
         words = read_transcript(text_filename).split()
     else:
@@ -396,14 +404,10 @@ def fix_word_tier(
     last_max_time = 0.
     word, phone_reprs = next(word_iter)
     phone_buf = ''
+    # for debugging:
+    last_word = None
     # alternative:  keep parallel representations whenever there is ambiguity?
     for phone in phone_iter:
-        phone.mark = phone.mark.strip()
-        if phone.mark in silence:
-            phone.mark = ''
-        elif strip_stress:
-            phone.mark = phone.mark.rstrip('012')
-
         if phone.mark == '':
             if phone_buf:
                 raise ValueError(f"Unknown sequence ({phone.minTime:.2f}): {phone_buf}")
@@ -414,7 +418,7 @@ def fix_word_tier(
         else:
             phone_buf = phone.mark if not phone_buf else phone_buf + ' ' + phone.mark
             if phone_buf in phone_reprs:
-                # and -> {AE N, AE N D}
+                # Check whether there might be multiple matches, e.g., and -> {AE N, AE N D}
                 next_phone = phone_iter.lookahead()
                 if next_phone:
                     if phone_buf + ' ' + next_phone.mark in phone_reprs:
@@ -441,6 +445,7 @@ def fix_word_tier(
 
                 # close the current word
                 word_tier.add(last_max_time, phone.maxTime, word)
+                last_word = word, phone_buf, phone_reprs
                 phone_buf = ''
                 last_max_time = phone.maxTime
                 try:
@@ -448,7 +453,12 @@ def fix_word_tier(
                 except StopIteration:
                     break
             elif len(phone_buf) > max(len(p) for p in phone_reprs):
-                raise ValueError(f"Unknown sequence {phone_buf} encountered at {phone.minTime:.2f} s while looking for word {word} with known representation(s) {', '.join(phone_reprs)}")
+                if last_word:
+                    l_word, l_phone_buf, l_phone_reprs = last_word
+                    last_desc = f"; previous word was {l_word} pronounced {l_phone_buf} with known representation(s)  {', '.join(l_phone_reprs)}"
+                else:
+                    last_desc = ''
+                raise ValueError(f"Unknown sequence {phone_buf} encountered at {phone.minTime:.2f} s while looking for word {word} with known representation(s) {', '.join(phone_reprs)}{last_desc}")
     if phone_buf:
         # last word incomplete?
         if any(phone_repr.startswith(phone_buf) for phone_repr in phone_reprs):
