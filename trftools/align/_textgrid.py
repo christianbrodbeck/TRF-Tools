@@ -14,13 +14,13 @@ import numpy as np
 import textgrid
 
 from .._utils import LookaheadIter
-from ..dictionaries import read_cmupd, read_dict
+from ..dictionaries import read_cmupd, read_dict, combine_dicts
 from ..dictionaries._arpabet import SILENCE
+from ..dictionaries._dict import APOSTROPHE_I
 from ._text import text_to_words
 
 
 PUNC = [s.encode('ascii') for s in string.punctuation + "\n\r"]
-
 
 class Realization(object):
     """Pronunciation and corresponding graph sequence for a word in a TextGrid
@@ -76,6 +76,32 @@ class TextGrid(object):
         if self._n_samples_arg:
             args.append("n_samples=%r" % self._n_samples_arg)
         return "TextGrid(%s)" % ', '.join(args)
+
+    def split_by_apostrophe(self):
+        """SUBTLEX respresents "ISN'T" as "INS" + "T"
+
+        This method replace the TextGrid's realization that contain an
+        apostrophe accordingly
+        """
+        new = []
+        for realization in self.realizations:
+            if "'" in realization.graphs:
+                g1, g2 = realization.graphs.split("'")
+                try:
+                    i_split = APOSTROPHE_I[g2]
+                except KeyError:
+                    raise KeyError(f"{g2!r} ({realization}")
+                ps = realization.phones[:i_split]
+                ts = realization.times[:i_split]
+                tstop = realization.times[i_split]
+                new.append(Realization(ps, ts, g1, tstop))
+                ps = realization.phones[i_split:]
+                ts = realization.times[i_split:]
+                tstop = realization.tstop
+                new.append(Realization(ps, ts, g1, tstop))
+            else:
+                new.append(realization)
+        self.realizations = new
 
     def align(self, words, values, silence=0, unknown=None):
         """Align values to the words in the textgrid"""
@@ -178,7 +204,7 @@ class TextGrid(object):
 
         return out
 
-    @ staticmethod
+    @staticmethod
     def categories_to_codes(values, codes, weights=None):
         return _categories_to_codes(values, codes, weights)
 
@@ -314,14 +340,11 @@ def _load_tier(grid, tier: Union[str, tuple] = 'phones'):
     return out
 
 
-def multi_dict_lookup(key, *dicts):
-    out = set()
-    for d in dicts:
-        if key in d:
-            out.update(d[key])
-    if not out:
-        raise RuntimeError("No pronunciation for %s" % (key,))
-    return out
+def dict_lookup(pronunciations, word):
+    try:
+        return pronunciations[word]
+    except KeyError:
+        raise KeyError(f"No pronunciation for {key}")
 
 
 def grid_to_dict(grid):
@@ -384,6 +407,7 @@ def fix_word_tier(
     else:
         pronunciation_dict = {k: [v] if isinstance(v, str) else v for k, v in pronunciation_dict.items()}
     cmu_dict = read_cmupd(strip_stress, apostrophe=False)
+    pronunciation_dict = combine_dicts([cmu_dict, pronunciation_dict])
     phone_tier = grid.getFirst('phones')
     word_tier = grid.getFirst('words')
     # clean up phones in phone tier
@@ -399,7 +423,7 @@ def fix_word_tier(
     else:
         words = [i.mark for i in word_tier.intervals if i.mark not in SILENCE]
     del word_tier.intervals[:]
-    word_iter = LookaheadIter((w, multi_dict_lookup(w, cmu_dict, pronunciation_dict)) for w in words)
+    word_iter = LookaheadIter((w, dict_lookup(pronunciation_dict, w)) for w in words)
     phone_iter = LookaheadIter(phone_tier)
     last_max_time = 0.
     word, phone_reprs = next(word_iter)
