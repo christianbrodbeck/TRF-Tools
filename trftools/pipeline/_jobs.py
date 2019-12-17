@@ -27,7 +27,7 @@ def make_jobs(job_file, make_trfs=False, open_in_browser=False):
             webbrowser.open(f"file://{path}")
 
 
-class TRFJob(object):
+class TRFJob:
     """Jopb for a single TRF"""
     __slots__ = ('experiment', 'path', 'state', 'args', 'desc')
 
