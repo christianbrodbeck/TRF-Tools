@@ -1,5 +1,6 @@
 """Convert unicode text to label for force aligning."""
 from collections import defaultdict
+import fnmatch
 from glob import glob
 from itertools import chain, zip_longest, repeat
 import json
@@ -312,32 +313,13 @@ def gentle_to_grid(gentle_file, out=None):
     grid.write(out)
 
 
-def _load_tier(grid, tier: Union[str, tuple] = 'phones'):
+def _load_tier(grid, tier: str = 'phones'):
     """Load one or more tiers as textgrid Tier object"""
-    if isinstance(grid, (str, Path)):
-        if isinstance(grid, str) and not grid.lower().endswith('.textgrid'):
-            grid += '.TextGrid'
-        grid_in_repr = grid
-        grid = textgrid.TextGrid.fromFile(grid)
-    else:
-        grid_in_repr = repr(grid)
-
-    if isinstance(tier, str):
-        tier = (tier,)
-        one_out = True
-    else:
-        one_out = False
-
-    out = []
-    for t in tier:
-        tiers = grid.getList(t)
-        if len(tiers) != 1:
-            raise IOError(f"{len(tiers)} tiers named {t!r} in {grid_in_repr}")
-        out += tiers
-
-    if one_out:
-        return out[0]
-    return out
+    names = [name for name in grid.getNames() if fnmatch.fnmatch(name.lower(), tier.lower())]
+    if len(names) != 1:
+        available = ', '.join(grid.getNames())
+        raise IOError(f"{len(names)} tiers match {tier!r} in {grid.name or grid}. Availabe tiers: {available}")
+    return grid.getFirst(names[0])
 
 
 def dict_lookup(pronunciations, word):
@@ -494,7 +476,12 @@ def fix_word_tier(
 
 def textgrid_as_realizations(grid, word_tier='words', phone_tier='phones'):
     """Load a TextGrid as a list of Realizations"""
-    words, phones = _load_tier(grid, (word_tier, phone_tier))
+    if isinstance(grid, (str, Path)):
+        if isinstance(grid, str) and not grid.lower().endswith('.textgrid'):
+            grid += '.TextGrid'
+        grid = textgrid.TextGrid.fromFile(grid, grid)
+    words = _load_tier(grid, word_tier)
+    phones = _load_tier(grid, phone_tier)
     out = []
     phones = list(phones)
     for word in words:
