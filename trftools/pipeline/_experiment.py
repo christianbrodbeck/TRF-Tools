@@ -157,7 +157,7 @@ from collections import Counter, defaultdict
 import fnmatch
 from functools import partial
 from glob import glob
-from itertools import product
+from itertools import product, repeat
 import os
 from os.path import exists, getmtime, join, relpath, splitext
 from pathlib import Path
@@ -679,7 +679,11 @@ class TRFExperiment(MneExperiment):
                 y = ds[guess_y(ds)]
             elif isinstance(y, str):
                 y = ds[y]
-            time = y.time
+            if isinstance(y, NDVar):
+                time = y.time
+            else:
+                time = [yi.time for yi in y]
+        is_variable_time = isinstance(time, list)
         code = Code.coerce(code)
 
         # permutation
@@ -693,6 +697,7 @@ class TRFExperiment(MneExperiment):
 
         if isinstance(predictor, EventPredictor):
             assert not filter, "filter not available for EventPredictor"
+            assert not is_variable_time, "EventPredictor not implemented for variable-time epoch"
             ds[code.key] = predictor._generate(time, ds, code)
             code.assert_done()
             return
@@ -701,12 +706,19 @@ class TRFExperiment(MneExperiment):
         stim_var = self._stim_var[code.stim or '']
 
         # load predictors (cache for same stimulus unless they are randomized)
-        if code.has_randomization:
-            xs = [self.load_predictor(code.with_stim(stim), time.tstep, time.nsamples, time.tmin, filter) for stim in ds[stim_var]]
+        if code.has_randomization or is_variable_time:
+            time_dims = time if is_variable_time else repeat(time, ds.n_cases)
+            xs = [self.load_predictor(code.with_stim(stim), time.tstep, time.nsamples, time.tmin, filter) for stim, time in zip(ds[stim_var], time_dims)]
         else:
             x_cache = {stim: self.load_predictor(code.with_stim(stim), time.tstep, time.nsamples, time.tmin, filter) for stim in ds[stim_var].cells}
             xs = [x_cache[stim] for stim in ds[stim_var]]
-        ds[code.key] = combine(xs)
+
+        if is_variable_time:
+            for x in xs:
+                x.name = Dataset.as_key(x.name)
+        else:
+            xs = combine(xs)
+        ds[code.key] = xs
 
     def clean_models(self):
         """Remove internal models that have no corresponding files"""
