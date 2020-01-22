@@ -1,7 +1,10 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
 import os
 
-from eelbrain import load, NDVar, epoch_impulse_predictor, resample
+from eelbrain import load, Dataset, NDVar, UTS, epoch_impulse_predictor, resample
+import numpy
+
+from .._ndvar import pad
 
 
 class EventPredictor:
@@ -27,13 +30,54 @@ class EventPredictor:
 
 
 class FilePredictor:
-    """Predictor stored in file(s)"""
+    """Predictor stored in file(s)
+
+    Parameters
+    ----------
+    resample : 'bin' | 'resample'
+        How to resample predictor. When analyses are done at different sampling
+        rates, it is often convenient to generate predictors at a high sampling
+        rate and then downsample dynamically to match the data.
+
+         - ``bin``: averaging the values in time bins
+         - ``resample``: use appropriate filter followed by decimation
+
+        For predictors with non-continuous information, such as impulses,
+        binning is more appropriate. Alternatively, the predictor can be saved
+        as a list of :class:`NDVar` with all the needed sampling frequencies.
+
+    Notes
+    -----
+    The file-predictor expects to find a file for each stimulus containing the
+    predictor at::
+
+        {root}/predictors/{stimulus}|{name}[-{options}].pickle
+
+    Where ``stimulus`` refers to the name provided by ``stim_var``, ``name``
+    refers to the predictor's name, and the optional ``options`` can define
+    different sub-varieties of the same predictor.
+
+    Predictors can be :class:`NDVar` (UTS) or :class:`Dataset` (NUTS). NUTS
+    predictors should contain the following columns:
+
+     - ``t``: Time stamp of the event/impulse
+     - ``v``: Value of the impulse
+    """
     def __init__(self, resample=None):
         assert resample in (None, 'bin', 'resample')
         self.resample = resample
 
-    def _load(self, path, tstep):
+    def _load(self, path, tmin, tstep, n_samples):
         x = load.unpickle(path)
+        # allow for pre-computed resampled versions
+        if isinstance(x, list):
+            xs = x
+            for x in xs:
+                if x.time.tstep == tstep:
+                    break
+            else:
+                raise IOError(f"{os.path.basename(path)} does not contain tstep={tstep!r}")
+        # continuous UTS
         if isinstance(x, NDVar):
             if x.time.tstep == tstep:
                 pass
@@ -48,13 +92,15 @@ class FilePredictor:
                 raise RuntimeError(f"{os.path.basename(path)} has tstep={x.time.tstep}, not {tstep}")
             else:
                 raise RuntimeError(f"resample={self.resample!r}")
+            x = pad(x, tmin, nsamples=n_samples)
+        # NUTS
+        elif isinstance(x, Dataset):
+            ds = x
+            x = NDVar(numpy.zeros(n_samples), UTS(tmin, tstep, n_samples))
+            for t, v in ds.zip('time', 'value'):
+                x[t] = v
         else:
-            xs = x
-            for x in xs:
-                if x.time.tstep == tstep:
-                    break
-            else:
-                raise IOError(f"{os.path.basename(path)} does not contain tstep={tstep!r}")
+            raise TypeError(f'{x!r} at {path}')
         return x
 
 

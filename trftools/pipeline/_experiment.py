@@ -778,9 +778,8 @@ class TRFExperiment(MneExperiment):
             raise ValueError(f"{code.string!r}: can't load EventPredictor")
         elif isinstance(predictor, FilePredictor):
             path = Path(self.get('predictor-dir')) / f'{code.string_without_rand}.pickle'
-            x = predictor._load(path, tstep)
+            x = predictor._load(path, tmin, tstep, n_samples)
             code.register_string_done()
-            x = pad(x, tmin, nsamples=n_samples)
             if code.shuffle in NDVAR_SHUFFLE_METHODS:
                 x = shuffle(x, code.shuffle, code.shuffle_band, code.shuffle_angle)
                 code.register_shuffle()
