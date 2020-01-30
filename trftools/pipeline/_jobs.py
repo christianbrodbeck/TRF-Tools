@@ -83,7 +83,9 @@ class Job:
         self.test_path = None
 
     def __repr__(self):
-        return f"<{self.__class__.__name__}: {self.model_name}>"
+        args = [self.model_name]
+        args.extend(f'{k}={v!r}' for k, v in self.options.items())
+        return f"<{self.__class__.__name__}: {', '.join(args)}>"
 
     def is_same(self, other: 'Job'):
         return (
