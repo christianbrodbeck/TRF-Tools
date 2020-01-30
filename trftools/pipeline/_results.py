@@ -28,15 +28,9 @@ class ResultCollection(dict):
     def _repr_pretty_(self, p, cycle):
         if cycle:
             raise NotImplementedError
-        table = fmtxt.Table('lrr')
-        table.cells("<ResultCollection:", 'p', 'sig')
-        for key, res in self.items():
-            pmin = res.p.min()
-            table.cell(f'  {key}')
-            table.cell(fmtxt.p(pmin))
-            table.cell(fmtxt.Stars.from_p(pmin))
-        text = str(table) + '>'
-        p.text(text)
+        table = str(self.table()).splitlines()
+        lines = ("<ResultCollection:", *(f'  {line}' for line in table), '>')
+        p.text('\n'.join(lines))
 
     def _default_plot_obj(self):
         out = [test._default_plot_obj() for test in self.values()]
@@ -77,7 +71,17 @@ class ResultCollection(dict):
                     pmin = res.p.min()
                     table.cell(fmtxt.FMText([fmtxt.p(pmin), star(pmin)]))
         elif self.test_type is anova:
-            return
+            table = fmtxt.Table('lllll', title=title, caption=caption)
+            table.cells('Test', 'Effect', fmtxt.symbol(self.test_type._statistic, 'max'), fmtxt.symbol('p'), 'sig')
+            table.midrule()
+            for key, res in self.items():
+                for i, effect in enumerate(res.effects):
+                    table.cells(key, effect)
+                    pmin = res.p[i].min()
+                    table.cell(fmtxt.stat(res._max_statistic(i)))
+                    table.cell(fmtxt.p(pmin))
+                    table.cell(star(pmin))
+                    key = ''
         else:
             table = fmtxt.Table('llll', title=title, caption=caption)
             table.cells('Effect', fmtxt.symbol(self.test_type._statistic, 'max'), fmtxt.symbol('p'), 'sig')
