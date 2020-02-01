@@ -1061,8 +1061,8 @@ class TRFExperiment(MneExperiment):
             else:
                 partitions = -2
         # reshape data
-        if partitions == -1:
-            partitions = None
+        if partitions < 0:
+            partitions = None if partitions == -1 else -partitions
             y = concatenate(y)
             xs = [concatenate(x) for x in xs]
         elif partitions is None:
@@ -1671,8 +1671,10 @@ class TRFExperiment(MneExperiment):
         # cross-validation
         if partitions is None:
             trf_options.append('seg')
-        elif partitions != -1:
+        elif partitions > 0:
             trf_options.append(f'{partitions}ptns')
+        elif partitions < 0:
+            trf_options.append(f'con{-partitions}ptns')
         # backward model
         if backward:
             trf_options.append('backward')
