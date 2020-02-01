@@ -267,7 +267,7 @@ class TRFExperiment(MneExperiment):
     # mapping {prefix: stim_var}, e.g. {'': 'fg', 'bg': 'bg', 'mix': 'mix'}
     # maps
     #  - 'audspec' -> stimulus from variable called 'fg'
-    #  - 'bg|audspec' -> stimulus from variable 'bg'
+    #  - 'bg|audspec' -> stimulus from variable called 'bg'
     stim_var = 'stimulus'
     predictors = {}
 
@@ -300,6 +300,18 @@ class TRFExperiment(MneExperiment):
 
     def _collect_invalid_files(self, invalid_cache, new_state, cache_state):
         rm = MneExperiment._collect_invalid_files(self, invalid_cache, new_state, cache_state)
+
+        # stimuli
+        for var, subject in invalid_cache['variable_for_subject']:
+            if var in self._stim_var.values():
+                state = {'subject': subject}
+                rm['trf-file'].add(state)
+                for group, members in self._groups.items():
+                    if subject in members:
+                        state = {'group': group}
+                        rm['trf-test-file'].add(state)
+                        rm['model-test-file'].add(state)
+                        rm['model-report-file'].add(state)
 
         # epochs are based on events
         for subject, recording in invalid_cache['events']:
