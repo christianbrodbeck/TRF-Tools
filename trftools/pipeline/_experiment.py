@@ -798,6 +798,11 @@ class TRFExperiment(MneExperiment):
         except KeyError:
             raise code.error(f"predictor undefined in {self.__class__.__name__}", 0)
 
+        if code.has_randomization:
+            seed = int(''.join(re.findall(r'\d', self.get('subject')))) * code.shuffle_angle
+        else:
+            seed = None
+
         if isinstance(predictor, EventPredictor):
             raise ValueError(f"{code.string!r}: can't load EventPredictor")
         elif isinstance(predictor, FilePredictor):
@@ -809,7 +814,7 @@ class TRFExperiment(MneExperiment):
                 code.register_shuffle()
             code.assert_done()
         elif isinstance(predictor, MakePredictor):
-            x = self._make_predictor(code, tstep, n_samples, tmin)
+            x = self._make_predictor(code, tstep, n_samples, tmin, seed)
         else:
             raise code.error(f"Unknown predictor type {predictor}", 0)
 
@@ -833,7 +838,7 @@ class TRFExperiment(MneExperiment):
             x.name = name
         return x
 
-    def _make_predictor(self, code, tstep=0.01, n_samples=None, tmin=0.):
+    def _make_predictor(self, code, tstep=0.01, n_samples=None, tmin=0., seed=False):
         "Wrapper for .make_predictor() with caching"
         if code.has_randomization:
             cache_path = None
@@ -842,7 +847,7 @@ class TRFExperiment(MneExperiment):
             cache_path = cache_dir / f'{code.string} {tmin:g} {tstep:g} {n_samples}.pickle'
             if exists(cache_path):
                 return load.unpickle(cache_path)
-        x = self.make_predictor(code, tstep, n_samples, tmin)
+        x = self.make_predictor(code, tstep, n_samples, tmin, seed)
         x = pad(x, tmin, nsamples=n_samples)
         # check time
         if n_samples is None:
@@ -857,7 +862,7 @@ class TRFExperiment(MneExperiment):
             save.pickle(x, cache_path)
         return x
 
-    def make_predictor(self, code, tstep=0.01, n_samples=None, tmin=0.):
+    def make_predictor(self, code, tstep=0.01, n_samples=None, tmin=0., seed=False):
         raise NotImplementedError
 
     # TRF
