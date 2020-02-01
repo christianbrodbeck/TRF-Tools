@@ -4,7 +4,8 @@ import os
 from eelbrain import load, Dataset, NDVar, UTS, epoch_impulse_predictor, resample
 import numpy
 
-from .._ndvar import pad
+from .._ndvar import pad, shuffle
+from ._code import NDVAR_SHUFFLE_METHODS
 
 
 class EventPredictor:
@@ -60,14 +61,16 @@ class FilePredictor:
     Predictors can be :class:`NDVar` (UTS) or :class:`Dataset` (NUTS). NUTS
     predictors should contain the following columns:
 
-     - ``t``: Time stamp of the event/impulse
-     - ``v``: Value of the impulse
+     - ``ttime``: Time stamp of the event/impulse
+     - ``value``: Value of the impulse
+     - ``permute``: Boolean :class:`Var` indicating which cases should be
+       permuted for ``$permute``.
     """
     def __init__(self, resample=None):
         assert resample in (None, 'bin', 'resample')
         self.resample = resample
 
-    def _load(self, path, tmin, tstep, n_samples):
+    def _load(self, path, tmin, tstep, n_samples, code, seed):
         x = load.unpickle(path)
         # allow for pre-computed resampled versions
         if isinstance(x, list):
@@ -96,11 +99,23 @@ class FilePredictor:
         # NUTS
         elif isinstance(x, Dataset):
             ds = x
-            x = NDVar(numpy.zeros(n_samples), UTS(tmin, tstep, n_samples))
+            if code.shuffle == 'permute':
+                rng = numpy.random.RandomState(seed)
+                index = ds['permute'].x
+                assert index.dtype.kind == 'b'
+                values = ds[index, 'value'].x
+                rng.shuffle(values)
+                ds[index, 'value'] = values
+                code.register_shuffle()
+            x = NDVar(numpy.zeros(n_samples), UTS(tmin, tstep, n_samples), name=code.code_with_rand)
             for t, v in ds.zip('time', 'value'):
                 x[t] = v
         else:
             raise TypeError(f'{x!r} at {path}')
+
+        if code.shuffle in NDVAR_SHUFFLE_METHODS:
+            x = shuffle(x, code.shuffle, code.shuffle_band, code.shuffle_angle)
+            code.register_shuffle()
         return x
 
 

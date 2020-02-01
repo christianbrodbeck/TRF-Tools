@@ -185,8 +185,8 @@ from eelbrain._utils import ask
 import numpy as np
 from tqdm import tqdm
 
-from .._ndvar import pad, shuffle
-from ._code import SHUFFLE_METHODS, NDVAR_SHUFFLE_METHODS, Code
+from .._ndvar import pad
+from ._code import SHUFFLE_METHODS, Code
 from ._jobs import TRFsJob, ModelJob
 from ._model import Comparison, IncrementalComparisons, Model, is_comparison, load_models, save_models
 from ._predictor import EventPredictor, FilePredictor, MakePredictor
@@ -807,11 +807,8 @@ class TRFExperiment(MneExperiment):
             raise ValueError(f"{code.string!r}: can't load EventPredictor")
         elif isinstance(predictor, FilePredictor):
             path = Path(self.get('predictor-dir')) / f'{code.string_without_rand}.pickle'
-            x = predictor._load(path, tmin, tstep, n_samples)
+            x = predictor._load(path, tmin, tstep, n_samples, code, seed)
             code.register_string_done()
-            if code.shuffle in NDVAR_SHUFFLE_METHODS:
-                x = shuffle(x, code.shuffle, code.shuffle_band, code.shuffle_angle)
-                code.register_shuffle()
             code.assert_done()
         elif isinstance(predictor, MakePredictor):
             x = self._make_predictor(code, tstep, n_samples, tmin, seed)
