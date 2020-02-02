@@ -268,13 +268,12 @@ class ModelJob(Job):
         return self.experiment._locate_model_test_trfs(self.model, **self.options)
 
     def _execute(self):
-        path = self.experiment.make_model_test_report(self.model, public_name=self.public_model_name, **self.options, **self._test_options)
         job = self.reduced_model_job()
         if job:
             job.execute()
             self._reduction_results.extend(job._reduction_results)
-        else:
-            return path
+        elif self.report:
+            return self.experiment.make_model_test_report(self.model, public_name=self.public_model_name, **self.options, **self._test_options)
 
     def has_followup_jobs(self):
         return self.reduce_model
@@ -307,6 +306,9 @@ class ModelJob(Job):
         self.experiment.reset()
         ress = self.experiment.load_model_test(self.model, **self.options, **self._test_options)
         self._reduction_results.append(ress)
+        # no terms left
+        if len(ress) == 0:
+            return
         # find term to remove
         pmins = [(term, res.p.min()) for term, res in ress.items()]
         least_term, pmax = max(pmins, key=itemgetter(1))
@@ -320,6 +322,15 @@ class ModelJob(Job):
         return ModelJob(model, self.experiment, self.report, self.reduce_model, self, self.priority, self.postfit, self._reduction_tag, **self._test_options, **self.options)
 
     def reduction_table(self, labels=None, vertical=False):
+        """Table with steps of model reduction
+
+        Parameters
+        ----------
+        labels : dict {str: str}
+            Substitute new labels for predictors.
+        vertical : bool
+            Orient table vertically.
+        """
         if not self._reduction_results:
             self.execute()
         if labels is None:
