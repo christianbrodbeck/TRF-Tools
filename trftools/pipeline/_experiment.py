@@ -171,6 +171,7 @@ from eelbrain import (
     MneExperiment, Dataset, Factor, NDVar, Categorial, UTS,
     morph_source_space, rename_dim, boosting, combine, concatenate,
 )
+from eelbrain._exceptions import DimensionMismatchError
 from eelbrain.fmtxt import List, Report, Table
 from eelbrain.pipeline import TTestOneSample, TTestRel, TwoStageTest, RawFilter, RawSource
 from eelbrain._experiment.definitions import FieldCode
@@ -186,6 +187,7 @@ import numpy as np
 from tqdm import tqdm
 
 from .._ndvar import pad
+from .._numpy_funcs import arctanh
 from ._code import SHUFFLE_METHODS, Code
 from ._jobs import TRFsJob, ModelJob
 from ._model import Comparison, IncrementalComparisons, Model, is_comparison, load_models, save_models
@@ -940,7 +942,7 @@ class TRFExperiment(MneExperiment):
                 res.n_samples = meg.shape[0] * meg.shape[meg.get_axis('time')]
                 save.pickle(res, dst)
             # check x
-            if hasattr(res, 'x'):  # not NCRF
+            if not backward and hasattr(res, 'x'):  # not NCRF
                 res_keys = [res.x] if isinstance(res.x, str) else sorted(res.x)
                 x_keys = sorted(Dataset.as_key(term) for term in (postfit.terms if postfit else x.terms))
                 if res_keys != x_keys:
@@ -1182,7 +1184,16 @@ class TRFExperiment(MneExperiment):
             for _ in self.iter(group=group, progress_bar="Load TRFs"):
                 ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, backward, postfit, make, scale, smooth, smooth_time, vardef, permutations, vector_as_norm)
                 dss.append(ds)
-            return combine(dss)
+
+            try:
+                out = combine(dss)
+            except DimensionMismatchError:
+                # backward model can have incompatible
+                for ds in dss:
+                    del ds[data.y_name]
+                out = combine(dss)
+                out.info['load_trfs'] = f"Dropping {data.y_name} (incompatible dimension)"
+            return out
 
         # collection epochs
         epoch = self._epochs[self.get('epoch')]
@@ -1262,10 +1273,10 @@ class TRFExperiment(MneExperiment):
                 else:
                     res_partitions = res.partitions
                     r = res.r
-                    z = NDVar(np.arctanh(r.x), r.dims, info={'unit': 'z(r)'})
+                    z = arctanh(r, info={'unit': 'z(r)'})
                     if is_vector_data:
                         r1 = res.r_l1
-                        z1 = NDVar(np.arctanh(r1.x), r1.dims, info={'unit': 'z(r)'})
+                        z1 = arctanh(r1, info={'unit': 'z(r)'})
                     residual = res.residual
                     det = res.proportion_explained
                     tstep = res.h_time.tstep
@@ -1276,10 +1287,10 @@ class TRFExperiment(MneExperiment):
                 if not is_dstrf:
                     assert res.partitions == res_partitions
                     r += res.r
-                    z.x += np.arctanh(res.r.x)
+                    z += arctanh(res.r)
                     if r1 is not None:
                         r1 += res.r_l1
-                        z1.x += np.arctanh(res.r_l1.x)
+                        z1 += arctanh(res.r_l1)
                     residual += res.residual
                     det += res.proportion_explained
         # average
@@ -1296,22 +1307,23 @@ class TRFExperiment(MneExperiment):
                 det /= permutations
 
         # kernel names
-        x_keys_set = set(x_keys)
-        assert len(x_keys_set) == len(x_keys), 'non-unique predictor key'
-        h_names = {hi.name.replace('_fliphalves', '_shift') for hi in h}
-        if postfit:
-            assert h_names == post_fit_xs, 'predictor key mismatch'
-        else:
-            assert h_names == x_keys_set, 'predictor key mismatch'
+        if not backward:
+            x_keys_set = set(x_keys)
+            assert len(x_keys_set) == len(x_keys), 'non-unique predictor key'
+            h_names = {hi.name.replace('_fliphalves', '_shift') for hi in h}
+            if postfit:
+                assert h_names == post_fit_xs, f'predictor key mismatch'
+            else:
+                assert h_names == x_keys_set, f"predictor key mismatch\nmodel: {' + '.join(sorted(x_keys_set))}\ndata:  {' + '.join(sorted(h_names))}"
 
         # output Dataset
         ds = Dataset(info={'xs': x_keys, 'x_names': x.terms, 'samplingrate': 1 / tstep, 'partitions': partitions or res_partitions}, name=self._x_desc(x))
         ds['subject'] = Factor([subject], random=True)
         if not is_dstrf:
-            ds['r'] = r[newaxis]
-            ds['residual'] = 1 - residual[newaxis]
-            ds['det'] = det[newaxis]
-            ds['z'] = z[newaxis]
+            ds[:, 'r'] = r
+            ds[:, 'residual'] = 1 - residual
+            ds[:, 'det'] = det
+            ds[:, 'z'] = z
             if is_vector_data:
                 ds['r1'] = r1[newaxis]
                 ds['z1'] = z1[newaxis]
