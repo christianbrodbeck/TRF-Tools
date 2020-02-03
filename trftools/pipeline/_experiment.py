@@ -1806,19 +1806,17 @@ class TRFExperiment(MneExperiment):
     def _coerce_comparison(
             self,
             x: Union[str, Comparison, IncrementalComparisons],
-            x0: Model = None,  # only for model-test, assumes x is Model
             tail=None,
     ) -> Union[Comparison, IncrementalComparisons]:
         if isinstance(x, str):
             if x in self._structured_models:
                 x = self._structured_models[x]
             elif is_comparison(x):
-                return Comparison.coerce(x, x0, tail, self._named_models)
+                return Comparison.coerce(x, None, tail, self._named_models)
             else:
                 x = IncrementalComparisons(x)
         elif not isinstance(x, (IncrementalComparisons, Comparison)):
             raise TypeError(f"x={x!r}: need comparison")
-        assert x0 is None
         assert tail is None
         return x
 
@@ -1857,7 +1855,7 @@ class TRFExperiment(MneExperiment):
         else:
             raise TypeError(f"x={x!r}")
 
-    def load_model_test(self, x, x0=None, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, test=True, tail=None, return_data=False, pmin='tfce', xhemi=False, xhemi_mask=True, make=False, **state):
+    def load_model_test(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, test=True, tail=None, return_data=False, pmin='tfce', xhemi=False, xhemi_mask=True, make=False, **state):
         """Test comparing model fit between two models
 
         Parameters
@@ -1900,7 +1898,7 @@ class TRFExperiment(MneExperiment):
         """
         postfit = False
         data = TestDims.coerce(data, time=False)
-        comparison = self._coerce_comparison(x, x0, tail)
+        comparison = self._coerce_comparison(x, tail)
 
         # Load multiple tests for a comparison group
         if isinstance(comparison, IncrementalComparisons):
@@ -1910,7 +1908,7 @@ class TRFExperiment(MneExperiment):
             ress = [
                 (
                     comp.test_term_name,
-                    self.load_model_test(comp, None, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, permutations, metric, smooth, test, tail, return_data, pmin, xhemi, xhemi_mask, make)
+                    self.load_model_test(comp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, permutations, metric, smooth, test, tail, return_data, pmin, xhemi, xhemi_mask, make)
                 )
                 for comp in comparisons
             ]
@@ -1977,7 +1975,7 @@ class TRFExperiment(MneExperiment):
                 if xhemi_mask:
                     parc = self._xhemi_parc()
                     with self._temporary_state:
-                        base_res = self.load_model_test(comparison, None, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, permutations, metric, smooth, test, pmin=pmin, make=make)
+                        base_res = self.load_model_test(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, permutations, metric, smooth, test, pmin=pmin, make=make)
                     if isinstance(base_res, MultiEffectNDTest):
                         raise NotImplementedError("xhemi_mask for multi-effect tests")
                     mask_lh, mask_rh = eelbrain.xhemi(base_res.p <= 0.05, parc=parc)
@@ -2029,7 +2027,7 @@ class TRFExperiment(MneExperiment):
                 self._locate_missing_trfs(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, False, postfit, permutations))
         return missing
 
-    def make_model_test_report(self, x, x0=None, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, tail=None, surf=None, views=None, make=False, path_only=False, public_name=None, test=True, by_subject=False, **state):
+    def make_model_test_report(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, tail=None, surf=None, views=None, make=False, path_only=False, public_name=None, test=True, by_subject=False, **state):
         """Generate report for model comparison
 
         Parameters
@@ -2047,7 +2045,7 @@ class TRFExperiment(MneExperiment):
         data = TestDims.coerce(data)
         if data.source is not True:
             raise NotImplementedError("Model-test report for data other than source space")
-        x = self._coerce_comparison(x, x0, tail)
+        x = self._coerce_comparison(x, tail)
         self._set_trf_options(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, metric=metric, smooth_source=smooth, is_group_result=True, is_public=True, test=test, permutations=permutations, by_subject=by_subject, public_name=public_name, state=state)
         dst = self.get('model-report-file', mkdir=True)
         if path_only:
@@ -2056,7 +2054,7 @@ class TRFExperiment(MneExperiment):
             return
         self._log.info("Make TRF-report: %s", relpath(dst, self.get('model-res-dir')))
 
-        ds, res = self.load_model_test(x, None, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, permutations, metric, smooth, test, tail, True, 'tfce', make=make)
+        ds, res = self.load_model_test(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, permutations, metric, smooth, test, tail, True, 'tfce', make=make)
 
         if isinstance(x, IncrementalComparisons):
             comparisons = x.comparisons
