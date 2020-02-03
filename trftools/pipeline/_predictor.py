@@ -33,6 +33,11 @@ class EventPredictor:
 class FilePredictor:
     """Predictor stored in file(s)
 
+    .. warning::
+        When changing the file in which the predictor is stored, cached results
+        using that predictor will not automatically be deleted. Use
+        :meth:`TRFExperiment.invalidate` whenever replacing a predictors.
+
     Parameters
     ----------
     resample : 'bin' | 'resample'
@@ -99,15 +104,19 @@ class FilePredictor:
         # NUTS
         elif isinstance(x, Dataset):
             ds = x
-            if code.shuffle == 'permute':
+            if code.shuffle in ('permute', 'relocate'):
                 rng = numpy.random.RandomState(seed)
-                index = ds['permute'].x
-                assert index.dtype.kind == 'b'
-                values = ds[index, 'value'].x
-                rng.shuffle(values)
-                ds[index, 'value'] = values
+                if code.shuffle == 'permute':
+                    index = ds['permute'].x
+                    assert index.dtype.kind == 'b'
+                    values = ds[index, 'value'].x
+                    rng.shuffle(values)
+                    ds[index, 'value'] = values
+                else:
+                    rng.shuffle(ds['value'].x)
                 code.register_shuffle()
             x = NDVar(numpy.zeros(n_samples), UTS(tmin, tstep, n_samples), name=code.code_with_rand)
+            ds = ds[ds['time'] < x.time.tstop]
             for t, v in ds.zip('time', 'value'):
                 x[t] = v
         else:
