@@ -35,7 +35,7 @@ class Code(CodeBase):
     def __init__(self, string):
         m = re.match(r'(?:([\w+-]+)\|)?([\w:-]+)(?:\$(-?\d*-?)([a-zA-Z]+)(\d*))?$', string)
         if not m:
-            raise ValueError(f'{string!r}')
+            raise CodeError(string, "not a valid code")
         stim, code_string, shuffle_band, shuffle, angle = m.groups()
         if shuffle:
             self.code_with_rand = f'{code_string}${shuffle_band}{shuffle}{angle}'
