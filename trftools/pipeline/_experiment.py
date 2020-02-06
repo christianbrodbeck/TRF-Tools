@@ -160,6 +160,7 @@ import fnmatch
 from functools import partial
 from glob import glob
 from itertools import product, repeat
+from operator import attrgetter
 import os
 from os.path import exists, getmtime, join, relpath, splitext
 from pathlib import Path
@@ -217,7 +218,7 @@ MODEL_TEST = {
     -1: TTestRel('model', 'test', 'baseline', -1),
 }
 TRF_TEST = TTestOneSample()
-DSTRF_RE = re.compile('(ncrf|dstrf)(?:-(l2|l2mu))?$')
+DSTRF_RE = re.compile(r'(ncrf)(?:-(\w+))?$')
 
 
 class NameTooLong(Exception):
@@ -1050,34 +1051,48 @@ class TRFExperiment(MneExperiment):
         else:
             prefit_trf = None
 
-        # DSTRF: maybe model exists
-        mu = 'auto'  # do cross-validations
+        # NCRF: Cross-validations
+        ncrf_args = {'mu': 'auto'}
         if m and m.group(2):
+            # maybe model exists
+            ncrf_tag = m.group(2)
             # find best mu from previous cross-validations
             with self._temporary_state:
                 cv = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, inv=m.group(1))
-            if m.group(2) == 'l2':
-                mu = cv.cv_mu('l2')
-            elif m.group(2) == 'l2mu':
-                mu = cv.cv_mu('l2/mu')
+
+            if ncrf_tag == 'l2':
+                ncrf_args['mu'] = cv.cv_mu('l2')
+            elif ncrf_tag == 'l2mu':
+                ncrf_args['mu'] = cv.cv_mu('l2/mu')
+            elif ncrf_tag == 'cv2':
+                grade = 10
+                cv_results = sorted(cv._cv_results, key=attrgetter('mu'))
+                best_cv = min(cv_results, key=attrgetter('cross_fit'))
+                i = cv_results.index(best_cv)
+                ncrf_args['mu'] = np.logspace(np.log10(cv_results[i-1].mu), np.log10(cv_results[i+1].mu), grade+2)[1:-1]
+            elif ncrf_tag == '50it':
+                ncrf_args['n_iter'] = 50
+            elif ncrf_tag == 'no_champ':
+                ncrf_args.update(n_iter=1, n_iterf=1000, n_iterc=0)
             else:
                 raise RuntimeError(f'inv={inv!r}')
             # check whether fit with mu exists
-            src_inv = None
-            if mu == cv.mu:
-                src_inv = 'dstrf'
-            elif inv == 'dstrf-l2mu':
-                with self._temporary_state:
-                    l2_trf = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, inv='dstrf-l2')
-                if mu == l2_trf.mu:
-                    src_inv = 'dstrf-l2'
-            # if fit with mu exists, link it
-            if src_inv is not None:
-                with self._temporary_state:
-                    src = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, inv=src_inv)
-                    dst = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, inv=inv)
-                os.link(src, dst)
-                return
+            if ncrf_tag.startswith('l2'):
+                src_inv = None
+                if ncrf_args['mu'] == cv.mu:
+                    src_inv = 'dstrf'
+                elif inv == 'dstrf-l2mu':
+                    with self._temporary_state:
+                        l2_trf = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, inv='dstrf-l2')
+                    if ncrf_args['mu'] == l2_trf.mu:
+                        src_inv = 'dstrf-l2'
+                # if fit with mu exists, link it
+                if src_inv is not None:
+                    with self._temporary_state:
+                        src = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, inv=src_inv)
+                        dst = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, inv=inv)
+                    os.link(src, dst)
+                    return
 
         # load data
         if m:
@@ -1133,11 +1148,8 @@ class TRFExperiment(MneExperiment):
                 y = y.sub(sensor=chs)
             else:
                 assert np.all(y.sensor.names == chs)
-            if m.group(1) == 'dstrf':
-                from dstrf import dstrf as fit_ncrf
-            else:
-                from ncrf import fit_ncrf
-            return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, mu=mu, normalize=True, in_place=True)
+            from ncrf import fit_ncrf
+            return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, normalize=True, in_place=True, **ncrf_args)
         return partial(boosting, y, xs, tstart, tstop, 'inplace', delta, mindelta, error, basis, 'hamming', partitions, None, None, selective_stopping, prefit_trf)
 
     def load_trfs(self, subject, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, backward=False, postfit=False, make=False, scale=None, smooth=None, smooth_time=None, vardef=None, permutations=1, vector_as_norm=False, **state):
