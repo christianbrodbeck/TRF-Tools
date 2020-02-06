@@ -2193,7 +2193,7 @@ class TRFExperiment(MneExperiment):
         reg_pattern = f"*{regressor}*"
 
         # find all named models that contain term
-        models = []
+        models = [(regressor, None)]  # single-term model
         for name, model in self._named_models.items():
             if any(reg_re_term.match(term) for term in model.terms_without_randomization):
                 models.append((name, model))
