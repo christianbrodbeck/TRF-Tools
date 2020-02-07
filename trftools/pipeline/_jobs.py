@@ -282,13 +282,13 @@ class ModelJob(Job):
         try:
             job = self.reduced_model_job()
         except:
-            log.exception("Generating reduced model job for %s", self.test_path)
+            log.exception("Generating reduced model job for %s", self.test_path or self.public_model_name)
             job = None
         else:
             if job is None:
-                log.info("No further reduction of %s", self.test_path)
+                log.info("No further reduction of %s", self.test_path or self.public_model_name)
             else:
-                log.info("Reduced model of %s", self.test_path)
+                log.info("Reduced model of %s", self.test_path or self.public_model_name)
         if job is None:
             return []
         else:
