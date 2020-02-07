@@ -843,10 +843,17 @@ class TRFExperiment(MneExperiment):
             cache_path = None
         else:
             cache_dir = Path(self.get('predictor-cache-dir', mkdir=True))
-            cache_path = cache_dir / f'{code.string} {tmin:g} {tstep:g} {n_samples}.pickle'
-            if exists(cache_path):
-                return load.unpickle(cache_path)
-        x = self.make_predictor(code, tstep, n_samples, tmin, seed)
+            cache_path = cache_dir / f'{code.string} {tmin:g} {tstep:g}.pickle'
+        # load/generate predictor
+        if cache_path and exists(cache_path):
+            x = load.unpickle(cache_path)
+        else:
+            x = self.make_predictor(code, tstep, n_samples, tmin, seed)
+            code.assert_done()
+        # cache
+        if cache_path:
+            save.pickle(x, cache_path)
+        # match time axis
         x = pad(x, tmin, nsamples=n_samples)
         # check time
         if n_samples is None:
@@ -855,10 +862,6 @@ class TRFExperiment(MneExperiment):
             target_time = UTS(tmin, tstep, n_samples)
         if x.time != target_time:
             raise code.error(f"Predictor time {x.time} does not match requested time {target_time}")
-        # finalize
-        code.assert_done()
-        if cache_path:
-            save.pickle(x, cache_path)
         return x
 
     def make_predictor(self, code, tstep=0.01, n_samples=None, tmin=0., seed=False):
