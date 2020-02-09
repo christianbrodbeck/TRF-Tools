@@ -324,22 +324,22 @@ class Dispatcher(object):
                 if cycle_time < MIN_IO_CYCLE_TIME:
                     sleep(MIN_IO_CYCLE_TIME - cycle_time)
 
-    def cancel_job(self, name):
+    def cancel_job(self, pattern):
         """Cancel all TRF-jobs related to this model"""
-        for job in self._user_jobs:
-            if job.model_name == name:
-                break
-        else:
-            raise ValueError(f"{name!r}: no job with this model name")
+        jobs = [job for job in self._user_jobs if fnmatch.fnmatch(job.model_name, pattern)]
+        if not jobs:
+            raise ValueError(f"{pattern!r}: no job with this model name")
         n_removed = 0
-        for trf_job in job.trf_jobs:
-            if trf_job.path in self._trf_job_queue:
-                self._trf_job_queue.remove(trf_job.path)
-                del self._trf_jobs[trf_job.path]
-                n_removed += 1
-        job.trf_jobs = None
-        job.missing_trfs.clear()
-        print(f"{n_removed} TRF-jobs canceled")
+        for job in jobs:
+            for trf_job in job.trf_jobs:
+                if trf_job.path in self._trf_jobs:
+                    del self._trf_jobs[trf_job.path]
+                    if trf_job.path in self._trf_job_queue:
+                        self._trf_job_queue.remove(trf_job.path)
+                    n_removed += 1
+            job.trf_jobs = None
+            job.missing_trfs.clear()
+        print(f"{len(jobs)} jobs with {n_removed} TRF-jobs canceled")
 
     def clear_job_queue(self):
         "Remove all TRF requests that have not been sent to the server yet"
