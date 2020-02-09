@@ -31,6 +31,7 @@ class Code(CodeBase):
         The regressor is distorted in a way that includes randomness.
     """
     _sep = '-'
+    _seed = None
 
     def __init__(self, string):
         m = re.match(r'(?:([\w+-]+)\|)?([\w:-]+)(?:\$(-?\d*-?)([a-zA-Z]+)(\d*))?$', string)
@@ -93,19 +94,26 @@ class Code(CodeBase):
         if self.shuffle and not self._shuffle_done:
             raise self.error("Shuffling not performed", i=-1)
 
+    def _get_rng(self):
+        if self._seed is None:
+            raise RuntimeError(f"{self} not seeded")
+        return np.random.RandomState(self._seed)
+
     def seed(self, subject=None):
         "Seed random state"
+        if not self.shuffle:
+            return
+        elif self._seed is not None:
+            raise RuntimeError(f"{self} seeded twice")
         if subject is None:
             seed = 0
+            angle_magnitude = 10
         else:
-            m = re.match(r'[a-zA-Z]*(\d+)', subject)
-            if not m:
-                raise ValueError(f'subject={subject!r}')
-            seed = int(m.group(1))
-        if self.shuffle_angle != 180:
-            seed += self.shuffle_angle ** 3
-        random.seed(seed)
-        np.random.seed(seed)
+            digits = ''.join(re.findall(r'\d', subject))
+            seed = int(digits)
+            angle_magnitude = 10**len(digits)
+        seed += self.shuffle_angle * angle_magnitude
+        self._seed = seed
 
     @property
     def string_without_rand(self):

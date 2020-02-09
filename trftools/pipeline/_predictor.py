@@ -1,15 +1,16 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
-import os
+from pathlib import Path
 
-from eelbrain import load, Dataset, NDVar, UTS, epoch_impulse_predictor, resample
+from eelbrain import load, Dataset, NDVar, UTS, combine, epoch_impulse_predictor, event_impulse_predictor, resample
+from eelbrain._experiment.definitions import typed_arg
 import numpy
 
 from .._ndvar import pad, shuffle
-from ._code import NDVAR_SHUFFLE_METHODS
+from ._code import NDVAR_SHUFFLE_METHODS, Code
 
 
 class EventPredictor:
-    """Generate an impulse at each event
+    """Generate an impulse for each epoch
 
     Parameters
     ----------
@@ -20,14 +21,17 @@ class EventPredictor:
         Latency of the impulse relative to the event in seconds (or expression
         retrieving it from the events dataset).
     """
-
     def __init__(self, value=1., latency=0.):
-        self.value = value
-        self.latency = latency
+        self.value = typed_arg(value, float, str)
+        self.latency = typed_arg(latency, float, str)
 
-    def _generate(self, time, ds, code):
+    def _generate(self, uts: UTS, ds: Dataset, code: Code):
         assert code.stim is None
-        return epoch_impulse_predictor((ds.n_cases, time), self.value, self.latency, code.code, ds)
+        return epoch_impulse_predictor((ds.n_cases, uts), self.value, self.latency, code.code, ds)
+
+    def _generate_continuous(self, uts: UTS, ds: Dataset, code: Code):
+        assert code.stim is None
+        return event_impulse_predictor(uts, 'T_relative', self.value, self.latency, code.code, ds)
 
 
 class FilePredictor:
@@ -75,7 +79,8 @@ class FilePredictor:
         assert resample in (None, 'bin', 'resample')
         self.resample = resample
 
-    def _load(self, path, tmin, tstep, n_samples, code, seed):
+    def _load(self, tstep: float, filename: str, directory: Path):
+        path = directory / f'{filename}.pickle'
         x = load.unpickle(path)
         # allow for pre-computed resampled versions
         if isinstance(x, list):
@@ -84,9 +89,8 @@ class FilePredictor:
                 if x.time.tstep == tstep:
                     break
             else:
-                raise IOError(f"{os.path.basename(path)} does not contain tstep={tstep!r}")
-        # continuous UTS
-        if isinstance(x, NDVar):
+                raise IOError(f"{path.name} does not contain tstep={uts.tstep!r}")
+        elif isinstance(x, NDVar):
             if x.time.tstep == tstep:
                 pass
             elif self.resample == 'bin':
@@ -97,34 +101,71 @@ class FilePredictor:
                 srate = int_srate if abs(int_srate - srate) < .001 else srate
                 x = resample(x, srate)
             elif self.resample is None:
-                raise RuntimeError(f"{os.path.basename(path)} has tstep={x.time.tstep}, not {tstep}")
+                raise RuntimeError(f"{path.name} has tstep={x.time.tstep}, not {tstep}")
             else:
                 raise RuntimeError(f"resample={self.resample!r}")
-            x = pad(x, tmin, nsamples=n_samples)
-        # NUTS
-        elif isinstance(x, Dataset):
-            ds = x
-            if code.shuffle in ('permute', 'relocate'):
-                rng = numpy.random.RandomState(seed)
-                if code.shuffle == 'permute':
-                    index = ds['permute'].x
-                    assert index.dtype.kind == 'b'
-                    values = ds[index, 'value'].x
-                    rng.shuffle(values)
-                    ds[index, 'value'] = values
-                else:
-                    rng.shuffle(ds['value'].x)
-                code.register_shuffle()
-            x = NDVar(numpy.zeros(n_samples), UTS(tmin, tstep, n_samples), name=code.code_with_rand)
-            ds = ds[ds['time'] < x.time.tstop]
-            for t, v in ds.zip('time', 'value'):
-                x[t] = v
-        else:
+        elif not isinstance(x, Dataset):
             raise TypeError(f'{x!r} at {path}')
+        return x
+
+    def _generate(self, uts: UTS, code: Code, directory: Path):
+        x = self._load(uts.tstep, code.string_without_rand, directory)
+        if isinstance(x, NDVar):
+            x = pad(x, uts.tmin, nsamples=uts.nsamples)
+        elif isinstance(x, Dataset):
+            x = self._ds_to_ndvar(x, uts, code)
+        else:
+            raise RuntimeError(x)
 
         if code.shuffle in NDVAR_SHUFFLE_METHODS:
             x = shuffle(x, code.shuffle, code.shuffle_band, code.shuffle_angle)
             code.register_shuffle()
+        return x
+
+    def _generate_continuous(self, uts: UTS, ds: Dataset, stim_var: str, code: Code, directory: Path):
+        cache = {stim: self._load(uts.tstep, code.with_stim(stim).string_without_rand, directory) for stim in ds[stim_var].cells}
+        # determine type
+        stim_type = {type(s) for s in cache.values()}
+        assert len(stim_type) == 1
+        stim_type = stim_type.pop()
+        #
+        if stim_type is Dataset:
+            dss = []
+            for t, stim in ds.zip('T_relative', stim_var):
+                x = cache[stim].copy()
+                x['time'] += t
+                dss.append(x)
+            x = self._ds_to_ndvar(combine(dss), uts, code)
+        elif stim_type is NDVar:
+            v = cache[ds[0, stim_var]]
+            dimnames = v.get_dimnames(first='time')
+            dims = (uts, *v.get_dims(dimnames[1:]))
+            shape = [len(dim) for dim in dims]
+            x = NDVar(numpy.zeros(shape), dims, code.code_with_rand)
+            for t, stim in ds.zip('T_relative', stim_var):
+                x_stim = cache[stim]
+                i_start = uts._array_index(t + x_stim.time.tmin)
+                i_stop = i_start + len(x_stim.time)
+                x.x[i_start:i_stop] = x_stim.get_data(dimnames)
+        return x
+
+    @staticmethod
+    def _ds_to_ndvar(ds: Dataset, uts: UTS, code: Code):
+        if code.shuffle in ('permute', 'relocate'):
+            rng = code._get_rng()
+            if code.shuffle == 'permute':
+                index = ds['permute'].x
+                assert index.dtype.kind == 'b'
+                values = ds[index, 'value'].x
+                rng.shuffle(values)
+                ds[index, 'value'] = values
+            else:
+                rng.shuffle(ds['value'].x)
+            code.register_shuffle()
+        x = NDVar(numpy.zeros(len(uts)), uts, name=code.code_with_rand)
+        ds = ds[ds['time'] < x.time.tstop]
+        for t, v in ds.zip('time', 'value'):
+            x[t] = v
         return x
 
 

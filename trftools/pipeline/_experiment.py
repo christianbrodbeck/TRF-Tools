@@ -687,25 +687,41 @@ class TRFExperiment(MneExperiment):
                 time = [yi.time for yi in y]
         is_variable_time = isinstance(time, list)
         code = Code.coerce(code)
-
-        # permutation
-        if code.has_randomization:
-            code.seed(self.get('subject'))
+        code.seed(ds.info['subject'])
 
         try:
             predictor = self.predictors[code.next()]
         except KeyError:
             raise code.error(f"predictor undefined in {self.__class__.__name__}", 0)
 
+        # which Dataset variable indicates the stimulus?
+        stim_var = self._stim_var[code.stim or '']
+
+        # For nested events
+        events_key = ds.info.get('nested_events')
+        if events_key:
+            assert is_variable_time
+            directory = Path(self.get('predictor-dir'))
+            xs = []
+            assert not code._shuffle_done
+            for uts, sub_ds in zip(time, ds[events_key]):
+                code._shuffle_done = False  # each iteration will register shuffle
+                if isinstance(predictor, EventPredictor):
+                    x = predictor._generate_continuous(uts, sub_ds, code)
+                elif isinstance(predictor, FilePredictor):
+                    x = predictor._generate_continuous(uts, sub_ds, stim_var, code, directory)
+                else:
+                    raise RuntimeError(predictor)
+                xs.append(x)
+            ds[code.key] = xs
+            return
+
         if isinstance(predictor, EventPredictor):
-            assert not filter, "filter not available for EventPredictor"
+            assert not filter, f"filter not available for {predictor.__class__.__name__}"
             assert not is_variable_time, "EventPredictor not implemented for variable-time epoch"
             ds[code.key] = predictor._generate(time, ds, code)
             code.assert_done()
             return
-
-        # which Dataset variable indicates the stimulus?
-        stim_var = self._stim_var[code.stim or '']
 
         # load predictors (cache for same stimulus unless they are randomized)
         if code.has_randomization or is_variable_time:
@@ -806,20 +822,20 @@ class TRFExperiment(MneExperiment):
         except KeyError:
             raise code.error(f"predictor undefined in {self.__class__.__name__}", 0)
 
-        if code.has_randomization:
-            seed = int(''.join(re.findall(r'\d', self.get('subject')))) * code.shuffle_angle
-        else:
-            seed = None
+        # if called without add_predictor
+        if code._seed is None:
+            code.seed(self.get('subject'))
 
-        if isinstance(predictor, EventPredictor):
-            raise ValueError(f"{code.string!r}: can't load EventPredictor")
-        elif isinstance(predictor, FilePredictor):
-            path = Path(self.get('predictor-dir')) / f'{code.string_without_rand}.pickle'
-            x = predictor._load(path, tmin, tstep, n_samples, code, seed)
+        if isinstance(predictor, FilePredictor):
+            directory = Path(self.get('predictor-dir'))
+            uts = UTS(tmin, tstep, n_samples)
+            x = predictor._generate(uts, code, directory)
             code.register_string_done()
             code.assert_done()
         elif isinstance(predictor, MakePredictor):
-            x = self._make_predictor(code, tstep, n_samples, tmin, seed)
+            x = self._make_predictor(code, tstep, n_samples, tmin)
+        elif isinstance(predictor, EventPredictor):
+            raise ValueError(f"{code.string!r}: can't load {predictor.__class__.__name__} without data; use {self.__class__.__name__}.add_predictor()")
         else:
             raise code.error(f"Unknown predictor type {predictor}", 0)
 
@@ -952,8 +968,10 @@ class TRFExperiment(MneExperiment):
                 save.pickle(res, dst)
             # check x
             if not backward and hasattr(res, 'x'):  # not NCRF
-                res_keys = [res.x] if isinstance(res.x, str) else sorted(res.x)
-                x_keys = sorted(Dataset.as_key(term) for term in (postfit.terms if postfit else x.terms))
+                res_keys = [res.x] if isinstance(res.x, str) else res.x
+                res_keys = sorted(Dataset.as_key(x) for x in res_keys)
+                x_keys = postfit.terms if postfit else x.terms
+                x_keys = sorted(Dataset.as_key(x) for x in x_keys)
                 if res_keys != x_keys:
                     raise RuntimeError(f"Result x mismatch:\n{dst}\nResult: {' + '.join(res_keys)}\nModel:  {' + '.join(x_keys)}")
             return res
@@ -1315,16 +1333,6 @@ class TRFExperiment(MneExperiment):
                 residual /= permutations
                 det /= permutations
 
-        # kernel names
-        if not backward:
-            x_keys_set = set(x_keys)
-            assert len(x_keys_set) == len(x_keys), 'non-unique predictor key'
-            h_names = {hi.name.replace('_fliphalves', '_shift') for hi in h}
-            if postfit:
-                assert h_names == post_fit_xs, f'predictor key mismatch'
-            else:
-                assert h_names == x_keys_set, f"predictor key mismatch\nmodel: {' + '.join(sorted(x_keys_set))}\ndata:  {' + '.join(sorted(h_names))}"
-
         # output Dataset
         ds = Dataset(info={'xs': x_keys, 'x_names': x.terms, 'samplingrate': 1 / tstep, 'partitions': partitions or res_partitions}, name=self._x_desc(x))
         ds['subject'] = Factor([subject], random=True)
@@ -1346,7 +1354,7 @@ class TRFExperiment(MneExperiment):
                     raise ValueError(f"smooth={smooth!r} with data={data.string!r}")
             if smooth_time:
                 hi = hi.smooth('time', smooth_time)
-            ds.add(hi[newaxis])
+            ds[Dataset.as_key(hi.name)] = hi[newaxis]
 
         self._add_vars(ds, vardef, groupvars=True)
         return ds
