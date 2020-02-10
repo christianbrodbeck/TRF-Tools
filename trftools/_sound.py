@@ -1,8 +1,12 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
 from eelbrain import NDVar, Scalar, UTS
+import eelbrain
 
+import numpy as np
 from ._ndvar import pad as _pad_func
-
+from gammatone.filters import make_erb_filters, centre_freqs, erb_filterbank
+import gammatone
+from mne.filter import resample
 
 def gammatone_bank(wav: NDVar, f_min: float, f_max: float, n: int, integration_window: float = 0.010, tstep: float = None, location: str = 'right', pad: bool = True, name: str = None) -> NDVar:
     """Gammatone filterbank response
@@ -66,9 +70,38 @@ def gammatone_bank(wav: NDVar, f_min: float, f_max: float, n: int, integration_w
     elif tstep % wav.time.tstep:
         raise ValueError(f"tstep={tstep}: must be a multiple of wav tstep ({wav.time.tstep})")
     sfreq = 1 / wav.time.tstep
-    x = gtgram(wav_.get_data('time'), sfreq, integration_window, tstep, n, f_min, f_max)
-    freqs = centre_freqs(sfreq, n, f_min, f_max)
-    # freqs = np.round(freqs, out=freqs).astype(int)
+
+
+    # prevent out of memory error
+    targetFs = 1000
+    tstep = 1/targetFs
+
+    downsampledLength = int(round(wav_.shape[0]/sfreq*targetFs))
+
+    cfs = centre_freqs(sfreq, n, f_min, f_max)
+    fullXe = np.zeros((n, downsampledLength))
+    for rIdx, currentCfs in enumerate(cfs):
+        fcoefs = np.flipud(make_erb_filters(sfreq, currentCfs))
+        xf = erb_filterbank(wav_.get_data('time'), fcoefs)
+        xe = np.power(xf, 2)
+
+        # downsample to targetFs
+        downsampledXe = resample(xe, down=sfreq/targetFs)
+        fullXe[len(cfs) - 1 - rIdx, :] = downsampledXe
+
+    nwin, hop_samples, ncols = gammatone.gtgram.gtgram_strides(targetFs, integration_window, tstep, fullXe.shape[1])
+    x = np.zeros((n, ncols))
+
+    for cnum in range(ncols):
+        segment = fullXe[:, cnum * hop_samples + np.arange(nwin)]
+        x[:, cnum] = np.sqrt(segment.mean(1))
+
+    freqs = centre_freqs(targetFs, n, f_min, f_max)
+
     freq_dim = Scalar('frequency', freqs[::-1], 'Hz')
     time_dim = UTS(tmin, tstep, x.shape[1])
-    return NDVar(x, (freq_dim, time_dim), name or wav.name)
+
+    xnew = np.nan_to_num(x)
+
+    return NDVar(xnew, (freq_dim, time_dim), name = name or wav.name)
+
