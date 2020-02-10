@@ -50,6 +50,7 @@ import re
 from types import GeneratorType
 from typing import Union, List
 
+import numpy as np
 from eelbrain._utils import LazyProperty
 
 
@@ -156,17 +157,23 @@ class Model:
 
     def multiple_permutations(self, n):
         """Generate multiple models with different permutations"""
-        assert self.has_randomization
-        assert isinstance(n, int) and n > 1 and n in (3, 7)
-        n_ = n + 1
-        if 360 % n_:
-            raise ValueError(f"n={n}: 360 not divisible by {n} + 1")
-        elif not n % 2:
-            raise ValueError(f"n={n}: needs to be odd number")
-        step = 360 // n_
-        angles = list(range(step, 360, step))
-        angles.remove(180)
-        angles.insert(0, 180)
+        if not self.has_randomization:
+            raise TypeError(f"permutations={n} for model without randomization: {self.name}")
+        elif not isinstance(n, int):
+            raise TypeError(f"permutations={n}, need int")
+        elif n <= 1:
+            raise ValueError(f"permutations={n}")
+        elif n >= 128:
+            raise NotImplementedError(f"permutations={n}")
+        n_to_go = n
+        cycle = 2
+        angles = []
+        while n_to_go > 0:
+            start = 360 / cycle
+            new = np.arange(start, 360, start * 2)
+            angles.extend(int(round(i)) for i in new[:n_to_go])
+            n_to_go -= len(new)
+            cycle *= 2
         return (self.with_angle(angle) for angle in angles)
 
     def randomize(self, x, rand):
