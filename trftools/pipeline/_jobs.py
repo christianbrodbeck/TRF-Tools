@@ -323,7 +323,7 @@ class ModelJob(Job):
         model = self.model.reduce(least_term)
         return ModelJob(model, self.experiment, self.report, self.reduce_model, self, self.priority, self.postfit, self._reduction_tag, **self._test_options, **self.options)
 
-    def reduction_table(self, labels=None, vertical=False):
+    def reduction_table(self, labels=None, vertical=False, title=None, caption=None):
         """Table with steps of model reduction
 
         Parameters
@@ -332,6 +332,10 @@ class ModelJob(Job):
             Substitute new labels for predictors.
         vertical : bool
             Orient table vertically.
+        title : text
+            Title for the table.
+        caption : text
+            Caption for the table.
         """
         if not self._reduction_results:
             self.execute()
@@ -357,7 +361,7 @@ class ModelJob(Job):
                 cells[i, x] = t_cell, p_cell
 
         if vertical:
-            t = fmtxt.Table('ll' + 'l' * n_terms)
+            t = fmtxt.Table('ll' + 'l' * n_terms, title=title, caption=caption)
             t.cells('Step', '')
             for x in terms:
                 t.cell(labels.get(x, x))
@@ -372,7 +376,7 @@ class ModelJob(Job):
                     t_row.cell(t_cell)
                     p_row.cell(p_cell)
         else:
-            t = fmtxt.Table('l' + 'rr' * n_steps)
+            t = fmtxt.Table('l' + 'rr' * n_steps, title=title, caption=caption)
             t.cell()
             for _ in range(n_steps):
                 t.cell(fmtxt.symbol('t', 'max'))
