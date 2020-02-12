@@ -2412,7 +2412,7 @@ class TRFExperiment(MneExperiment):
             t.cell(size_mb)
         return t
 
-    def show_models(self, term=None, stim=True, rand=True, sort=False, files=False):
+    def show_models(self, term=None, stim=True, rand=True, model=None, sort=False, files=False):
         """List models that contain a term that matches ``term``
 
         Parameters
@@ -2423,6 +2423,8 @@ class TRFExperiment(MneExperiment):
             Also include terms with a stimulus prefix.
         rand : bool
             Also show models that contain ``term`` randomized.
+        model : str
+            Pattern to display only certain models.
         sort : bool
             Sort terms (default False).
         files : bool
@@ -2447,6 +2449,7 @@ class TRFExperiment(MneExperiment):
             if rand:
                 pattern += r'(\$.*)?'
         pattern = re.compile(pattern)
+        model_pattern = model
 
         t = fmtxt.Table('lll' + 'r'*files)
         t.cells('.', 'Name', 'Terms')
@@ -2455,6 +2458,8 @@ class TRFExperiment(MneExperiment):
         t.midrule()
         for name, model in self._named_models.items():
             if not any(pattern.match(t) for t in model.terms):
+                continue
+            elif model_pattern and not fnmatch.fnmatch(name, model_pattern):
                 continue
             t.cell('*' if name in self.models else '')
             t.cell(name)
