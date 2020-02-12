@@ -119,6 +119,25 @@ class Job:
         raise NotImplementedError
 
 
+class FuncJob:
+
+    def __init__(self, name, jobs, priority=False):
+        self.name = name
+        self.jobs = jobs
+        self.priority = priority
+        self._i = -1
+
+    def __next__(self):
+        out = next(self.jobs)
+        self._i += 1
+        return out
+
+    @property
+    def desc(self):
+        return f"{self.name}-{self._i}"
+
+
+
 class TRFsJob(Job):
     """Job for group of TRFs
 

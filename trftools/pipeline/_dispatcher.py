@@ -38,7 +38,8 @@ from eelbrain._utils.com import Notifier
 from eelbrain._utils import ask
 from eelfarm.server import JobServer, JobServerTerminated
 
-from ..pipeline import read_job_file
+from . import read_job_file
+from ._jobs import FuncJob
 
 
 MIN_IO_CYCLE_TIME = 5  # I/O thread
@@ -164,6 +165,20 @@ class Dispatcher(object):
                 n += 1
         self.logger.info("%i jobs requested", n)
 
+    def add_jobs_from_iter(self, name, jobs):
+        """Add jobs by providing an iterator over ``(path, func)`` pairs
+
+        Parameters
+        ----------
+        name : str
+            Name by which the job will be known.
+        jobs : iterator over (path_like, callable)
+            Iterator over jobs. Each job should consist of a path_like, where
+            the result will be saved, and a callable, the function generating
+            the result.
+        """
+        self._request_queue.put(FuncJob(name, jobs))
+
     def _local_io(self):
         n_exceptions = n_trf_exceptions = 0
         while True:
@@ -187,6 +202,13 @@ class Dispatcher(object):
                         self.logger.info("%i requests processed, no new jobs", jobs_processed)
                     break
                 jobs_processed += 1
+
+                if isinstance(job, FuncJob):
+                    if job.priority:
+                        self._trf_job_queue.appendleft(job)
+                    else:
+                        self._trf_job_queue.append(job)
+                    break
 
                 # initialize job
                 try:
@@ -240,7 +262,24 @@ class Dispatcher(object):
             # put a new TRF-job into the server queue
             if self._trf_job_queue and not self._shutdown and not self.server.full():
                 path = self._trf_job_queue.popleft()
-                if path not in self._trf_jobs:
+                func = trfjob = None
+                if isinstance(path, FuncJob):
+                    trfjob = path
+                    try:
+                        dst, func = next(trfjob)
+                        path = dst
+                    except StopIteration:
+                        pass
+                    except Exception:
+                        n_trf_exceptions += 1
+                        self.logger.error(f"Error creating job {trfjob.desc}, dropping iterator")
+                        print_traceback(sys.exc_info())
+                    else:
+                        if trfjob.priority:
+                            self._trf_job_queue.appendleft(trfjob)
+                        else:
+                            self._trf_job_queue.append(trfjob)
+                elif path not in self._trf_jobs:
                     self.logger.warning("Key missing from jobs; was the result received as an orphan? %s", path)
                 else:
                     trfjob = self._trf_jobs[path]
@@ -259,16 +298,15 @@ class Dispatcher(object):
                                 self._user_jobs.remove(job)
                                 if job.test_path in self._report_jobs:
                                     del self._report_jobs[job.test_path]
+                if func is not None:
+                    try:
+                        self.server.put(path, func)
+                    except JobServerTerminated:
+                        self.logger.info("Request rejected, server terminated")
+                    except Exception:
+                        self.logger.exception("Request rejected by server: %s", trfjob.desc)
                     else:
-                        if func is not None:
-                            try:
-                                self.server.put(path, func)
-                            except JobServerTerminated:
-                                self.logger.info("Request rejected, server terminated")
-                            except Exception:
-                                self.logger.exception("Request rejected by server: %s", trfjob.desc)
-                            else:
-                                self.logger.info("Request %s", trfjob.desc)
+                        self.logger.info("Request %s", trfjob.desc)
             elif n_trf_exceptions:
                 self.logger.error(f"Ignored {n_trf_exceptions} faulty trf-jobs")
                 n_trf_exceptions = 0
