@@ -42,7 +42,7 @@ a + b$rnd > b + a$rnd
 
 
 """
-from collections import Sequence
+from collections.abc import Sequence
 from itertools import zip_longest
 from os.path import commonprefix
 import pickle

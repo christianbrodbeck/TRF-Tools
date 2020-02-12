@@ -723,7 +723,13 @@ class TRFExperiment(MneExperiment):
         ds[code.key] = xs
 
     def clean_models(self):
-        """Remove internal models that have no corresponding files"""
+        """Remove internal models that have no corresponding files
+
+        See Also
+        --------
+        .remove_model
+        .show_models
+        """
         models = list(self._named_models)
         for model in models:
             if model in self.models:
@@ -2290,6 +2296,7 @@ class TRFExperiment(MneExperiment):
 
         See Also
         --------
+        .clean_models
         .show_models
         """
         if model in self.models:
