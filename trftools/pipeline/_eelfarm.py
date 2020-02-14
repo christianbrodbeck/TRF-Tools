@@ -1,7 +1,7 @@
 import logging
 
 
-def start_dispatcher(notify=False, debug=False):
+def start_dispatcher(notify=False, debug=False, job_queue_length=5):
     """A dispatcher provides an experiment level interface to Eelfarm
 
     Parameters
@@ -10,6 +10,10 @@ def start_dispatcher(notify=False, debug=False):
         Email addresss to notify when jobs are done.
     debug : bool
         Log debug messages from HTML server.
+    job_queue_length : int
+        Number of jobs that will be kept in memory in a queue while waiting for
+        a worker (default 5). Reduce this number of jobs take up a lot of local
+        memory.
 
     Returns
     -------
@@ -19,7 +23,7 @@ def start_dispatcher(notify=False, debug=False):
     from eelfarm._utils import screen_handler
     from ._dispatcher import Dispatcher
 
-    d = Dispatcher(notify=notify)
+    d = Dispatcher(job_queue_length=job_queue_length, notify=notify)
     # configure logging
     d.logger.addHandler(screen_handler)
     d.logger.setLevel(logging.DEBUG)
