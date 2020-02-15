@@ -314,8 +314,10 @@ class ModelJob(Job):
         least_term, pmax = max(pmins, key=itemgetter(1))
         if pmax <= p_threshold:
             return  # all regressors are significant
-        if pmins.count(pmax) > 1:
-            tmaxs = [(term, ress[term].t.max()) for term, pmin in pmins if pmin == pmax]
+        # check for ambiguity
+        pmins = [term for term, p in pmins if p == pmax]
+        if len(pmins) > 1:
+            tmaxs = [(term, ress[term].t.max()) for term in pmins]
             least_term, tmin = min(tmaxs, key=itemgetter(1))
         # remove term
         model = self.model.reduce(least_term)
