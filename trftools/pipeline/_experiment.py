@@ -1372,7 +1372,7 @@ class TRFExperiment(MneExperiment):
         self._add_vars(ds, vardef, groupvars=True)
         return ds
 
-    def _locate_missing_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, backward=False, postfit=False, permutations=1, **state):
+    def _locate_missing_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, backward=False, postfit=False, permutations=1, existing=False, **state):
         "Return ``(path, state, args)`` for ._trf_job() for each missing trf-file"
         data = TestDims.coerce(data)
         x = self._coerce_model(x)
@@ -1390,7 +1390,7 @@ class TRFExperiment(MneExperiment):
         if permutations > 1 and x.has_randomization:
             args = args[1:]
             for xi in x.multiple_permutations(permutations):
-                out.extend(self._locate_missing_trfs(xi, *args))
+                out.extend(self._locate_missing_trfs(xi, *args, existing=existing))
             return out
 
         # EpochCollection: separate TRF for member epochs
@@ -1398,12 +1398,13 @@ class TRFExperiment(MneExperiment):
         if isinstance(epoch, EpochCollection):
             with self._temporary_state:
                 for epoch_ in epoch.collect:
-                    out.extend(self._locate_missing_trfs(*args, epoch=epoch_))
+                    out.extend(self._locate_missing_trfs(*args, existing=existing, epoch=epoch_))
             return out
 
         # postfit -> multiple
         if postfit is True:
             assert permutations == 1
+            assert not existing
             args = args[:-1]
             for term in x.terms:
                 out.extend(self._locate_missing_trfs(*args, term))
@@ -1412,15 +1413,19 @@ class TRFExperiment(MneExperiment):
         # one model, one epoch
         for _ in self:
             path = self._locate_trf(*args)
-            if os.path.exists(path):
-                continue  # TRF exists for requested mask
-            # Check whether TRF exists for superset parc
-            for super_parc in self._parc_supersets.get(mask, ()):
-                spath = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, data, backward, postfit)
-                if os.path.exists(spath):
-                    break
-            else:
-                out.append((path, self._copy_state(), args))
+            if not existing:
+                if os.path.exists(path):
+                    continue  # TRF exists for requested mask
+                # Check whether TRF exists for superset parc
+                super_exists = False
+                for super_parc in self._parc_supersets.get(mask, ()):
+                    spath = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, data, backward, postfit)
+                    if os.path.exists(spath):
+                        super_exists = True
+                        break
+                if super_exists:
+                    continue
+            out.append((path, self._copy_state(), args))
         return out
 
     def _xhemi_parc(self):
@@ -2047,7 +2052,7 @@ class TRFExperiment(MneExperiment):
                 return ds, res
         return res
 
-    def _locate_model_test_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, postfit=False, permutations=1, **state):
+    def _locate_model_test_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, postfit=False, permutations=1, existing=False, **state):
         """Find required jobs for a report
 
         Returns
@@ -2068,7 +2073,7 @@ class TRFExperiment(MneExperiment):
         missing = []
         for model in models:
             missing.extend(
-                self._locate_missing_trfs(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, False, postfit, permutations))
+                self._locate_missing_trfs(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, False, postfit, permutations, existing))
         return missing
 
     def make_model_test_report(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, tail=None, surf=None, views=None, make=False, path_only=False, public_name=None, test=True, by_subject=False, **state):
