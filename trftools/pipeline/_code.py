@@ -8,7 +8,7 @@ import numpy as np
 from .._ndvar import SHUFFLE_METHODS as NDVAR_SHUFFLE_METHODS
 
 
-VALUE_SHUFFLE_METHODS = ('permute', 'relocate')
+VALUE_SHUFFLE_METHODS = ('permute', 'remask', 'relocate')
 SHUFFLE_METHODS = NDVAR_SHUFFLE_METHODS + VALUE_SHUFFLE_METHODS
 
 
@@ -63,7 +63,7 @@ class Code(CodeBase):
                 else:
                     shuffle_band = int(index)
             else:
-                shuffle_band  = None
+                shuffle_band = None
         else:
             self.code_with_rand = code_string
             shuffle_band = shuffle = angle = None

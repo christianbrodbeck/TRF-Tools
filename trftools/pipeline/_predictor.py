@@ -64,16 +64,23 @@ class FilePredictor:
         {root}/predictors/{stimulus}|{name}[-{options}].pickle
 
     Where ``stimulus`` refers to the name provided by ``stim_var``, ``name``
-    refers to the predictor's name, and the optional ``options`` can define
-    different sub-varieties of the same predictor.
+    refers to the predictor's name, and the optional ``options`` can be used to
+    distinguish different sub-varieties of the same predictor.
 
-    Predictors can be :class:`NDVar` (UTS) or :class:`Dataset` (NUTS). NUTS
-    predictors should contain the following columns:
+    Predictors can be :class:`NDVar` (uniform time series) or :class:`Dataset`
+    (non-uniform time series). When loading a predictor, :class:`Dataset`
+    predictors are converted to :class:`NDVar` by placing impulses at
+    time-stamps specified in the datasets. These datasets can contain the
+    following columns:
 
-     - ``ttime``: Time stamp of the event/impulse
-     - ``value``: Value of the impulse
-     - ``permute``: Boolean :class:`Var` indicating which cases should be
-       permuted for ``$permute``.
+     - ``time``: Time stamp of the event (impulse) in seconds.
+     - ``value``: Value of the impulse (magnitude).
+     - ``permute``: Boolean :class:`Var` indicating which cases/events should be
+       permuted for ``$permute``. If missing, all cases are shuffled.
+     - ``mask``: If present, the (boolean) mask will be applied to ``value``
+       (``value`` will be set to zero wherever ``mask`` is ``False``).
+       For ``$permute``, the mask is applied before permuting. For ``$remask``,
+       ``mask`` is shuffled within the cases specified in ``permute``.
     """
     def __init__(self, resample=None):
         assert resample in (None, 'bin', 'resample')
@@ -151,17 +158,43 @@ class FilePredictor:
 
     @staticmethod
     def _ds_to_ndvar(ds: Dataset, uts: UTS, code: Code):
-        if code.shuffle in ('permute', 'relocate'):
+        if 'mask' in ds:
+            mask = ds['mask'].x
+            assert mask.dtype.kind == 'b', "'mask' must be boolean"
+        else:
+            mask = None
+
+        if code.shuffle and 'permute' in ds:
+            permute = ds['permute'].x
+            assert permute.dtype.kind == 'b', "'permute' must be boolean"
+        else:
+            permute = None
+
+        if code.shuffle == 'remask':
+            if mask is None:
+                raise code.error("$remask for predictor without mask", -1)
             rng = code._get_rng()
-            if code.shuffle == 'permute':
-                index = ds['permute'].x
-                assert index.dtype.kind == 'b'
-                values = ds[index, 'value'].x
-                rng.shuffle(values)
-                ds[index, 'value'] = values
+            if permute is None:
+                rng.shuffle(mask)
             else:
-                rng.shuffle(ds['value'].x)
+                remask = mask[permute]
+                rng.shuffle(remask)
+                mask[permute] = remask
             code.register_shuffle()
+
+        if mask is not None:
+            ds['value'] *= mask
+
+        if code.shuffle == 'permute':
+            rng = code._get_rng()
+            if permute is None:
+                rng.shufffle(ds['value'].x)
+            else:
+                values = ds[permute, 'vaule'].x
+                rng.shuffle(values)
+                ds[permute, 'value'] = values
+            code.register_shuffle()
+
         x = NDVar(numpy.zeros(len(uts)), uts, name=code.code_with_rand)
         ds = ds[ds['time'] < x.time.tstop]
         for t, v in ds.zip('time', 'value'):
