@@ -35,6 +35,9 @@ class TRFJob:
         self.args = args
         self.desc = f"{experiment.__class__.__name__} {relpath(path, experiment.get('trf-sdir'))}"
 
+    def __repr__(self):
+        return f"<TRFJob: {self.desc}>"
+
     def generate_job(self):
         self.experiment._restore_state(self.state)
         return self.experiment._trf_job(*self.args)
@@ -97,12 +100,10 @@ class Job:
         raise NotImplementedError
 
     def init_sub_jobs(self):
-        self.experiment.reset()
-        trf_jobs = self._init_trf_jobs()
-        self.trf_jobs = [TRFJob(self.experiment, *args) for args in trf_jobs]
-        self.missing_trfs = {m[0] for m in trf_jobs}
+        self.trf_jobs = self.generate_trf_jobs()
+        self.missing_trfs = {job.path for job in self.trf_jobs}
 
-    def _init_trf_jobs(self):
+    def _init_trf_jobs(self, existing: bool = False):
         raise NotImplementedError
 
     def execute(self):
@@ -117,6 +118,18 @@ class Job:
 
     def get_followup_jobs(self, log):
         raise NotImplementedError
+
+    def generate_trf_jobs(self, existing: bool = False):
+        """List of TRFJob
+
+        Parameters
+        ----------
+        existing : bool
+            Include jobs for TRFs that are already cached in pickle files
+            (default ``False``).
+        """
+        self.experiment.reset()
+        return [TRFJob(self.experiment, *args) for args in self._init_trf_jobs(existing)]
 
 
 class FuncJob:
@@ -185,7 +198,7 @@ class TRFsJob(Job):
     def init_test_path(self):
         pass
 
-    def _init_trf_jobs(self):
+    def _init_trf_jobs(self, existing: bool = False):
         if self.postfit and not self._prefit_done:
             if self.postfit is True:
                 terms = self.model.terms
@@ -194,9 +207,9 @@ class TRFsJob(Job):
             out = []
             for term in terms:
                 model = self.model - self.experiment._coerce_model(term)
-                out.extend(self.experiment._locate_missing_trfs(model, **self.options))
+                out.extend(self.experiment._locate_missing_trfs(model, existing=existing, **self.options))
             return out
-        return self.experiment._locate_missing_trfs(self.model, **self.options, postfit=self.postfit)
+        return self.experiment._locate_missing_trfs(self.model, existing=existing, **self.options, postfit=self.postfit)
 
     def _execute(self):
         self.init_sub_jobs()
@@ -280,8 +293,8 @@ class ModelJob(Job):
         self.experiment.reset()
         self.test_path = self.experiment.make_model_test_report(self.model, public_name=self.public_model_name, path_only=True, **self.options, **self._test_options)
 
-    def _init_trf_jobs(self):
-        return self.experiment._locate_model_test_trfs(self.model, **self.options)
+    def _init_trf_jobs(self, existing: bool = False):
+        return self.experiment._locate_model_test_trfs(self.model, existing=existing, **self.options)
 
     def _execute(self):
         job = self.reduced_model_job()
