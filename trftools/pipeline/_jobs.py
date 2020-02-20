@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from operator import itemgetter
 import os
 from os.path import relpath, dirname
+import sys
 from typing import Any, Dict, Union
 import webbrowser
 
@@ -9,10 +10,6 @@ from eelbrain import fmtxt, save
 from eelbrain._experiment.test_def import TestDims
 
 from ._model import IncrementalComparisons, Model, ModelArg, parse_comparison
-
-
-JOB_KIND_MODEL_COMPARISON = 'model-comparison'
-JOB_KIND_TRF = 'trfs'
 
 
 def make_jobs(job_file, make_trfs=False, open_in_browser=False):
@@ -407,17 +404,15 @@ def read_job_file(filename):
     code = compile(text, filename, 'exec')
     namespace = {}
     # execute code allowing local imports
+    filename = os.path.abspath(filename)
     file_dir = dirname(filename)
+    if file_dir:
+        sys.path.insert(0, file_dir)
     try:
-        if file_dir:
-            wdir = os.getcwd()
-            os.chdir(file_dir)
-        else:
-            wdir = None
         exec(code, namespace)
     finally:
-        if wdir is not None:
-            os.chdir(wdir)
+        if file_dir:
+            sys.path.remove(file_dir)
     # retrieve jobs
     jobs = list(namespace.get('JOBS', ()))
     options = namespace.get('OPTIONS')
@@ -441,13 +436,13 @@ def read_job_file(filename):
 
 
 def make_jobs_command():
-    """Command-line ocmmand
+    """Command-line command
 
     Usage::
 
-        $ make-jobs jobs.py
+        $ trf-tools-make-jobs jobs.py
     """
-    argparser = ArgumentParser(description="Make-jobs")
+    argparser = ArgumentParser(description="TRF-Tools make-jobs")
     argparser.add_argument('job_file')
     argparser.add_argument('--make-trfs', action='store_true', help="Compute TRFs if not already present")
     argparser.add_argument('--open', action='store_true', help="Open new reports in browser")

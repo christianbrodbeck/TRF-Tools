@@ -32,4 +32,9 @@ setup(
         "textgrid >=1.5",
     ],
     packages=find_packages(),
+    entry_points={
+        'gui_scripts': (
+            'trf-tools-make-jobs = trftools.pipeline._jobs:make_jobs_command',
+        ),
+    }
 )
