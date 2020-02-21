@@ -657,7 +657,6 @@ class TRFExperiment(MneExperiment):
         for term in x.terms:
             code = Code.coerce(term)
             self.add_predictor(ds, code, filter, y)
-            # code.assert_done()  # code object is replaced when stim is inserted
 
     def add_predictor(self, ds, code, filter=False, y=None):
         """Add predictor variable to a :class:`Dataset`
@@ -858,6 +857,15 @@ class TRFExperiment(MneExperiment):
         if name is not None:
             x.name = name
         return x
+
+    def load_predictors(self, stim, model, tstep=0.01, n_samples=None, tmin=0.):
+        "Multiple predictors corresponding to ``model`` in a list"
+        model = self._coerce_model(model)
+        out = []
+        for term in model.terms:
+            y = self.load_predictor(f'{stim}|{term}', tstep, n_samples, tmin)
+            out.append(y)
+        return out
 
     def _make_predictor(self, code, tstep=0.01, n_samples=None, tmin=0., seed=False):
         "Wrapper for .make_predictor() with caching"
