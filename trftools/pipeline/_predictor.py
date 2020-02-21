@@ -79,8 +79,9 @@ class FilePredictor:
        permuted for ``$permute``. If missing, all cases are shuffled.
      - ``mask``: If present, the (boolean) mask will be applied to ``value``
        (``value`` will be set to zero wherever ``mask`` is ``False``).
-       For ``$permute``, the mask is applied before permuting. For ``$remask``,
-       ``mask`` is shuffled within the cases specified in ``permute``.
+       For ``$permute``, the mask is applied before permuting, and cases will be
+       permuted only within the mask. For ``$remask``, ``mask`` is shuffled
+       within the cases specified in ``permute``.
     """
     def __init__(self, resample=None):
         assert resample in (None, 'bin', 'resample')
@@ -167,6 +168,8 @@ class FilePredictor:
         if code.shuffle and 'permute' in ds:
             permute = ds['permute'].x
             assert permute.dtype.kind == 'b', "'permute' must be boolean"
+            if code.shuffle == 'permute' and mask is not None:
+                permute *= mask
         else:
             permute = None
 
@@ -190,7 +193,7 @@ class FilePredictor:
             if permute is None:
                 rng.shufffle(ds['value'].x)
             else:
-                values = ds[permute, 'vaule'].x
+                values = ds[permute, 'value'].x
                 rng.shuffle(values)
                 ds[permute, 'value'] = values
             code.register_shuffle()
