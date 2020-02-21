@@ -1,10 +1,21 @@
-from nose.tools import eq_, assert_raises
+import pytest
 
 from trftools.pipeline._model import Model, parse_comparison
 
 
 EXPRESSION = 1
 X1_V_X0 = 2
+
+
+def test_model_parser():
+    assert Model.coerce('a1 + a2').terms == ('a1', 'a2')
+    named = {
+        'a12': Model(('a1', 'a2')),
+        'a123': Model(('a1', 'a2', 'a3')),
+    }
+    assert Model.coerce('a123 + a4', named).terms == ('a1', 'a2', 'a3', 'a4')
+    assert Model.coerce('a123 (a1$s)', named).terms == ('a1$s', 'a2', 'a3')
+    assert Model.coerce('a123 (a12$s)', named).terms == ('a1$s', 'a2$s', 'a3')
 
 
 def assert_parse(expression, x1, x0, name=EXPRESSION, named_models=None,
@@ -33,14 +44,14 @@ def assert_parse(expression, x1, x0, name=EXPRESSION, named_models=None,
 
     comparison = parse_comparison(expression, named_models)
 
-    eq_(comparison.x1.name, x1)
-    eq_(comparison.x0.name, x0)
-    eq_(comparison.name, name)
+    assert comparison.x1.name == x1
+    assert comparison.x0.name == x0
+    assert comparison.name == name
     if named_models:
-        eq_(comparison.relative_name(component_names), expression)
+        assert comparison.relative_name(component_names) == expression
 
 
-def test_parser():
+def test_comparison_parser():
     assert_parse('audspec ( > $rand)', 'audspec', 'audspec$rand', EXPRESSION)
     assert_parse('audspec + (a > b)', 'audspec + a', 'audspec + b')
     assert_parse('audspec- (a + b > a$rand + b$rand)',
@@ -93,4 +104,5 @@ def test_parser():
                  'word-a + word-b + word- (c + d > c$rand + d$rand)',
                  named_models, {'x1': 'model', 'x0rand': 'model-0'})
 
-    assert_raises(ValueError, parse_comparison, 'model | whot$rand', named_models)
+    with pytest.raises(ValueError):
+        parse_comparison('model | whot$rand', named_models)

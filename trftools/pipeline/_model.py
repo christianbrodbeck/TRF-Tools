@@ -354,7 +354,16 @@ class Comparison(ComparisonBase):
 def _model_terms(string, named_models):
     """Find terms in ``model``, expanding any named models"""
     if isinstance(string, str):
-        model_terms = map(str.strip, string.split(' + '))
+        m = re.match(r'(.+) \((.+)\)', string)
+        if m:
+            a, b = m.groups()
+            _, model_terms = _model_terms(a, named_models)
+            _, randomized_terms = _model_terms(b, named_models)
+            for x in randomized_terms:
+                i = model_terms.index(x[:x.index('$')])
+                model_terms[i] = x
+        else:
+            model_terms = map(str.strip, string.split(' + '))
     else:
         model_terms = string
     model_terms = list(model_terms)
