@@ -1,5 +1,9 @@
 
 
+def requires_eelbrain_dev(*args, **kwargs):
+    raise NotImplementedError("This functionality requires the development version of Eelbrain")
+
+
 class LookaheadIter(object):
     # http://stackoverflow.com/a/1517965/166700
     def __init__(self, sequence):

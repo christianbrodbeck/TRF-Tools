@@ -1,7 +1,11 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
 from pathlib import Path
 
-from eelbrain import load, Dataset, NDVar, UTS, combine, epoch_impulse_predictor, event_impulse_predictor, resample
+from eelbrain import load, Dataset, NDVar, UTS, combine, epoch_impulse_predictor, resample
+try:
+    from eelbrain import event_impulse_predictor
+except ImportError:
+    from .._utils import requires_eelbrain_dev as event_impulse_predictor
 from eelbrain._experiment.definitions import typed_arg
 import numpy
 
