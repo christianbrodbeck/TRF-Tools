@@ -23,7 +23,8 @@ from ._text import text_to_words
 
 PUNC = [s.encode('ascii') for s in string.punctuation + "\n\r"]
 
-class Realization(object):
+
+class Realization:
     """Pronunciation and corresponding graph sequence for a word in a TextGrid
 
     Notes
@@ -44,8 +45,13 @@ class Realization(object):
         args = ', '.join(map(repr, args))
         return f"Realization({args})"
 
+    def strip_stress(self):
+        "Strip stress information (numbers 0/1/2 on vowels)"
+        phones = tuple([p.rstrip('012') for p in self.phones])
+        return Realization(phones, self.times, self.graphs, self.tstop)
 
-class TextGrid(object):
+
+class TextGrid:
     "TextGrid representation for regressors"
     def __init__(self, grid_file, tmin=0., tstep=0.001, n_samples=None, word_tier='words', phone_tier='phones'):
         realizations = textgrid_as_realizations(grid_file, word_tier, phone_tier)
