@@ -80,12 +80,20 @@ class FilePredictor:
      - ``time``: Time stamp of the event (impulse) in seconds.
      - ``value``: Value of the impulse (magnitude).
      - ``permute``: Boolean :class:`Var` indicating which cases/events should be
-       permuted for ``$permute``. If missing, all cases are shuffled.
+       permuted for ``$permute`` (see below). If missing, all cases are
+       shuffled.
      - ``mask``: If present, the (boolean) mask will be applied to ``value``
        (``value`` will be set to zero wherever ``mask`` is ``False``).
-       For ``$permute``, the mask is applied before permuting, and cases will be
-       permuted only within the mask. For ``$remask``, ``mask`` is shuffled
-       within the cases specified in ``permute``.
+
+    The variables supports the following randomization protocols:
+
+     - ``$permute``: Shuffle the values. If ``permute`` is present, only
+       shuffle the cases for which ``permute == True``. if ``mask`` is
+       present, only shuffle cases for which ``mask == True``.
+     - ``$remask``: Shuffle ``mask``. If ``permute`` is present, shuffle
+       ``mask`` only within cases for which ``permute == True``.
+     - ``$shift``: displace the final uniform time-series circularly (i.e.,
+       the impulse times themselves change).
     """
     def __init__(self, resample=None):
         assert resample in (None, 'bin', 'resample')
@@ -174,6 +182,8 @@ class FilePredictor:
             assert permute.dtype.kind == 'b', "'permute' must be boolean"
             if code.shuffle == 'permute' and mask is not None:
                 permute *= mask
+        elif code.shuffle == 'permute':
+            permute = mask
         else:
             permute = None
 
