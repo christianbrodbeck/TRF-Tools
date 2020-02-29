@@ -195,7 +195,7 @@ class FilePredictor:
         if code.shuffle == 'permute':
             rng = code._get_rng()
             if permute is None:
-                rng.shufffle(ds['value'].x)
+                rng.shuffle(ds['value'].x)
             else:
                 values = ds[permute, 'value'].x
                 rng.shuffle(values)
