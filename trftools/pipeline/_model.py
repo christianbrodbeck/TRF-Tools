@@ -56,7 +56,7 @@ from eelbrain._utils import LazyProperty
 
 COMP = {1: '>', 0: '=', -1: '<'}
 TAIL = {'>': 1, '=': 0, '<': -1}
-BASE_RE = re.compile(r'^(.*)\s+\|\s+(.*)$')
+BASE_RE = re.compile(r'^(.*)\s+(\+?\|)\s+(.*)$')
 COMPARISON_RE = re.compile('(.* )(>|<|=)( .*)')
 TERM_RE = re.compile(r'^ *([\w\d\-:|$]+) *$')
 
@@ -253,21 +253,33 @@ class Comparison(ComparisonBase):
         if 'x0' not in self._components and not x0.has_randomization and not common_base:
             self._components['x0'] = x0  # -> show as "model1 = model0"
 
-        x1_desc = _model_desc_template(x1, 'x1', self._components)
+        x1_desc_terms = _model_desc_template(x1, 'x1', self._components)
         if 'x0' in self._components:
             # model1 = model0
-            x0_desc = _model_desc_template(x0, 'x0', self._components)
+            x0_desc_terms = _model_desc_template(x0, 'x0', self._components)
+            x1_desc = ' + '.join(x1_desc_terms)
+            x0_desc = ' + '.join(x0_desc_terms)
             self._desc_template = '%s %s %s' % (x1_desc, COMP[tail], x0_desc)
         elif len(x1_permuted_in_x0) == len(x0_only) == len(x1_only):
             # model | x$rand
             assert tail == 1
             if 'x0rand' in self._components:
-                x0_desc = _model_desc_template(Model(x0_only), 'x0rand', self._components)
+                x0_desc_terms = _model_desc_template(Model(x0_only), 'x0rand', self._components)
+                x0_desc = ' + '.join(x0_desc_terms)
             else:
                 x0_desc = ' + '.join(x0_only)
-            self._desc_template = '%s | %s' % (x1_desc, x0_desc)
+
+            if x1_permuted_in_x0 == x1_desc_terms[1:]:
+                x1_desc = x1_desc_terms[0]
+                op = '+|'
+            else:
+                x1_desc = ' + '.join(x1_desc_terms)
+                op = '|'
+
+            self._desc_template = f'{x1_desc} {op} {x0_desc}'
         else:
             # model | x = y
+            x1_desc = ' + '.join(x1_desc_terms)
             self._desc_template = '%s | %s %s %s' % (x1_desc, ' + '.join(x1_only), COMP[tail], ' + '.join(x0_only))
 
         # term that is unique to the test model
@@ -386,7 +398,7 @@ def _model_terms(string, named_models):
 
 def _model_desc_template(model, name, named_models):
     if name not in named_models:
-        return '{%s}' % name
+        return ['{%s}']
     named_model = named_models[name]
     if named_model.has_randomization:
         raise NotImplementedError("named_model with randomization")
@@ -395,13 +407,11 @@ def _model_desc_template(model, name, named_models):
         rand = {tr.partition('$')[2] for tr in named_terms}
         assert len(rand) == 1
         name_template = '{%s}$%s' % (name, rand.pop())
-        unnamed_terms = (tr for t, tr in zip(model.terms_without_randomization, model.terms) if t not in named_model.terms)
+        unnamed_terms = [tr for t, tr in zip(model.terms_without_randomization, model.terms) if t not in named_model.terms]
     else:
         name_template = '{%s}' % name
-        unnamed_terms = (t for t in model.terms if t not in named_model.terms)
-    terms = [name_template]
-    terms[1:] = unnamed_terms
-    return ' + '.join(terms)
+        unnamed_terms = [t for t in model.terms if t not in named_model.terms]
+    return [name_template, *unnamed_terms]
 
 
 def parse_comparison(string, named_models=None, test_term_name=None):
@@ -416,13 +426,13 @@ def parse_comparison(string, named_models=None, test_term_name=None):
     if m:
         if n_parentheses:
             raise NotImplementedError(f"Comparisons with | and parentheses: {string!r}")
-        base_string, comparison_string = m.groups()
+        base_string, sep, comparison_string = m.groups()
         name_x1, base_terms = _model_terms(base_string, named_models)
         if name_x1:
             named_components['x1'] = name_x1
     else:
         comparison_string = string
-        base_terms = None
+        sep = base_terms = None
 
     # common base from parentheses
     if n_parentheses == 0:
@@ -440,6 +450,7 @@ def parse_comparison(string, named_models=None, test_term_name=None):
     # comparison (</=/>)
     m = COMPARISON_RE.match(comparison_string)
     if m:
+        assert sep != '+|'
         x1, comp, x0 = m.groups()
         tail = TAIL[comp]
         comp_name_x1, x1_only_terms = _model_terms(x1, named_models)
@@ -475,6 +486,11 @@ def parse_comparison(string, named_models=None, test_term_name=None):
         if name_x0:
             named_components['x0rand'] = name_x0
         rand_terms = {term.partition('$')[0]: term for term in right_terms}
+        if sep == '+|':
+            duplicate = set(x1_terms).intersection(rand_terms)
+            if duplicate:
+                raise ValueError(f"{string!r}: duplicate terms {', '.join(duplicate)}")
+            x1_terms.extend(rand_terms)
         missing = set(rand_terms).difference(x1_terms)
         if missing:
             raise ValueError(f"{string!r}: terms after | that are not in base model: {', '.join(missing)}")

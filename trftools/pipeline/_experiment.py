@@ -96,15 +96,12 @@ how to code that?
 - effect code for the effect of language in each level of noise_level
 
 
-
 ======
 Models
 ======
 
-Models are built out of terms, each term is specified by a code.
-
-Names models
-
+Models are built out of terms, each term is specified by a code. Models are
+defined in :attr:`TRFExperiment.models`
 
 
 ===========
@@ -131,13 +128,12 @@ does not haver to be contained in ``model``)::
 
     model | x = y
 
-A model name can also be followed by additional predictors. This can be
-used for incrementally adding ``y``, which is not contained in ``model``::
+A common pattern is a test for incrementally adding a predictor ``y`` to a model
+(where ``y`` is not contained in ``model``)::
 
-    model + y | y$rand
+    model +| y$rand
 
-Or for testing incremental power of ``x`` in the presence of ``y`` which is
-not in ``model``::
+Then, testing the incremental power of ``x``, which is present in ``model``::
 
     model + y | x$rand
 

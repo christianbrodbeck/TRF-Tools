@@ -89,7 +89,7 @@ def test_comparison_parser():
     assert_parse('model-1 | word-a > word-c',
                  'word-a + word-b', 'word-b + word-c',
                  'word-b + word- (a > c)', named_models)
-    assert_parse('model-1 + word-c | word-c$rand',
+    assert_parse('model-1 +| word-c$rand',
                  'word-a + word-b + word-c', 'word-a + word-b + word-c$rand',
                  'word-a + word-b + word-c ( > $rand)', named_models)
     assert_parse('model-1 + word-c | word-a$rand',
