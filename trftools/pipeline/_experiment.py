@@ -244,7 +244,12 @@ def split_model(x):
 
 def trf_test_parc_arg(y):
     if y.ndim == 4:
-        dim = y.get_dims((None, 'case', 'source', 'time'))[0]
+        for ydim in ['sensor', 'source']:
+            if y.has_dim(ydim):
+                break
+        else:
+            raise RuntimeError(f"{y} does not have sensor or source dimension")
+        dim = y.get_dims((None, 'case', ydim, 'time'))[0]
         if isinstance(dim, Categorial):
             return dim.name
 
