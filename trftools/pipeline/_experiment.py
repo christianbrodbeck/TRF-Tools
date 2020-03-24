@@ -118,6 +118,12 @@ randomized::
     model | x$rand
     model | x$rand + y$rand
 
+The contributions of two predictors can be compared by comparing the incremental
+model fit, i.e., by compariong the effect of randomizing x with that of
+randomizing y::
+
+    model | x$rand = y$rand
+
 ``x`` can be a named model, which is extended to all its terms with the same
 randomization method::
 
@@ -1976,7 +1982,8 @@ class TRFExperiment(MneExperiment):
             # load data
             group = self.get('group')
             vardef = None if test is True else self._tests[test].vars
-            ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit=postfit, make=make, vardef=vardef)
+            x1_permutations = permutations if comparison.x1.has_randomization else 1
+            ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit=postfit, make=make, vardef=vardef, permutations=x1_permutations)
             ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit=postfit, make=make, vardef=vardef, permutations=permutations)
 
             # restructure data

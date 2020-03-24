@@ -43,7 +43,7 @@ a + b$rnd > b + a$rnd
 
 """
 from collections.abc import Sequence
-from itertools import zip_longest
+from itertools import chain,zip_longest
 from os.path import commonprefix
 import pickle
 import re
@@ -241,26 +241,32 @@ class Comparison(ComparisonBase):
         self.models = (x1, x0)
         self._components = {'x1': x1, **named_components}
 
-        if x1.has_randomization:
-            raise NotImplementedError("x1 with randomization")
-
         # preprocessing
         common_base = [t for t in x1.terms if t in x0.terms]
         x1_only = [t for t in x1.terms if t not in common_base]
         x0_only = [t for t in x0.terms if t not in common_base]
         randomized_terms = [t.split('$')[0] for t in x0.terms if '$' in t]
-        x1_permuted_in_x0 = [t for t in randomized_terms if t in x1.terms]
+        x1_shuffled_in_x0 = [t for t in randomized_terms if t in x1.terms]
         if 'x0' not in self._components and not x0.has_randomization and not common_base:
             self._components['x0'] = x0  # -> show as "model1 = model0"
 
-        x1_desc_terms = _model_desc_template(x1, 'x1', self._components)
-        if 'x0' in self._components:
+        x1_desc_terms = _model_desc_template(x1.without_randomization(), 'x1', self._components)
+        if x1.has_randomization:
+            # model | x$rand = y$rand
+            x_base = x1.without_randomization()
+            if x_base != x0.without_randomization():
+                raise ValueError(f"x0 has term not in x1")
+            x_base_desc = ' + '.join(x1_desc_terms)
+            x1_desc = x1.randomized_component().name
+            x0_desc = x0.randomized_component().name
+            self._desc_template = f'{x_base_desc} | {x1_desc} {COMP[tail]} {x0_desc}'
+        elif 'x0' in self._components:
             # model1 = model0
             x0_desc_terms = _model_desc_template(x0, 'x0', self._components)
             x1_desc = ' + '.join(x1_desc_terms)
             x0_desc = ' + '.join(x0_desc_terms)
             self._desc_template = '%s %s %s' % (x1_desc, COMP[tail], x0_desc)
-        elif len(x1_permuted_in_x0) == len(x0_only) == len(x1_only):
+        elif len(x1_shuffled_in_x0) == len(x0_only) == len(x1_only):
             # model | x$rand
             assert tail == 1
             if 'x0rand' in self._components:
@@ -269,7 +275,7 @@ class Comparison(ComparisonBase):
             else:
                 x0_desc = ' + '.join(x0_only)
 
-            if x1_permuted_in_x0 == x1_desc_terms[1:]:
+            if x1_shuffled_in_x0 == x1_desc_terms[1:]:
                 x1_desc = x1_desc_terms[0]
                 op = '+|'
             else:
@@ -462,14 +468,26 @@ def parse_comparison(string, named_models=None, test_term_name=None):
             # model | x > y
             if comp_name_x1 or name_x0:
                 raise ValueError(f"{string!r}: marginal term (after |) can't contain named model")
-            elif any(t not in base_terms for t in x1_only_terms):
-                raise ValueError(f"{string!r}: not all of x1 {x1_only_terms!r} in base model {base_terms!r}")
             elif any(t in x0_only_terms for t in x1_only_terms):
                 raise ValueError(f"{string!r}: models right of | share terms")
-            x1_terms = [t for t in base_terms if t not in x0_only_terms]
-            x1_terms.extend(t for t in x1_only_terms if t not in base_terms)
-            x0_terms = [t for t in base_terms if t not in x1_only_terms]
-            x0_terms.extend(t for t in x0_only_terms if t not in base_terms)
+            elif any(t in base_terms for t in x0_only_terms):
+                raise ValueError(f"{string!r}: term right of {comp} in base model")
+
+            if all(t in base_terms for t in x1_only_terms):
+                # model | x = u
+                x1_terms = [t for t in base_terms if t not in x0_only_terms]
+                x1_terms.extend(t for t in x1_only_terms if t not in base_terms)
+                x0_terms = [t for t in base_terms if t not in x1_only_terms]
+                x0_terms.extend(t for t in x0_only_terms if t not in base_terms)
+            elif all('$' in t for t in chain(x1_only_terms, x0_only_terms)):
+                x1_terms = list(base_terms)
+                for term in x1_only_terms:
+                    x1_terms[x1_terms.index(term.split('$')[0])] = term
+                x0_terms = list(base_terms)
+                for term in x0_only_terms:
+                    x0_terms[x0_terms.index(term.split('$')[0])] = term
+            else:
+                raise ValueError(f"{string!r}: invalid right of |")
         else:
             # x > y
             if comp_name_x1:
