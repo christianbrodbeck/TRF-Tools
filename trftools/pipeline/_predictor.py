@@ -109,7 +109,7 @@ class FilePredictor:
                 if x.time.tstep == tstep:
                     break
             else:
-                raise IOError(f"{path.name} does not contain tstep={uts.tstep!r}")
+                raise IOError(f"{path.name} does not contain tstep={tstep!r}")
         elif isinstance(x, NDVar):
             if x.time.tstep == tstep:
                 pass
@@ -128,11 +128,14 @@ class FilePredictor:
             raise TypeError(f'{x!r} at {path}')
         return x
 
-    def _generate(self, uts: UTS, code: Code, directory: Path):
-        x = self._load(uts.tstep, code.string_without_rand, directory)
+    def _generate(self, tmin: float, tstep: float, n_samples: int, code: Code, directory: Path):
+        x = self._load(tstep, code.string_without_rand, directory)
         if isinstance(x, NDVar):
-            x = pad(x, uts.tmin, nsamples=uts.nsamples)
+            x = pad(x, tmin, nsamples=n_samples)
         elif isinstance(x, Dataset):
+            if n_samples is None:
+                raise ValueError(f"n_samples={n_samples!r}")
+            uts = UTS(tmin, tstep, n_samples)
             x = self._ds_to_ndvar(x, uts, code)
         else:
             raise RuntimeError(x)

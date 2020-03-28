@@ -834,8 +834,7 @@ class TRFExperiment(MneExperiment):
 
         if isinstance(predictor, FilePredictor):
             directory = Path(self.get('predictor-dir'))
-            uts = UTS(tmin, tstep, n_samples)
-            x = predictor._generate(uts, code, directory)
+            x = predictor._generate(tmin, tstep, n_samples, code, directory)
             code.register_string_done()
             code.assert_done()
         elif isinstance(predictor, MakePredictor):
