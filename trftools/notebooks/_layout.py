@@ -30,7 +30,7 @@ class Layout:
     -----
     Based on https://stackoverflow.com/a/49566213/166700
     """
-    def __init__(self, border=0):
+    def __init__(self, plots: list = None, border: int = 0):
         # string buffer for the HTML: initially some CSS; images to be appended
         options = [
             "display: inline-block;",
@@ -46,6 +46,9 @@ class Layout:
         }
         </style>
         """ % '\n'.join(options)
+        if plots:
+            for plot in plots:
+                self.add(plot)
 
     def add(self, p):
         """Add a plot to the layout (matplotlib figure or eelbrain plot)"""
