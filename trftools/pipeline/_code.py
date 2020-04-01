@@ -34,12 +34,18 @@ class Code(CodeBase):
     _seed = None
 
     def __init__(self, string):
-        m = re.match(r'(?:([\w+-]+)\|)?([\w:-]+)(?:\$(-?\d*-?)([a-zA-Z]+)(\d*))?$', string)
+        m = re.match(
+            r'(?:([\w+-]+)\|)?'  # stimulus
+            r'([\w:-]+)'  # pedictor code
+            r'(?:\$'  # begin shuffling
+            r'(?:\[(-?\d+-?|\w*)\])?'  # band/index
+            r'([a-zA-Z]+)(\d*))?$', string)
         if not m:
             raise CodeError(string, "not a valid code")
-        stim, code_string, shuffle_band, shuffle, angle = m.groups()
+        stim, code_string, shuffle_index, shuffle, angle = m.groups()
         if shuffle:
-            self.code_with_rand = f'{code_string}${shuffle_band}{shuffle}{angle}'
+            index_str = '' if shuffle_index is None else f'[{shuffle_index}]'
+            self.code_with_rand = f'{code_string}${index_str}{shuffle}{angle}'
             if angle:
                 angle = int(angle)
                 if angle == 180:
@@ -49,28 +55,27 @@ class Code(CodeBase):
             else:
                 angle = 180
 
-            if shuffle_band:
-                m = re.match(r'^(-?)(\d+)(-?)$', shuffle_band)
-                if not m:
-                    raise ValueError(f'{string!r} (shuffle index)')
-                pre, index, post = m.groups()
-                if pre:
-                    if post:
-                        raise ValueError(f'{string!r} (shuffle index)')
-                    shuffle_band = slice(int(index))
-                elif post:
-                    shuffle_band = slice(int(index), None)
-                else:
-                    shuffle_band = int(index)
+            if shuffle_index:
+                m = re.match(r'^(-?)(\d+)(-?)$', shuffle_index)
+                if m:
+                    pre, index, post = m.groups()
+                    if pre:
+                        if post:
+                            raise ValueError(f'{string!r} (shuffle index)')
+                        shuffle_index = slice(int(index))
+                    elif post:
+                        shuffle_index = slice(int(index), None)
+                    else:
+                        shuffle_index = int(index)
             else:
-                shuffle_band = None
+                shuffle_index = None
         else:
             self.code_with_rand = code_string
-            shuffle_band = shuffle = angle = None
+            shuffle_index = shuffle = angle = None
         self.stim = stim or None
         self.code = code_string
         self.shuffle = shuffle
-        self.shuffle_band = shuffle_band
+        self.shuffle_index = shuffle_index
         self.shuffle_angle = angle
         CodeBase.__init__(self, string, code_string)
         self.has_randomization = shuffle in VALUE_SHUFFLE_METHODS or '>' in string
@@ -81,18 +86,20 @@ class Code(CodeBase):
     def register_string_done(self):
         self._i = len(self._items) - 1
 
-    def register_shuffle(self):
+    def register_shuffle(self, index=False):
         "Register that shuffling has been done"
         if not self.shuffle:
-            raise RuntimeError(f"Code does not require shuffling: {self.code}")
+            raise self.error(f"Shuffling not requested", -1)
         elif self._shuffle_done:
-            raise RuntimeError(f"Already shuffled: {self.code}")
+            raise self.error(f"Shuffling twice", -1)
+        elif self.shuffle_index and not index:
+            raise self.error("Shuffle index not used", -1)
         self._shuffle_done = True
 
     def assert_done(self):
         CodeBase.assert_done(self)
         if self.shuffle and not self._shuffle_done:
-            raise self.error("Shuffling not performed", i=-1)
+            raise self.error("Shuffling not performed", -1)
 
     def _get_rng(self):
         if self._seed is None:

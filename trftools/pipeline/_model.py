@@ -58,7 +58,7 @@ COMP = {1: '>', 0: '=', -1: '<'}
 TAIL = {'>': 1, '=': 0, '<': -1}
 BASE_RE = re.compile(r'^(.*)\s+(\+?\|)\s+(.*)$')
 COMPARISON_RE = re.compile('(.* )(>|<|=)( .*)')
-TERM_RE = re.compile(r'^ *([\w\d\-:|$]+) *$')
+TERM_RE = re.compile(r'^ *([\[\]\w\d\-:|$]+) *$')
 
 # characters that delineate randomization in a predictor
 MOD_DELIM_CHARS = ('$',)

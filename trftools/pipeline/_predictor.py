@@ -79,19 +79,16 @@ class FilePredictor:
 
      - ``time``: Time stamp of the event (impulse) in seconds.
      - ``value``: Value of the impulse (magnitude).
-     - ``permute``: Boolean :class:`Var` indicating which cases/events should be
-       permuted for ``$permute`` (see below). If missing, all cases are
-       shuffled.
      - ``mask``: If present, the (boolean) mask will be applied to ``value``
        (``value`` will be set to zero wherever ``mask`` is ``False``).
 
     The variables supports the following randomization protocols:
 
-     - ``$permute``: Shuffle the values. If ``permute`` is present, only
-       shuffle the cases for which ``permute == True``. if ``mask`` is
-       present, only shuffle cases for which ``mask == True``.
-     - ``$remask``: Shuffle ``mask``. If ``permute`` is present, shuffle
-       ``mask`` only within cases for which ``permute == True``.
+     - ``$permute``: Shuffle the values. If ``mask`` is present in the dataset,
+       only shuffle the cases for which ``mask == True``. An alternative mask,
+       ``ds['mask_key']``, can be specified as ``$[mask_key]permute``.
+     - ``$remask``: Shuffle ``mask``. ``$[mask_key]remask`` can be used to limit
+       shuffling of ``mask`` to cases specified by ``ds['mask_key']``.
      - ``$shift``: displace the final uniform time-series circularly (i.e.,
        the impulse times themselves change).
     """
@@ -141,8 +138,8 @@ class FilePredictor:
             raise RuntimeError(x)
 
         if code.shuffle in NDVAR_SHUFFLE_METHODS:
-            x = shuffle(x, code.shuffle, code.shuffle_band, code.shuffle_angle)
-            code.register_shuffle()
+            x = shuffle(x, code.shuffle, code.shuffle_index, code.shuffle_angle)
+            code.register_shuffle(index=True)
         return x
 
     def _generate_continuous(self, uts: UTS, ds: Dataset, stim_var: str, code: Code, directory: Path):
@@ -151,7 +148,7 @@ class FilePredictor:
         stim_type = {type(s) for s in cache.values()}
         assert len(stim_type) == 1
         stim_type = stim_type.pop()
-        #
+        # generate x
         if stim_type is Dataset:
             dss = []
             for t, stim in ds.zip('T_relative', stim_var):
@@ -170,6 +167,8 @@ class FilePredictor:
                 i_start = uts._array_index(t + x_stim.time.tmin)
                 i_stop = i_start + len(x_stim.time)
                 x.x[i_start:i_stop] = x_stim.get_data(dimnames)
+        else:
+            raise RuntimeError(f"stim_type={stim_type!r}")
         return x
 
     @staticmethod
@@ -180,40 +179,41 @@ class FilePredictor:
         else:
             mask = None
 
-        if code.shuffle and 'permute' in ds:
-            permute = ds['permute'].x
-            assert permute.dtype.kind == 'b', "'permute' must be boolean"
-            if code.shuffle == 'permute' and mask is not None:
-                permute *= mask
+        if code.shuffle_index:
+            shuffle_mask = ds[code.shuffle_index].x
+            if shuffle_mask.dtype.kind != 'b':
+                raise code.error("shuffle index must be boolean", -1)
+            elif code.shuffle == 'permute' and mask is not None:
+                assert not numpy.any(shuffle_mask[~mask])
         elif code.shuffle == 'permute':
-            permute = mask
+            shuffle_mask = mask
         else:
-            permute = None
+            shuffle_mask = None
 
         if code.shuffle == 'remask':
             if mask is None:
                 raise code.error("$remask for predictor without mask", -1)
             rng = code._get_rng()
-            if permute is None:
+            if shuffle_mask is None:
                 rng.shuffle(mask)
             else:
-                remask = mask[permute]
+                remask = mask[shuffle_mask]
                 rng.shuffle(remask)
-                mask[permute] = remask
-            code.register_shuffle()
+                mask[shuffle_mask] = remask
+            code.register_shuffle(index=True)
 
         if mask is not None:
             ds['value'] *= mask
 
         if code.shuffle == 'permute':
             rng = code._get_rng()
-            if permute is None:
+            if shuffle_mask is None:
                 rng.shuffle(ds['value'].x)
             else:
-                values = ds[permute, 'value'].x
+                values = ds['value'].x[shuffle_mask]
                 rng.shuffle(values)
-                ds[permute, 'value'] = values
-            code.register_shuffle()
+                ds['value'].x[shuffle_mask] = values
+            code.register_shuffle(index=True)
 
         x = NDVar(numpy.zeros(len(uts)), uts, name=code.code_with_rand)
         ds = ds[ds['time'] < x.time.tstop]
