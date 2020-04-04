@@ -1,6 +1,8 @@
 import io
 import base64
 
+from eelbrain import fmtxt
+from eelbrain.plot._base import EelFigure
 from IPython.core.display import display
 from IPython.display import HTML
 import matplotlib.figure
@@ -50,25 +52,16 @@ class Layout:
             for plot in plots:
                 self.add(plot)
 
-    def add(self, p):
+    def add(self, obj):
         """Add a plot to the layout (matplotlib figure or eelbrain plot)"""
-        is_figure = isinstance(p, matplotlib.figure.Figure)
-        figure = p if is_figure else p.figure
-
-        # Create a PNG representation of the figure
-        bio = io.BytesIO()  # bytes buffer for the plot
-        figure.canvas.print_png(bio)  # make a png of the plot in the buffer
-
-        # close the figure so it does not appear in the notebook
-        if is_figure:
+        fmtext_obj = fmtxt.asfmtext(obj)
+        html = fmtxt.html(fmtext_obj)
+        self.html += f'<div class="floating-box">{html}</div>'
+        if isinstance(obj, matplotlib.figure.Figure):
             from matplotlib import pyplot
-            pyplot.close(figure)
-        else:
-            p.close()
-
-        # encode the bytes as string using base 64
-        image_base64 = base64.b64encode(bio.getvalue()).decode()
-        self.html += f'<div class="floating-box"><img src="data:image/png;base64,{image_base64}\n"></div>'
+            pyplot.close(obj)
+        elif isinstance(obj, EelFigure):
+            obj.close()
 
     def linebreak(self):
         """Add a line break (use to limit the number of columns in the layout"""
