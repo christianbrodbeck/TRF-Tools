@@ -171,7 +171,7 @@ import eelbrain
 from eelbrain import (
     fmtxt, load, save, table, plot, testnd,
     MultiEffectNDTest, BoostingResult,
-    MneExperiment, Dataset, Factor, NDVar, Categorial, UTS,
+    MneExperiment, Dataset, Datalist, Factor, NDVar, Categorial, UTS,
     morph_source_space, rename_dim, boosting, combine, concatenate,
 )
 from eelbrain._exceptions import DimensionMismatchError
@@ -1105,6 +1105,7 @@ class TRFExperiment(MneExperiment):
         else:
             raise NotImplemented(f"data={data.string!r}")
         y = ds[data.y_name]
+        is_variable_time = isinstance(y, Datalist)
         # load predictors
         xs = []
         for code in sorted(x.terms):
@@ -1112,13 +1113,17 @@ class TRFExperiment(MneExperiment):
             self.add_predictor(ds, code, filter_x, data.y_name)
             xs.append(ds[code.key])
 
-        # for NCRF, make sure chunk size is long enough
+        # determine partitions for NCRF
         if m:
             assert partitions is None
-            if (y.time.nsamples * y.time.tstep) / tstop < 30:
+            if is_variable_time:
+                partitions = 1
+            elif (y.time.nsamples * y.time.tstep) / tstop < 30:
+                # make sure chunk size is at least 30 TRFs
                 partitions = -1
             else:
-                partitions = -2
+                partitions = 1
+
         # reshape data
         if partitions < 0:
             partitions = None if partitions == -1 else -partitions
@@ -1139,15 +1144,22 @@ class TRFExperiment(MneExperiment):
             names = [x_.name for x_ in xs]
             if len(set(names)) < len(names):
                 raise ValueError(f"Multiple predictors with same name: {', '.join(names)}")
+            if m and is_variable_time:
+                # [[u1, u2], [v1, v2]] -> [[u1, v1], [u2, v2]]
+                xs = list(zip(*xs))
 
         if m:
+            y0 = y[0] if is_variable_time else y
             fwd = self.load_fwd(ndvar=True)
             cov = self.load_cov()
-            chs = sorted(set(cov.ch_names).intersection(y.sensor.names))
-            if len(chs) < len(y.sensor):
-                y = y.sub(sensor=chs)
+            chs = sorted(set(cov.ch_names).intersection(y0.sensor.names))
+            if len(chs) < len(y0.sensor):
+                if is_variable_time:
+                    y = [yi.sub(sensor=chs) for yi in y]
+                else:
+                    y = y.sub(sensor=chs)
             else:
-                assert np.all(y.sensor.names == chs)
+                assert np.all(y0.sensor.names == chs)
             from ncrf import fit_ncrf
             return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, normalize=True, in_place=True, **ncrf_args)
         return partial(boosting, y, xs, tstart, tstop, 'inplace', delta, mindelta, error, basis, 'hamming', partitions, None, None, selective_stopping, prefit_trf)
