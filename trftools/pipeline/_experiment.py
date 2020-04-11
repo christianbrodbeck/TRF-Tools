@@ -473,7 +473,6 @@ class TRFExperiment(MneExperiment):
         # update
         self._named_models.update(models)
         self._model_names.update(model_names)
-        # FIXME: on the first initialization this is done before creating cache-dir -> thinks cach-dir is orphan
         save_models(self._named_models, self._model_names_file)
 
     def _register_model(self, model: Model) -> str:
@@ -1190,7 +1189,7 @@ class TRFExperiment(MneExperiment):
             Rescale TRFs to the scale of the source data (default is the scale
             based on normalized predictors and responses).
         smooth : float
-            Smooth data in space before test (value in [m] STD of Gaussian).
+            Smooth TRFs (spatial smoothing, in [m] STD of Gaussian).
         smooth_time : str | float
             Smooth TRFs temporally.
         vardef : str
@@ -1873,7 +1872,8 @@ class TRFExperiment(MneExperiment):
                 xrand = x.randomized_component()
                 xrand_desc = self._x_desc(xrand.without_randomization())
                 rand = {term.partition('$')[2] for term in xrand.terms}
-                assert len(rand) == 1
+                if len(rand) != 1:
+                    raise NotImplementedError(f"{len(rand)} randomization schemes in {x}")
                 rand_desc = f'{xrand_desc}${rand.pop()}'
                 return f'{base_name} ({rand_desc})'
             elif len(x.terms) == 1:
