@@ -905,7 +905,7 @@ class TRFExperiment(MneExperiment):
 
     # TRF
     #####
-    def load_trf(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, backward=False, postfit=False, make=False, path_only=False, **state):
+    def load_trf(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, postfit=False, make=False, path_only=False, **state):
         """TRF estimated with boosting
 
         Parameters
@@ -937,6 +937,8 @@ class TRFExperiment(MneExperiment):
             Filter ``x`` with the last filter of the pipeline for ``y``.
         selective_stopping : int
             Stop boosting each predictor separately.
+        cv : bool
+            Cross-validation.
         data : 'sensor' | 'source'
             Data which to use.
         backward : bool
@@ -963,7 +965,7 @@ class TRFExperiment(MneExperiment):
         if isinstance(epoch, EpochCollection):
             raise ValueError(f"epoch={epoch.name!r} (use .load_trfs() to load multiple TRFs from a collection epoch)")
         # check cache
-        dst = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, backward, postfit, **state)
+        dst = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, postfit, **state)
         if path_only:
             return dst
         elif exists(dst) and cache_valid(getmtime(dst), self._epochs_mtime()):
@@ -998,7 +1000,7 @@ class TRFExperiment(MneExperiment):
         elif mask in self._parc_supersets:
             for super_parc in self._parc_supersets[mask]:
                 try:
-                    res = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, data, backward, postfit)
+                    res = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, cv, data, backward, postfit)
                 except IOError:
                     pass
                 else:
@@ -1013,16 +1015,16 @@ class TRFExperiment(MneExperiment):
 
         x_desc = f">{postfit.name} ({x.name})" if postfit else x.name
         self._log.info("Computing TRF:  %s %s %s %s", self.get('subject'), data.string, '->' if backward else '<-', x_desc)
-        func = self._trf_job(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, backward, postfit)
+        func = self._trf_job(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, postfit)
         if func is None:
             return load.unpickle(dst)
         res = func()
         save.pickle(res, dst)
         return res
 
-    def _locate_trf(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, backward=False, postfit=False, **state):
+    def _locate_trf(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, postfit=False, **state):
         "Return path of the corresponding trf-file"
-        self._set_trf_options(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, backward, postfit, state=state)
+        self._set_trf_options(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, postfit, state=state)
 
         path = self.get('trf-file', mkdir=True)
         if len(os.path.basename(path)) > 255:
@@ -1031,7 +1033,7 @@ class TRFExperiment(MneExperiment):
             os.remove(path)
         return path
 
-    def _trf_job(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, backward=False, postfit=False):
+    def _trf_job(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, postfit=False):
         "Return ``func`` to create TRF result"
         inv = self.get('inv')
         m = DSTRF_RE.match(inv)
@@ -1047,7 +1049,7 @@ class TRFExperiment(MneExperiment):
             postfit = self._coerce_model(postfit)
             x_prefit = x - postfit
             with self._temporary_state:
-                prefit_trf = self.load_trf(x_prefit, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, backward)
+                prefit_trf = self.load_trf(x_prefit, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward)
         else:
             prefit_trf = None
 
@@ -1162,9 +1164,9 @@ class TRFExperiment(MneExperiment):
                 assert np.all(y0.sensor.names == chs)
             from ncrf import fit_ncrf
             return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, normalize=True, in_place=True, **ncrf_args)
-        return partial(boosting, y, xs, tstart, tstop, 'inplace', delta, mindelta, error, basis, 'hamming', partitions, None, None, selective_stopping, prefit_trf)
+        return partial(boosting, y, xs, tstart, tstop, 'inplace', delta, mindelta, error, basis, 'hamming', partitions, None, 1, cv, None, selective_stopping, prefit_trf)
 
-    def load_trfs(self, subject, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, backward=False, postfit=False, make=False, scale=None, smooth=None, smooth_time=None, vardef=None, permutations=1, vector_as_norm=False, **state):
+    def load_trfs(self, subject, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, postfit=False, make=False, scale=None, smooth=None, smooth_time=None, vardef=None, permutations=1, vector_as_norm=False, **state):
         """Load TRFs for the group in a Dataset (see ``.load_trf()``)
 
         Parameters
@@ -1246,7 +1248,7 @@ class TRFExperiment(MneExperiment):
         if group is not None:
             dss = []
             for _ in self.iter(group=group, progress_bar="Load TRFs"):
-                ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, backward, postfit, make, scale, smooth, smooth_time, vardef, permutations, vector_as_norm)
+                ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, postfit, make, scale, smooth, smooth_time, vardef, permutations, vector_as_norm)
                 dss.append(ds)
 
             try:
@@ -1265,7 +1267,7 @@ class TRFExperiment(MneExperiment):
             dss = []
             with self._temporary_state:
                 for sub_epoch in epoch.collect:
-                    ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, backward, postfit, make, scale, smooth, smooth_time, None, permutations, vector_as_norm, epoch=sub_epoch)
+                    ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, postfit, make, scale, smooth, smooth_time, None, permutations, vector_as_norm, epoch=sub_epoch)
                     ds[:, 'epoch'] = sub_epoch
                     dss.append(ds)
             ds = combine(dss)
@@ -1276,7 +1278,7 @@ class TRFExperiment(MneExperiment):
         if isinstance(postfit, (list, tuple)):
             ds = None
             for term in postfit:
-                term_ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, backward, term, make, scale, smooth, smooth_time, None, permutations, vector_as_norm)
+                term_ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, term, make, scale, smooth, smooth_time, None, permutations, vector_as_norm)
                 if ds is None:
                     ds = term_ds
                 else:
@@ -1312,7 +1314,7 @@ class TRFExperiment(MneExperiment):
                 post_fit_xs.update(map(Dataset.as_key, postfit_x.terms))
             else:
                 postfit_x = False
-            res = self.load_trf(x_, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, backward, postfit_x, make)
+            res = self.load_trf(x_, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, postfit_x, make)
             # kernel
             if scale is None:
                 res_h = res.h
@@ -1396,7 +1398,7 @@ class TRFExperiment(MneExperiment):
         self._add_vars(ds, vardef, groupvars=True)
         return ds
 
-    def _locate_missing_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, backward=False, postfit=False, permutations=1, existing=False, **state):
+    def _locate_missing_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, postfit=False, permutations=1, existing=False, **state):
         "Return ``(path, state, args)`` for ._trf_job() for each missing trf-file"
         data = TestDims.coerce(data)
         x = self._coerce_model(x)
@@ -1408,7 +1410,7 @@ class TRFExperiment(MneExperiment):
             self.set(**state)
 
         out = []
-        args = (x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, backward, postfit)
+        args = (x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, postfit)
 
         # multiple permutations
         if permutations > 1 and x.has_randomization:
@@ -1443,7 +1445,7 @@ class TRFExperiment(MneExperiment):
                 # Check whether TRF exists for superset parc
                 super_exists = False
                 for super_parc in self._parc_supersets.get(mask, ()):
-                    spath = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, data, backward, postfit)
+                    spath = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, cv, data, backward, postfit)
                     if os.path.exists(spath):
                         super_exists = True
                         break
@@ -1462,7 +1464,7 @@ class TRFExperiment(MneExperiment):
             self.make_src()
         return parc
 
-    def load_trf_test(self, x, tstart=0, tstop=0.5, basis=0.05, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, postfit=False, permutations=1, make=False, make_trfs=False, scale=None, smooth=None, smooth_time=None, pmin='tfce', samples=10000, test=True, return_data=False, xhemi=False, xhemi_smooth=0.005, **state):
+    def load_trf_test(self, x, tstart=0, tstop=0.5, basis=0.05, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, postfit=False, permutations=1, make=False, make_trfs=False, scale=None, smooth=None, smooth_time=None, pmin='tfce', samples=10000, test=True, return_data=False, xhemi=False, xhemi_smooth=0.005, **state):
         """Load TRF test result
 
         Parameters
@@ -1557,7 +1559,7 @@ class TRFExperiment(MneExperiment):
                 assert not postfit  # needs to post-fit relevant predictor
                 if return_data:
                     raise NotImplementedError("return_data=True for multiple comparisons")
-                ress = ((cmp.test_term_name, self.load_trf_test(cmp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, samples, test, return_data, xhemi, xhemi_smooth)) for cmp in model.comparisons)
+                ress = ((cmp.test_term_name, self.load_trf_test(cmp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, samples, test, return_data, xhemi, xhemi_smooth)) for cmp in model.comparisons)
                 return ResultCollection(ress)
             if model.baseline_term_name is None:
                 raise ValueError(f"x={x!r}: no unique baseline term")
@@ -1574,7 +1576,7 @@ class TRFExperiment(MneExperiment):
             test_options = f'xhemi-abs-{int(xhemi_smooth * 1000)}'
         else:
             test_options = None
-        self._set_trf_options(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit=postfit, pmin=pmin, is_group_result=True, scale=scale, smooth_source=smooth, smooth_time=smooth_time, test=test, test_options=test_options, permutations=permutations)
+        self._set_trf_options(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, pmin=pmin, is_group_result=True, scale=scale, smooth_source=smooth, smooth_time=smooth_time, test=test, test_options=test_options, permutations=permutations)
 
         # check if cached
         dst = self.get('trf-test-file', mkdir=True)
@@ -1603,8 +1605,8 @@ class TRFExperiment(MneExperiment):
             # returns single test
             if return_data or res_modified:
                 assert not postfit  # need to post-fit relevant term
-                ds = self.load_trfs(-1, model.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vector_as_norm=True)
-                ds0 = self.load_trfs(-1, model.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, permutations=permutations, vector_as_norm=True)
+                ds = self.load_trfs(-1, model.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vector_as_norm=True)
+                ds0 = self.load_trfs(-1, model.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, permutations=permutations, vector_as_norm=True)
                 y0_key = Dataset.as_key(model.baseline_term_name)
                 assert np.all(ds['subject'] == ds0['subject'])
                 if res_modified:
@@ -1621,7 +1623,7 @@ class TRFExperiment(MneExperiment):
             if xhemi:
                 assert not postfit
                 parc = self._xhemi_parc()
-                trf_ds, trf_res = self.load_trf_test(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, test=test, return_data=True)
+                trf_ds, trf_res = self.load_trf_test(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, test=test, return_data=True)
 
                 test_obj = XHEMI_TEST if test is True else self.tests[test]
                 # xhemi data
@@ -1657,7 +1659,7 @@ class TRFExperiment(MneExperiment):
                     lms = {y: [] for y in y_keys}
                     dss = []
                     for subject in self:
-                        ds = self.load_trfs(1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations)
+                        ds = self.load_trfs(1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations)
                         if res_modified:
                             for y in y_keys:
                                 lms[y].append(test_obj.make_stage_1(y, ds, subject))
@@ -1672,7 +1674,7 @@ class TRFExperiment(MneExperiment):
                     if return_data:
                         ds = combine(dss)
                 else:
-                    ds = self.load_trfs(-1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations, vector_as_norm=True)
+                    ds = self.load_trfs(-1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations, vector_as_norm=True)
                     if res_modified:
                         for x in tqdm(y_keys, f"TRF-Tests for {model.name}"):
                             test_kwargs['parc'] = trf_test_parc_arg(ds[x])
@@ -1690,7 +1692,7 @@ class TRFExperiment(MneExperiment):
         else:
             return res
 
-    def _set_trf_options(self, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, backward=False, postfit=False, pmin=None, is_group_result=False, metric=None, scale=None, smooth_source=None, smooth_time=None, is_public=False, test=None, test_options=None, permutations=1, by_subject=False, public_name=None, state=None):
+    def _set_trf_options(self, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward=False, postfit=False, pmin=None, is_group_result=False, metric=None, scale=None, smooth_source=None, smooth_time=None, is_public=False, test=None, test_options=None, permutations=1, by_subject=False, public_name=None, state=None):
         # avoid _set_trf_options(**state) because _set_trf_options could catch invalid state
         # parameters like `scale`
         if metric and metric not in FIT_METRICS:
@@ -1770,6 +1772,8 @@ class TRFExperiment(MneExperiment):
         if selective_stopping:
             assert isinstance(selective_stopping, int)
             trf_options.append(f'ss{selective_stopping}')
+        if cv:
+            trf_options.append('cv')
         if scale is not None:
             assert scale in ('original',)
             trf_options.append(scale)
@@ -1927,7 +1931,7 @@ class TRFExperiment(MneExperiment):
         else:
             raise TypeError(f"x={x!r}")
 
-    def load_model_test(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, test=True, tail=None, return_data=False, pmin='tfce', xhemi=False, xhemi_mask=True, make=False, **state):
+    def load_model_test(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, test=True, tail=None, return_data=False, pmin='tfce', xhemi=False, xhemi_mask=True, make=False, **state):
         """Test comparing model fit between two models
 
         Parameters
@@ -1980,7 +1984,7 @@ class TRFExperiment(MneExperiment):
             ress = [
                 (
                     comp.test_term_name,
-                    self.load_model_test(comp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, permutations, metric, smooth, test, tail, return_data, pmin, xhemi, xhemi_mask, make)
+                    self.load_model_test(comp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, metric, smooth, test, tail, return_data, pmin, xhemi, xhemi_mask, make)
                 )
                 for comp in comparisons
             ]
@@ -2001,7 +2005,7 @@ class TRFExperiment(MneExperiment):
         else:
             test_options = None
 
-        self._set_trf_options(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, pmin=pmin, test=test, smooth_source=smooth, metric=metric, is_group_result=True, test_options=test_options, permutations=permutations, state=state)
+        self._set_trf_options(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, pmin=pmin, test=test, smooth_source=smooth, metric=metric, is_group_result=True, test_options=test_options, permutations=permutations, state=state)
         dst = self.get('model-test-file', mkdir=True)
         dst = self._cache_path(dst)
         if self._result_file_mtime(dst, data):
@@ -2016,8 +2020,8 @@ class TRFExperiment(MneExperiment):
             group = self.get('group')
             vardef = None if test is True else self._tests[test].vars
             x1_permutations = permutations if comparison.x1.has_randomization else 1
-            ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit=postfit, make=make, vardef=vardef, permutations=x1_permutations)
-            ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, postfit=postfit, make=make, vardef=vardef, permutations=permutations)
+            ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make, vardef=vardef, permutations=x1_permutations)
+            ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make, vardef=vardef, permutations=permutations)
 
             # restructure data
             y = metric
@@ -2048,7 +2052,7 @@ class TRFExperiment(MneExperiment):
                 if xhemi_mask:
                     parc = self._xhemi_parc()
                     with self._temporary_state:
-                        base_res = self.load_model_test(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, permutations, metric, smooth, test, pmin=pmin, make=make)
+                        base_res = self.load_model_test(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, metric, smooth, test, pmin=pmin, make=make)
                     if isinstance(base_res, MultiEffectNDTest):
                         raise NotImplementedError("xhemi_mask for multi-effect tests")
                     mask_lh, mask_rh = eelbrain.xhemi(base_res.p <= 0.05, parc=parc)
@@ -2076,7 +2080,7 @@ class TRFExperiment(MneExperiment):
                 return ds, res
         return res
 
-    def _locate_model_test_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, postfit=False, permutations=1, existing=False, **state):
+    def _locate_model_test_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, postfit=False, permutations=1, existing=False, **state):
         """Find required jobs for a report
 
         Returns
@@ -2097,10 +2101,10 @@ class TRFExperiment(MneExperiment):
         missing = []
         for model in models:
             missing.extend(
-                self._locate_missing_trfs(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, False, postfit, permutations, existing))
+                self._locate_missing_trfs(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, False, postfit, permutations, existing))
         return missing
 
-    def make_model_test_report(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, tail=None, surf=None, views=None, make=False, path_only=False, public_name=None, test=True, by_subject=False, **state):
+    def make_model_test_report(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, tail=None, surf=None, views=None, make=False, path_only=False, public_name=None, test=True, by_subject=False, **state):
         """Generate report for model comparison
 
         Parameters
@@ -2119,7 +2123,7 @@ class TRFExperiment(MneExperiment):
         if data.source is not True:
             raise NotImplementedError("Model-test report for data other than source space")
         x = self._coerce_comparison(x, tail)
-        self._set_trf_options(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, metric=metric, smooth_source=smooth, is_group_result=True, is_public=True, test=test, permutations=permutations, by_subject=by_subject, public_name=public_name, state=state)
+        self._set_trf_options(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, metric=metric, smooth_source=smooth, is_group_result=True, is_public=True, test=test, permutations=permutations, by_subject=by_subject, public_name=public_name, state=state)
         dst = self.get('model-report-file', mkdir=True)
         if path_only:
             return dst
@@ -2127,7 +2131,7 @@ class TRFExperiment(MneExperiment):
             return
         self._log.info("Make TRF-report: %s", relpath(dst, self.get('model-res-dir')))
 
-        ds, res = self.load_model_test(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, data, permutations, metric, smooth, test, tail, True, 'tfce', make=make)
+        ds, res = self.load_model_test(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, metric, smooth, test, tail, True, 'tfce', make=make)
 
         if isinstance(x, IncrementalComparisons):
             comparisons = x.comparisons
