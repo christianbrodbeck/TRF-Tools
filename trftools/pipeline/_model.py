@@ -43,15 +43,18 @@ a + b$rnd > b + a$rnd
 
 """
 from collections.abc import Sequence
-from itertools import chain,zip_longest
+from dataclasses import dataclass
+from itertools import chain, zip_longest
 from os.path import commonprefix
 import pickle
 import re
 from types import GeneratorType
-from typing import Union, List
+from typing import Union, List, Tuple
 
 import numpy as np
 from eelbrain._utils import LazyProperty
+
+from ._code import Code
 
 
 COMP = {1: '>', 0: '=', -1: '<'}
@@ -197,17 +200,84 @@ class Model:
         return f'{head}${tail}{angle}'
 
 
-class ComparisonBase:
-    _COMP_ATTRS = ()
+@dataclass(frozen=True)
+class Term:
+    "Term in StructuredModel"
+    code: str
+    parent: int = -1
+    rand: str = '$shift'
 
-    def __eq__(self, other):
-        return isinstance(other, self.__class__) and all(getattr(self, attr) == getattr(other, attr) for attr in self._COMP_ATTRS)
+    @classmethod
+    def _coerce(cls, x):
+        if isinstance(x, cls):
+            return x
+        elif isinstance(x, str):
+            return cls(x)
+        elif isinstance(x, tuple):
+            return cls(*x)
+        raise TypeError(x)
 
-    def __hash__(self):
-        return hash((self.__class__, *(getattr(self, attr) for attr in self._COMP_ATTRS)))
+
+@dataclass(frozen=True)
+class StructuredModel:
+    "Model including information about each Term"
+    terms: Tuple[Term]
+
+    @classmethod
+    def coerce(cls, x):
+        if isinstance(x, cls):
+            return x
+        elif isinstance(x, str):
+            terms = [Term._coerce(term.strip()) for term in x.split(' + ')]
+        elif isinstance(x, dict):
+            terms = [Term(key, v) if isinstance(v, int) else Term(key, *v) for key, v in x.items()]
+        elif isinstance(x, Sequence):
+            terms = [Term._coerce(term) for term in x]
+        else:
+            raise TypeError(x)
+        return cls(tuple(terms))
+
+    @LazyProperty
+    def model(self):
+        return Model([term.code for term in self.terms])
+
+    def comparisons(self, cv: bool):
+        parents = {term.parent for term in self.terms}
+        comparisons = []
+        for i, term in enumerate(self.terms):
+            if i <= -2 or i in parents:
+                continue
+            elif cv:
+                x0 = Model([x for x in self.model.terms if x != term.code])
+                comparison = Comparison(self.model, x0)
+            elif term.rand.startswith('$'):
+                x0_terms = list(self.model.terms)
+                x0_terms[i] += term.rand
+                x0 = Model(x0_terms)
+                comparison = Comparison(self.model, x0)
+            elif term.rand.startswith('|'):
+                comparison = parse_comparison(f"{self.model.name} {term.rand}", test_term_name=self.model.terms[i])
+            else:
+                raise ValueError(f"Randomization {term.rand!r} (needs to start with $ or |)")
+            comparisons.append(comparison)
+        return comparisons
+
+    def reduce(self, term):
+        """Reduced model, excluding ``term``"""
+        i_remove = self.model.index(term)
+        if any(term.parent == i_remove for term in self.terms):
+            raise ValueError(f"term={term!r}: trying to remove parent term")
+        terms = []
+        for i, term in enumerate(self.terms):
+            if i == i_remove:
+                continue
+            elif term.parent > i_remove:
+                term = Term(term.code, term.parent-1, term.rand)
+            terms.append(term)
+        return StructuredModel(tuple(terms))
 
 
-class Comparison(ComparisonBase):
+class Comparison:
     """Model comparison for test or report
     
     Notes
@@ -228,8 +298,6 @@ class Comparison(ComparisonBase):
     x0_only : str
         Terms only in ``x0`` joined by ``+``.
     """
-    _COMP_ATTRS = ('x1', 'x0', 'tail')
-
     # TODO: detect phone-level2>3, feature-fea#manner
     # TODO: permute rows word-class$[c]shift or word-class[c]shift
     def __init__(self, x1, x0, tail=1, named_components={}, test_term_name=None):
@@ -367,6 +435,12 @@ class Comparison(ComparisonBase):
         if self.tail != 1:
             args += (self.tail,)
         return "Comparison(%s)" % ', '.join(map(repr, args))
+
+    def __hash__(self):
+        return hash((self.x1, self.x0, self.tail))
+
+    def __eq__(self, other):
+        return (other.__class__, other.x1, other.x0, other.tail) == (self.__class__, self.x1, self.x0, self.tail)
 
 
 def _model_terms(string, named_models):
@@ -534,153 +608,6 @@ def parse_comparison(string, named_models=None, test_term_name=None):
         x0_terms = common_base_terms + x0_terms
 
     return Comparison(x1_terms, x0_terms, tail, named_components, test_term_name)
-
-
-class Comparisons(ComparisonBase):
-    "Baseclass for comparison groups"
-    _COMP_ATTRS = ('comparisons',)
-
-    def __init__(self, name: str, comparisons: tuple):
-        self.name = name
-        self.comparisons = comparisons
-
-
-class IncrementalComparisons(Comparisons):
-    """Incremental comparison for each term in ``x``
-
-    Parameters
-    ----------
-    x : Model
-        The full model.
-    rand : str | list of str
-        Randomization method, general or per term.
-    hierarchy : list of int
-        Indicate for each term its parent (by index); used to find reduced
-        models. ``-1`` are root terms, ``-2`` are terms that are not considered
-        for exclusion. By default, all terms are considered.
-    """
-    def __init__(self, x: 'ModelArg', rand: str = '$shift', hierarchy: List[int] = None):
-        x = Model.coerce(x)
-        n_terms = len(x.terms)
-        if isinstance(rand, str):
-            rands = (rand,) * n_terms
-            default_rand = rand == '$shift'
-        else:
-            rands = rand = tuple(rand)
-            if len(rands) != n_terms:
-                raise ValueError(f"rand={rand!r}; must have one entry per term ({n_terms} not {len(rand)}")
-            default_rand = all(r == '$shift' for r in rands)
-
-        # find terms which require a comparison
-        if hierarchy is None:
-            comp_terms = enumerate(rands)
-        else:
-            hierarchy = tuple(map(int, hierarchy))
-            if len(hierarchy) != n_terms:
-                raise ValueError(f"hierarchy={hierarchy}; must have one entry per term ({n_terms} not {len(hierarchy)})")
-            elif not all(-2 <= i < n_terms for i in hierarchy):
-                raise ValueError(f"hierarchy={hierarchy}: invalid values")
-            comp_terms = []
-            for i, parent in enumerate(hierarchy):
-                if parent == -2:
-                    continue
-                elif i in hierarchy:
-                    continue
-                else:
-                    comp_terms.append((i, rands[i]))
-
-        comparisons = []
-        for i, rand_str in comp_terms:
-            if rand_str.startswith('$'):
-                x0 = list(x.terms)
-                x0[i] += rand_str
-                comparison = Comparison(x, x0)
-            elif rand_str.startswith('|'):
-                comparison = parse_comparison(f"{x.name} {rand_str}", test_term_name=x.terms[i])
-            else:
-                raise ValueError(f"Randomization {rand_str!r} (needs to start with $ or |)")
-            comparisons.append(comparison)
-        Comparisons.__init__(self, x.name, tuple(comparisons))
-        self._default_rand = default_rand
-        # inherited attributes
-        self.x = x
-        self.terms = x.terms
-        self.rand = rand
-        self.hierarchy = hierarchy
-
-    @classmethod
-    def coerce(cls, x):
-        if isinstance(x, cls):
-            return x
-        elif isinstance(x, dict):
-            return IncrementalComparisons.from_effect_dict(x)
-        else:
-            return IncrementalComparisons(x)
-
-    @classmethod
-    def from_effect_dict(cls, effects: dict, rand: str = '$shift'):
-        """Initialize from list of dict
-
-        Parameters
-        ----------
-        effects : dict
-            Each effect is coded as ``{term: parent}`` or
-            ``{term: (parent, rand)}`` entry.
-        rand : str
-            Default randomization (applied to all terms that do not explicitly
-            mention randomization).
-        """
-        lines = []
-        for term, entry in effects.items():
-            if isinstance(entry, int):
-                parent, rand_ = entry, rand
-            elif isinstance(entry, str):
-                parent, rand_ = -1, entry
-            else:
-                parent, rand_ = entry
-            lines.append([term, rand_, parent])
-        return cls(*zip(*lines))
-
-    @classmethod
-    def from_effect_list(cls, effects):
-        """Initialize from list of ``(code, hierarchy, randomization)``
-
-        Parameters
-        ----------
-
-        Notes
-        -----
-        If hierarchy is -2, ``randomization`` can be omitted.
-        """
-        terms, hierarchy, rand = zip_longest(*effects)
-        return cls(terms, rand, hierarchy)
-
-    def __repr__(self):
-        args = [repr(self.x.name)]
-        if self.rand != '$shift':
-            args.append("rand=%r" % (self.rand,))
-        if self.hierarchy is not None:
-            args.append("hierarchy=%r" % (self.hierarchy,))
-        return "IncrementalComparisons(%s)" % ', '.join(args)
-
-    def reduce(self, term):
-        """Reduced model, excluding ``term``"""
-        terms = list(self.x.terms)
-        i = terms.index(term)
-        del terms[i]
-        if isinstance(self.rand, str):
-            rand = self.rand
-        else:
-            rand = list(self.rand)
-            del rand[i]
-        if self.hierarchy is None:
-            hierarchy = None
-        elif i in self.hierarchy:
-            raise ValueError(f"term={term!r}: trying to remove parent term")
-        else:
-            hierarchy = [h if h < i else h - 1 for h in self.hierarchy]
-            del hierarchy[i]
-        return IncrementalComparisons(terms, rand, hierarchy)
 
 
 def save_models(models, path):

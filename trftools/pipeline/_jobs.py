@@ -9,7 +9,7 @@ import webbrowser
 from eelbrain import fmtxt, save
 from eelbrain._experiment.test_def import TestDims
 
-from ._model import IncrementalComparisons, Model, ModelArg, parse_comparison
+from ._model import StructuredModel, Model, ModelArg, parse_comparison
 
 
 def make_jobs(job_file, make_trfs=False, open_in_browser=False):
@@ -150,7 +150,6 @@ class FuncJob:
         return f"{self.name}-{self._i}"
 
 
-
 class TRFsJob(Job):
     """Job for group of TRFs
 
@@ -236,7 +235,7 @@ class ModelJob(Job):
     Parameters
     ----------
     model : str
-        Model or regressors (see :class:`TRFExperiment` module docstring).
+        StructuredModel or comparison (see :class:`TRFExperiment` module docstring).
     report : bool
         Schedule a model-test report.
     experiment : Experiment
@@ -263,7 +262,7 @@ class ModelJob(Job):
             assert 0. < reduce_model < 1.
         elif not isinstance(reduce_model, bool):
             raise TypeError(f"reduce_model={reduce_model!r}")
-        if reduce_model and not isinstance(model, IncrementalComparisons):
+        if reduce_model and not isinstance(model, StructuredModel):
             raise ValueError("reduce_model requires incremental model-comparison as base")
 
         # spacial description for reduced models
