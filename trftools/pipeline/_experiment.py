@@ -417,11 +417,11 @@ class TRFExperiment(MneExperiment):
         self._model_names = {model.sorted: name for name, model in self._named_models.items()}
         # update from .models
         implied_model_names = {}
-        for key, comparisons in self._structured_models.items():
-            desc = comparisons.x.sorted
+        for key, smodel in self._structured_models.items():
+            desc = smodel.model.sorted
             if desc not in implied_model_names or len(implied_model_names[desc]) > len(key):
                 implied_model_names[desc] = key
-        implied_models = {k: self._structured_models[k].x for k in implied_model_names.values()}
+        implied_models = {k: self._structured_models[k].model for k in implied_model_names.values()}
         self._update_models(implied_models)
 
     def _update_models(self, models: Dict[str, Model]):

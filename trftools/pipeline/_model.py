@@ -221,17 +221,21 @@ class Term:
 @dataclass(frozen=True)
 class StructuredModel:
     "Model including information about each Term"
-    terms: List[Term]
+    terms: Tuple[Term]
 
     @classmethod
     def coerce(cls, x):
         if isinstance(x, cls):
             return x
         elif isinstance(x, str):
-            return cls([Term._coerce(term.strip()) for term in x.split(' + ')])
+            terms = [Term._coerce(term.strip()) for term in x.split(' + ')]
+        elif isinstance(x, dict):
+            terms = [Term(key, v) if isinstance(v, int) else Term(key, *v) for key, v in x.items()]
         elif isinstance(x, Sequence):
-            return cls([Term._coerce(term) for term in x])
-        raise TypeError(x)
+            terms = [Term._coerce(term) for term in x]
+        else:
+            raise TypeError(x)
+        return cls(tuple(terms))
 
     @LazyProperty
     def model(self):
@@ -270,7 +274,7 @@ class StructuredModel:
             elif term.parent > i_remove:
                 term = Term(term.code, term.parent-1, term.rand)
             terms.append(term)
-        return StructuredModel(terms)
+        return StructuredModel(tuple(terms))
 
 
 class Comparison:
