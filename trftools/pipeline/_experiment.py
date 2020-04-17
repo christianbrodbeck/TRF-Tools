@@ -176,7 +176,7 @@ from eelbrain import (
 )
 from eelbrain._exceptions import DimensionMismatchError
 from eelbrain.fmtxt import List, Report, Table
-from eelbrain.pipeline import TTestOneSample, TTestRel, TwoStageTest, RawFilter, RawSource
+from eelbrain.pipeline import TTestOneSample, TTestRelated, TwoStageTest, RawFilter, RawSource
 from eelbrain._experiment.definitions import FieldCode
 from eelbrain._experiment.epochs import EpochCollection
 from eelbrain._experiment.mne_experiment import DefinitionError, TestDims, guess_y, cache_valid
@@ -211,11 +211,11 @@ TRF_TEMPLATES = (
     ('model-report-file', True),
 )
 
-XHEMI_TEST = TTestRel('hemi', 'lh', 'rh')
+XHEMI_TEST = TTestRelated('hemi', 'lh', 'rh')
 MODEL_TEST = {
-    1: TTestRel('model', 'test', 'baseline', 1),
-    0: TTestRel('model', 'test', 'baseline', 0),
-    -1: TTestRel('model', 'test', 'baseline', -1),
+    1: TTestRelated('model', 'test', 'baseline', 1),
+    0: TTestRelated('model', 'test', 'baseline', 0),
+    -1: TTestRelated('model', 'test', 'baseline', -1),
 }
 TRF_TEST = TTestOneSample()
 DSTRF_RE = re.compile(r'(ncrf)(?:-(\w+))?$')
