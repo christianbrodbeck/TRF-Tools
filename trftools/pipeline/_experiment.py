@@ -193,7 +193,7 @@ from .._ndvar import pad
 from .._numpy_funcs import arctanh
 from ._code import SHUFFLE_METHODS, Code
 from ._jobs import TRFsJob, ModelJob
-from ._model import Comparison, IncrementalComparisons, Model, is_comparison, load_models, save_models
+from ._model import Comparison, Model, StructuredModel, is_comparison, load_models, save_models
 from ._predictor import EventPredictor, FilePredictor, MakePredictor
 from ._results import ResultCollection
 from . import _trf_report as trf_report
@@ -406,7 +406,7 @@ class TRFExperiment(MneExperiment):
         else:
             raise TypeError(f"MneExperiment.stim_var={self.stim_var!r}")
         # named models
-        self._structured_models = {k: IncrementalComparisons.coerce(v) for k, v in self.models.items()}
+        self._structured_models = {k: StructuredModel.coerce(v) for k, v in self.models.items()}
         self._structured_model_names = {m: k for k, m in self._structured_models.items()}
         # load cached models:  {str: Model}
         self._model_names_file = join(self.get('cache-dir', mkdir=True), 'model-names.pickle')
@@ -1555,7 +1555,7 @@ class TRFExperiment(MneExperiment):
         # vector data can not be tested against 0
         if compare_with_baseline_model:
             model = self._coerce_comparison(x)
-            if isinstance(model, IncrementalComparisons):
+            if isinstance(model, StructuredModel):
                 assert not postfit  # needs to post-fit relevant predictor
                 if return_data:
                     raise NotImplementedError("return_data=True for multiple comparisons")
@@ -1880,17 +1880,17 @@ class TRFExperiment(MneExperiment):
 
     def _coerce_comparison(
             self,
-            x: Union[str, Comparison, IncrementalComparisons],
+            x: Union[str, Comparison, StructuredModel],
             tail=None,
-    ) -> Union[Comparison, IncrementalComparisons]:
+    ) -> Union[Comparison, StructuredModel]:
         if isinstance(x, str):
             if x in self._structured_models:
                 x = self._structured_models[x]
             elif is_comparison(x):
                 return Comparison.coerce(x, None, tail, self._named_models)
             else:
-                x = IncrementalComparisons(x)
-        elif not isinstance(x, (IncrementalComparisons, Comparison)):
+                x = StructuredModel.coerce(x)
+        elif not isinstance(x, (StructuredModel, Comparison)):
             raise TypeError(f"x={x!r}: need comparison")
         assert tail is None
         return x
@@ -1918,16 +1918,14 @@ class TRFExperiment(MneExperiment):
             component_names = {key: self._x_desc(model, is_public)
                                for key, model in x._components.items()}
             return x.relative_name(component_names)
-        elif isinstance(x, IncrementalComparisons):
-            assert is_public  # all internal names should be model-based
+        elif isinstance(x, StructuredModel):
+            assert is_public  # all internal names should be Model-based
             desc = self._structured_model_names.get(x)
             if desc:
                 return desc
-            elif not x._default_rand:
-                raise ValueError("Unnamed model-comparisons with randomization other than $shift")
-            elif len(x.x.name) > 100:
-                raise NameTooLong(x.x.name)
-            return x.x.name
+            elif len(x.model.name) > 100:
+                raise NameTooLong(x.model.name)
+            return x.model.name
         else:
             raise TypeError(f"x={x!r}")
 
@@ -1977,16 +1975,15 @@ class TRFExperiment(MneExperiment):
         comparison = self._coerce_comparison(x, tail)
 
         # Load multiple tests for a comparison group
-        if isinstance(comparison, IncrementalComparisons):
+        if isinstance(comparison, StructuredModel):
             if state:
                 self.set(**state)
-            comparisons = list(comparison.comparisons)
             ress = [
                 (
                     comp.test_term_name,
                     self.load_model_test(comp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, metric, smooth, test, tail, return_data, pmin, xhemi, xhemi_mask, make)
                 )
-                for comp in comparisons
+                for comp in comparison.comparisons(cv)
             ]
             if return_data:
                 dss = {key: res[0] for key, res in ress}
@@ -2093,8 +2090,8 @@ class TRFExperiment(MneExperiment):
         if state:
             self.set(**state)
 
-        if isinstance(x, IncrementalComparisons):
-            models = {m for comp in x.comparisons for m in comp.models}
+        if isinstance(x, StructuredModel):
+            models = {m for comp in x.comparisons(cv) for m in comp.models}
         else:
             models = x.models
 
@@ -2133,8 +2130,8 @@ class TRFExperiment(MneExperiment):
 
         ds, res = self.load_model_test(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, metric, smooth, test, tail, True, 'tfce', make=make)
 
-        if isinstance(x, IncrementalComparisons):
-            comparisons = x.comparisons
+        if isinstance(x, StructuredModel):
+            comparisons = x.comparisons(cv)
             dss, ress = ds, res
             ds = dss[comparisons[0].test_term_name]
             res = ress[comparisons[0].test_term_name]
@@ -2202,9 +2199,9 @@ class TRFExperiment(MneExperiment):
         info.add_item(f"Mask: {mask}")
         # Info: model
         model_info = List("Predictor model")
-        if isinstance(x, IncrementalComparisons):
+        if isinstance(x, StructuredModel):
             model_info.add_item("Incremental model improvement for each term")
-            model_info.add_item(x.name)
+            model_info.add_item(x.model.name)
         elif isinstance(x, Comparison):
             if x.common_base:
                 model_info.add_item("Common base:  " + x.common_base)
