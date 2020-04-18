@@ -42,124 +42,185 @@ a + b$rnd > b + a$rnd
 
 
 """
-from collections.abc import Sequence
+from collections import abc
 from dataclasses import dataclass
-from itertools import chain, zip_longest
-from os.path import commonprefix
 import pickle
-import re
-from types import GeneratorType
-from typing import Union, List, Tuple
+from typing import Dict, Callable, List, Tuple, Sequence, Union
 
 import numpy as np
+from eelbrain import Dataset, fmtxt
+from eelbrain._experiment.mne_experiment import DefinitionError
 from eelbrain._utils import LazyProperty
-
-from ._code import Code
+from pyparsing import ParseException, Literal, Optional, Word, alphas, alphanums, delimitedList, nums, oneOf
 
 
 COMP = {1: '>', 0: '=', -1: '<'}
 TAIL = {'>': 1, '=': 0, '<': -1}
-BASE_RE = re.compile(r'^(.*)\s+(\+?\|)\s+(.*)$')
-COMPARISON_RE = re.compile('(.* )(>|<|=)( .*)')
-TERM_RE = re.compile(r'^ *([\[\]\w\d\-:|$]+) *$')
-
-# characters that delineate randomization in a predictor
-MOD_DELIM_CHARS = ('$',)
 
 
-class ModelSyntaxError(Exception):
-    "Error in model specification"
-    def __init__(self, string, error):
-        Exception.__init__(self, "%s (%s)" % (string, error))
+@dataclass(frozen=True)
+class ModelTerm:
+    stimulus: str
+    code: str
+    shuffle_index: Union[int, slice] = None
+    shuffle: str = None
+    shuffle_angle: int = 180
+
+    @LazyProperty
+    def string(self) -> str:
+        items = [self.code]
+        if self.stimulus:
+            items.insert(0, f'{self.stimulus}|')
+        if self.shuffle:
+            items.append(self.shuffle_string)
+        return ''.join(items)
+
+    @LazyProperty
+    def shuffle_string(self) -> str:
+        if not self.shuffle:
+            return ''
+        items = ['$']
+        if isinstance(self.shuffle_index, slice):
+            items.append(f'[{self.shuffle_index.start}-{self.shuffle_index.stop}]')
+        elif self.shuffle_index:
+            items.append(f'[{self.shuffle_index}]')
+        items.append(self.shuffle)
+        if self.shuffle_angle != 180:
+            items.append(str(self.shuffle_angle))
+        return ''.join(items)
 
 
-def is_comparison(x):
-    "Test whether str ``x`` is a comparison description (vs a model)"
-    return bool(BASE_RE.match(x) or COMPARISON_RE.match(x))
+    @LazyProperty
+    def without_shuffle(self):
+        if self.shuffle:
+            return ModelTerm(self.stimulus, self.code)
+        else:
+            return self
+
+    def with_shuffle(self, index, shuffle, angle):
+        if shuffle is None:
+            return self.without_shuffle
+        return ModelTerm(self.stimulus, self.code, index, shuffle, angle)
+
+    def __repr__(self):
+        return f"<ModelTerm: {self.string}>"
 
 
+@dataclass(frozen=True)
 class Model:
     """Model that can be fit to data"""
-    def __init__(self, x):
-        if isinstance(x, str):
-            terms = x.split('+')
-        elif isinstance(x, GeneratorType):
-            terms = list(x)
-        elif isinstance(x, Sequence):
-            terms = x
-        else:
-            raise TypeError("x=%r" % (x,))
+    terms: Tuple[ModelTerm, ...]
 
-        matches = tuple(map(TERM_RE.match, terms))
-        if not all(matches):
-            invalid = (term for term, m in zip(terms, matches) if not m)
-            raise ValueError(f"Invalid terms for model: {', '.join(map(repr, invalid))}")
+    @LazyProperty
+    def name(self):
+        if not self.terms:
+            return '0'
+        return ' + '.join(term.string for term in self.terms)
 
-        self.terms = tuple(m.group(1) for m in matches)
-        self.name = ' + '.join(self.terms)
-        self.sorted = '+'.join(sorted(self.terms))
+    @LazyProperty
+    def sorted_key(self):
+        return '+'.join(sorted([term.string for term in self.terms]))
 
-    def __hash__(self):
-        return hash(self.name)
+    @LazyProperty
+    def dataset_based_key(self):
+        term_keys = [Dataset.as_key(term.string) for term in self.terms]
+        return '+'.join(sorted(term_keys))
 
-    def __eq__(self, other):
-        return isinstance(other, Model) and self.name == other.name
-
-    def __sub__(self, other: 'Model'):
-        if not all(term in self.terms for term in other.terms):
-            raise ValueError(f"Missing terms: {', '.join(term for term in other.terms if term not in self.terms)}")
-        return Model([term for term in self.terms if term not in other.terms])
+    @LazyProperty
+    def term_names(self):
+        return tuple([term.string for term in self.terms])
 
     @classmethod
-    def coerce(cls, x, named_models={}):
-        """Model that can be fit to data
+    def from_string(cls, string: Union[str, Sequence[str]]):
+        if isinstance(string, str):
+            try:
+                return model.parseString(string, True)[0]
+            except ParseException:
+                raise DefinitionError(f"{string!r}: invalid Model")
+        else:
+            terms = [parse_term(s) for s in string]
+            return cls(tuple(terms))
 
-        Notes
-        -----
-        Models can be fully specified (terms joined by '+') but can also be headed
-        by a named model::
+    def __repr__(self):
+        return f"<Model: {self.name}>"
 
-            model + y
+    def __len__(self):
+        return len(self.terms)
 
-        """
+    def __add__(self, other: 'Model') -> 'Model':
+        assert not self.intersection(other)
+        return Model(self.terms + other.terms)
+
+    def __sub__(self, other: 'Model') -> 'Model':
+        if not all(term in self.terms for term in other.terms):
+            missing = [term.string for term in other.terms if term not in self.terms]
+            raise ValueError(f"Missing terms: {', '.join(missing)}")
+        return Model(tuple([term for term in self.terms if term not in other.terms]))
+
+    @classmethod
+    def coerce(cls, x: Union['Model', str]):
         if isinstance(x, cls):
             return x
         else:
-            name_x1, terms = _model_terms(x, named_models)
-            return cls(terms)
+            return cls.from_string(x)
 
     @LazyProperty
     def has_randomization(self):
-        return any('$' in term for term in self.terms)
-
-    @LazyProperty
-    def sorted_without_randomization(self):
-        return '+'.join(sorted(self.terms_without_randomization))
+        return any(term.shuffle for term in self.terms)
 
     @LazyProperty
     def sorted_randomized(self):
-        return '+'.join(sorted(term for term in self.terms if '$' in term))
+        return '+'.join(sorted(term.string for term in self.terms if term.shuffle))
 
     @LazyProperty
     def terms_without_randomization(self):
         if self.has_randomization:
-            return tuple(term.partition('$')[0] for term in self.terms)
+            return tuple([term.without_shuffle for term in self.terms])
         else:
             return self.terms
 
-    def __repr__(self):
-        return "Model(%r)" % self.name
-
-    def without_randomization(self):
+    @LazyProperty
+    def without_randomization(self) -> 'Model':
         if self.has_randomization:
             return Model(self.terms_without_randomization)
         return self
 
-    def randomized_component(self):
-        return Model(term for term in self.terms if '$' in term)
+    @LazyProperty
+    def randomized_component(self) -> 'Model':
+        terms = [term for term in self.terms if term.shuffle]
+        if len(terms) == len(self.terms):
+            return self
+        return Model(tuple(terms))
 
-    def multiple_permutations(self, n):
-        """Generate multiple models with different permutations"""
+    @LazyProperty
+    def unrandomized_component(self) -> 'Model':
+        terms = [term for term in self.terms if not term.shuffle]
+        if len(terms) == len(self.terms):
+            return self
+        return Model(tuple(terms))
+
+    def difference(self, other: 'Model') -> 'Model':
+        terms = [term for term in self.terms if term not in other.terms]
+        return Model(tuple(terms))
+
+    def intersection(self, other: 'Model') -> 'Model':
+        terms = [term for term in self.terms if term in other.terms]
+        return Model(tuple(terms))
+
+    def initialize(self, named_models: Dict[str, 'StructuredModel']) -> 'Model':
+        terms = []
+        for term in self.terms:
+            if term.without_shuffle.string in named_models:
+                model = named_models[term.without_shuffle.string].model
+                if term.shuffle:
+                    model = model.with_shuffle(term.shuffle_index, term.shuffle, term.shuffle_angle)
+                terms.extend(model.terms)
+            else:
+                terms.append(term)
+        return Model(tuple(terms))
+
+    def multiple_permutations(self, n: int) -> List['Model']:
+        """Generate multiple models with different shuffle angles"""
         if not self.has_randomization:
             raise TypeError(f"permutations={n} for model without randomization: {self.name}")
         elif not isinstance(n, int):
@@ -177,437 +238,435 @@ class Model:
             angles.extend(int(round(i)) for i in new[:n_to_go])
             n_to_go -= len(new)
             cycle *= 2
-        return (self.with_angle(angle) for angle in angles)
+        return [self.with_angle(angle) for angle in angles]
 
-    def randomize(self, x, rand):
+    def with_shuffle(self, index, shuffle, angle) -> 'Model':
+        """Apply shuffle settings to all terms"""
+        if self.has_randomization:
+            raise RuntimeError("Model already shuffled")
+        terms = [term.with_shuffle(index, shuffle, angle) for term in self.terms]
+        return Model(tuple(terms))
+
+    def with_shuffled(self, term_to_shuffle: 'Term') -> 'Model':
+        """Replace one term with a shuffled counterpart"""
         terms = list(self.terms)
-        if rand.startswith('$'):
-            terms[terms.index(x)] += rand
+        names = [term.string for term in terms]
+        if term_to_shuffle.string not in names:
+            raise ValueError(f"{term_to_shuffle.string}: not in {self.name}")
+        index = names.index(term_to_shuffle.string)
+        terms[index] = term_to_shuffle._model_term_with_shuffle()
+        return Model(tuple(terms))
+
+    def with_angle(self, angle: int) -> 'Model':
+        """Apply shuffle angle to all shuffled terms"""
+        terms = [term.with_shuffle(term.shuffle_index, term.shuffle, angle) for term in self.terms]
+        return Model(tuple(terms))
+
+    def without(self, term: str) -> 'Model':
+        terms = list(self.terms)
+        names = [term.string for term in terms]
+        if term not in names:
+            raise ValueError(f"{term}: not in {self.name}")
+        del terms[names.index(term)]
+        return Model(tuple(terms))
+
+
+def model_comparison_table(x1: Model, x0: Model, x1_name: str = 'x1', x0_name: str = 'x0'):
+    "Generate a table comparing the terms in two models"
+    # find corresponding terms
+    term_map = []
+    x0_terms = list(x0.term_names)
+    for x1_term in x1.term_names:
+        if x1_term in x0_terms:
+            target = x1_term
         else:
-            raise ValueError(f"rand={rand!r}")
-        return Model(terms)
-
-    def with_angle(self, angle):
-        return Model(self._add_angle(t, angle) for t in self.terms)
-
-    @staticmethod
-    def _add_angle(term, angle):
-        if angle == 180 or '$' not in term:
-            return term
-        head, tail = term.split('$')
-        if re.match(r'\w+\d+', tail):
-            raise ValueError(f"{term}: term alread has angle")
-        return f'{head}${tail}{angle}'
+            rand = f'{x1_term}$'
+            for x0_term in x0_terms:
+                if x0_term.startswith(rand):
+                    target = x0_term
+                    break
+            else:
+                target = ''
+        term_map.append((x1_term, target))
+        if target:
+            x0_terms.remove(target)
+    for x0_term in x0_terms:
+        term_map.append(('', x0_term))
+    # format table
+    table = fmtxt.Table('ll')
+    table.cells(x1_name, x0_name)
+    table.midrule()
+    for x1_term, x0_term in term_map:
+        table.cells(x1_term, x0_term)
+    return table
 
 
 @dataclass(frozen=True)
 class Term:
     "Term in StructuredModel"
-    code: str
+    string: str
     parent: int = -1
-    rand: str = '$shift'
+    shuffle: str = 'shift'
 
     @classmethod
-    def _coerce(cls, x):
+    def _coerce(cls, x, parent=-1, shuffle='shift'):
         if isinstance(x, cls):
             return x
         elif isinstance(x, str):
-            return cls(x)
+            return cls(x, parent, shuffle.lstrip('$'))
         elif isinstance(x, tuple):
-            return cls(*x)
+            return cls._coerce(*x)
         raise TypeError(x)
+
+    @LazyProperty
+    def _model_term(self):
+        return parse_term(self.string)
+
+    def _model_term_with_shuffle(self, index=None, shuffle=None, angle=180):
+        return self._model_term.with_shuffle(index, shuffle or self.shuffle, angle)
 
 
 @dataclass(frozen=True)
 class StructuredModel:
     "Model including information about each Term"
     terms: Tuple[Term]
+    public_name: str = None
 
     @classmethod
     def coerce(cls, x):
         if isinstance(x, cls):
             return x
         elif isinstance(x, str):
-            terms = [Term._coerce(term.strip()) for term in x.split(' + ')]
+            model = parse_model(x)
+            if model.has_randomization:
+                raise NotImplementedError(f"{x}: model with randomization")
+            terms = [Term(term.string) for term in model.terms]
         elif isinstance(x, dict):
-            terms = [Term(key, v) if isinstance(v, int) else Term(key, *v) for key, v in x.items()]
-        elif isinstance(x, Sequence):
+            terms = []
+            for key, v in x.items():
+                if isinstance(v, tuple):
+                    term = Term._coerce(key, *v)
+                elif isinstance(v, int):
+                    term = Term(key, v)
+                elif isinstance(v, str):
+                    term = Term(key, shuffle=v)
+                else:
+                    raise DefinitionError(f"{x}: invalid term ({key})")
+                terms.append(term)
+        elif isinstance(x, abc.Sequence):
             terms = [Term._coerce(term) for term in x]
         else:
             raise TypeError(x)
         return cls(tuple(terms))
 
     @LazyProperty
-    def model(self):
-        return Model([term.code for term in self.terms])
+    def model(self) -> Model:
+        return Model(tuple([term._model_term for term in self.terms]))
 
-    def comparisons(self, cv: bool):
+    @LazyProperty
+    def top_level_terms(self) -> List[Term]:
         parents = {term.parent for term in self.terms}
-        comparisons = []
-        for i, term in enumerate(self.terms):
-            if i <= -2 or i in parents:
-                continue
-            elif cv:
-                x0 = Model([x for x in self.model.terms if x != term.code])
-                comparison = Comparison(self.model, x0)
-            elif term.rand.startswith('$'):
-                x0_terms = list(self.model.terms)
-                x0_terms[i] += term.rand
-                x0 = Model(x0_terms)
-                comparison = Comparison(self.model, x0)
-            elif term.rand.startswith('|'):
-                comparison = parse_comparison(f"{self.model.name} {term.rand}", test_term_name=self.model.terms[i])
-            else:
-                raise ValueError(f"Randomization {term.rand!r} (needs to start with $ or |)")
-            comparisons.append(comparison)
-        return comparisons
+        return [term for i, term in enumerate(self.terms) if term.parent >= -1 and i not in parents]
 
-    def reduce(self, term):
+    def comparison(self, term: Term, cv: bool = False):
+        assert term in self.top_level_terms
+        if cv:
+            return Comparison(self.model, self.model.without(term.string), 1, f'{self.public_name} | {term.string}')
+        else:
+            return Comparison(self.model, self.model.with_shuffled(term), 1, f'{self.public_name} | {term.string}${term.shuffle}')
+
+    def comparisons(self, cv: bool) -> List['Comparison']:
+        return [self.comparison(term, cv) for term in self.top_level_terms]
+
+    def without(self, term_to_remove: str):
         """Reduced model, excluding ``term``"""
-        i_remove = self.model.index(term)
-        if any(term.parent == i_remove for term in self.terms):
-            raise ValueError(f"term={term!r}: trying to remove parent term")
+        # FIXME: -red public name
+        parents = {term.parent for term in self.terms}
         terms = []
+        removed = False
         for i, term in enumerate(self.terms):
-            if i == i_remove:
+            if term.string == term_to_remove:
+                if i in parents:
+                    raise ValueError(f"{term_to_remove!r}: trying to remove parent term")
+                removed = True
                 continue
-            elif term.parent > i_remove:
-                term = Term(term.code, term.parent-1, term.rand)
+            elif removed and term.parent >= 0:
+                term = Term(term.string, term.parent - 1, term.shuffle)
             terms.append(term)
+        if not removed:
+            raise ValueError(f"{term_to_remove!r}: not in model")
         return StructuredModel(tuple(terms))
 
+    def term_table(self):
+        "Table describing the structured model terms"
+        table = fmtxt.Table('rrll')
+        table.cells('#', 'dep', 'term', 'randomization')
+        table.midrule()
+        for i, term in enumerate(self.terms):
+            dep = term.parent if term.parent >=0 else ''
+            table.cells(i, dep, term.string, f'${term.shuffle}')
+        return table
 
+
+@dataclass
+class ComparisonSpec:
+    x: Model
+
+    def initialize(
+            self,
+            named_models: Dict[str, StructuredModel],
+            cv: bool = True,  # cross-validation (ignore shuffle)
+    ) -> Union['Comparison', 'StructuredModel']:
+        raise NotImplementedError
+
+
+@dataclass
+class TermComparisons(ComparisonSpec):
+
+    def initialize(
+            self,
+            named_models: Dict[str, StructuredModel],
+            cv: bool = True,  # cross-validation (ignore shuffle)
+    ) -> 'StructuredModel':
+        assert not self.x.has_randomization
+        x = self.x.initialize(named_models)
+        # find terms to test
+        terms = []
+        for term in self.x.terms:
+            if term.string in named_models:
+                s_model = named_models[term.string]
+                i = len(terms)
+                for term in s_model.terms:
+                    if i and term.parent >= 0:
+                        term = Term(term.string, term.parent + i, term.shuffle)
+                    terms.append(term)
+            else:
+                terms.append(Term(term.string))
+        return StructuredModel(tuple(terms), self.x.name)
+
+
+@dataclass
+class DirectComparison(ComparisonSpec):
+    operator: str
+    x0: Model
+
+    def initialize(
+            self,
+            named_models: Dict[str, StructuredModel],
+            cv: bool = True,  # cross-validation (ignore shuffle)
+    ) -> 'Comparison':
+        public_name = f"{self.x.name} {self.operator} {self.x0.name}"
+        x = self.x.initialize(named_models)
+        x0 = self.x0.initialize(named_models)
+        tail = TAIL[self.operator]
+        return Comparison(x, x0, tail, public_name)
+
+
+@dataclass
+class OmitComparison(ComparisonSpec):
+    x_omit: Model
+
+    def initialize(
+            self,
+            named_models: Dict[str, StructuredModel],
+            cv: bool = True,  # cross-validation (ignore shuffle)
+    ) -> 'Comparison':
+        public_name = f"{self.x.name} | {self.x_omit.name}"
+        x = self.x.initialize(named_models)
+        x_omit = self.x_omit.initialize(named_models)
+        if x_omit.has_randomization:
+            assert not cv
+            x0 = x - x_omit.without_randomization + x_omit
+        else:
+            assert cv
+            x0 = x - x_omit
+        return Comparison(x, x0, 1, public_name)
+
+
+@dataclass
+class AddComparison(ComparisonSpec):
+    x_add: Model
+
+    def initialize(
+            self,
+            named_models: Dict[str, StructuredModel],
+            cv: bool = True,  # cross-validation (ignore shuffle)
+    ) -> 'Comparison':
+        public_name = f"{self.x.name} +| {self.x_add.name}"
+        x = self.x.initialize(named_models)
+        x_add = self.x_add.initialize(named_models)
+        if x_add.has_randomization:
+            assert not cv
+            x1 = x + x_add.without_randomization
+            x0 = x + x_add
+        else:
+            assert cv
+            x1 = x + x_add
+            x0 = x
+        return Comparison(x1, x0, 1, public_name)
+
+
+@dataclass
+class Add2Comparison(ComparisonSpec):
+    x1_add: Model
+    operator: str
+    x0_add: Model
+
+    def initialize(
+            self,
+            named_models: Dict[str, StructuredModel],
+            cv: bool = True,  # cross-validation (ignore shuffle)
+    ) -> 'Comparison':
+        public_name = f"{self.x.name} +| {self.x1_add.name} {self.operator} {self.x0_add.name}"
+        x = self.x.initialize(named_models)
+        x1_add = self.x1_add.initialize(named_models)
+        x0_add = self.x0_add.initialize(named_models)
+        x1 = x + x1_add
+        x0 = x + x0_add
+        return Comparison(x1, x0, TAIL[self.operator], public_name)
+
+
+@dataclass(frozen=True)
 class Comparison:
-    """Model comparison for test or report
-    
-    Notes
-    -----
-    Different kinds of names:
-     
-     - readable: full test model, then the modification of the baseline model,
-       to improve sorting.
-     - concise: using the lest amount of space by extracting as much shared 
-       information from the models as possible.
-     - unique: insensitive to the order in which individual regressors are 
-       specified.
+    """Model comparison for test or report"""
+    x1: Model
+    x0: Model
+    tail: int = 1
+    public_name: str = None
 
-    Attributes
-    ----------
-    x1_only : str
-        Terms only in ``x1`` joined by ``+``.
-    x0_only : str
-        Terms only in ``x0`` joined by ``+``.
-    """
-    # TODO: detect phone-level2>3, feature-fea#manner
-    # TODO: permute rows word-class$[c]shift or word-class[c]shift
-    def __init__(self, x1, x0, tail=1, named_components={}, test_term_name=None):
-        if tail is None:
-            tail = 1
-        self.x1 = x1 = Model.coerce(x1)
-        self.x0 = x0 = Model.coerce(x0)
-        self.tail = tail
-        self.models = (x1, x0)
-        self._components = {'x1': x1, **named_components}
+    @LazyProperty
+    def operator(self) -> str:
+        return COMP[self.tail]
 
-        # preprocessing
-        common_base = [t for t in x1.terms if t in x0.terms]
-        x1_only = [t for t in x1.terms if t not in common_base]
-        x0_only = [t for t in x0.terms if t not in common_base]
-        randomized_terms = [t.split('$')[0] for t in x0.terms if '$' in t]
-        x1_shuffled_in_x0 = [t for t in randomized_terms if t in x1.terms]
-        if 'x0' not in self._components and not x0.has_randomization and not common_base:
-            self._components['x0'] = x0  # -> show as "model1 = model0"
+    @LazyProperty
+    def models(self) -> Tuple[Model, Model]:
+        return self.x1, self.x0
 
-        x1_desc_terms = _model_desc_template(x1.without_randomization(), 'x1', self._components)
-        if x1.has_randomization:
-            # model | x$rand = y$rand
-            x_base = x1.without_randomization()
-            if x_base != x0.without_randomization():
-                raise ValueError(f"x0 has term not in x1")
-            x_base_desc = ' + '.join(x1_desc_terms)
-            x1_desc = x1.randomized_component().name
-            x0_desc = x0.randomized_component().name
-            self._desc_template = f'{x_base_desc} | {x1_desc} {COMP[tail]} {x0_desc}'
-        elif 'x0' in self._components:
-            # model1 = model0
-            x0_desc_terms = _model_desc_template(x0, 'x0', self._components)
-            x1_desc = ' + '.join(x1_desc_terms)
-            x0_desc = ' + '.join(x0_desc_terms)
-            self._desc_template = '%s %s %s' % (x1_desc, COMP[tail], x0_desc)
-        elif len(x1_shuffled_in_x0) == len(x0_only) == len(x1_only):
-            # model | x$rand
-            assert tail == 1
-            if 'x0rand' in self._components:
-                x0_desc_terms = _model_desc_template(Model(x0_only), 'x0rand', self._components)
-                x0_desc = ' + '.join(x0_desc_terms)
+    @LazyProperty
+    def common_base(self) -> Model:
+        return self.x1.intersection(self.x0)
+
+    @LazyProperty
+    def x1_only(self) -> Model:
+        return self.x1.difference(self.x0)
+
+    @LazyProperty
+    def x0_only(self) -> Model:
+        return self.x0.difference(self.x1)
+
+    @LazyProperty
+    def test_term_name(self):
+        if not self.x0_only or self.x0_only.without_randomization == self.x1_only:
+            return self.x1_only.name
+
+    @LazyProperty
+    def baseline_term_name(self):
+        if len(self.x0_only) == 1 and self.x0_only.without_randomization == self.x1_only:
+            return self.x0_only.name
+
+    @LazyProperty
+    def name(self) -> str:
+        if self.public_name:
+            return self.public_name
+        return self.compose_name()
+
+    def compose_name(self, name: Callable[[Model], str] = lambda m: m.name) -> str:
+        # implement only parsable comparisons
+        op = self.operator
+        assert not self.common_base.has_randomization
+        assert not self.x1_only.has_randomization
+        if not self.x0.has_randomization:
+            return f"{name(self.x1)} {op} {name(self.x0)}"
+        assert self.x1_only
+        if self.x0_only.without_randomization.sorted_key == self.x1_only.sorted_key:
+            if not self.common_base:
+                return f"{name(self.x1)} {op} {name(self.x0)}"
+            elif op == '>':
+                return f"{name(self.x1)} | {name(self.x0_only)}"
             else:
-                x0_desc = ' + '.join(x0_only)
-
-            if x1_shuffled_in_x0 == x1_desc_terms[1:]:
-                x1_desc = x1_desc_terms[0]
-                op = '+|'
-            else:
-                x1_desc = ' + '.join(x1_desc_terms)
-                op = '|'
-
-            self._desc_template = f'{x1_desc} {op} {x0_desc}'
+                raise NotImplementedError
+        if self.x0_only.randomized_component == self.x0_only:
+            x0_only = name(self.x0_only)
         else:
-            # model | x = y
-            x1_desc = ' + '.join(x1_desc_terms)
-            self._desc_template = '%s | %s %s %s' % (x1_desc, ' + '.join(x1_only), COMP[tail], ' + '.join(x0_only))
-
-        # term that is unique to the test model
-        self.test_term_name = test_term_name or ' + '.join(x1_only)
-        # term that the test-term is compared to
-        self.baseline_term_name = None
-        if test_term_name or len(x1_only) == 1:
-            prefix = f'{self.test_term_name}$'
-            for term in x0_only:
-                if term.startswith(prefix):
-                    self.baseline_term_name = term
-                    break
-
-        # concise name
-        self.name, self.common_base, self.x1_only, self.x0_only = self.model_name(common_base, x1_only, x0_only, tail)
-
-    def relative_name(self, model_names):
-        """Generate name compatible with named models
-
-        Parameters
-        ----------
-        model_names : {str: str}
-            Names for models in ``self._components``.
-
-        Notes
-        -----
-        Kinds of relative names: see :func:`parse_comparison`.
-        """
-        return self._desc_template.format_map(model_names)
-
-    @staticmethod
-    def model_name(common_base, x1_only, x0_only, tail):
-        # modifies args in-place!
-        if x1_only and x0_only:
-            common_prefix = commonprefix(x1_only + x0_only)
-        elif (common_base and (x1_only or x0_only) and all(
-                item.startswith(common_base[-1]) for item in x1_only + x0_only)):
-            common_prefix = common_base.pop(-1)
-            x1_only.insert(0, common_prefix)
-            x0_only.insert(0, common_prefix)
-        else:
-            common_prefix = ''
-
-        if common_prefix:
-            common_base.append(common_prefix)
-            last_op = ' '
-            prefix_len = len(common_prefix)
-            x1_only = [i[prefix_len:] for i in x1_only]
-            x0_only = [i[prefix_len:] for i in x0_only]
-        else:
-            last_op = ' + '
-
-        common_base = ' + '.join(common_base)
-        x1_only = ' + '.join(x1_only)
-        x0_only = ' + '.join(x0_only).strip()
-        name = "%s %s %s" % (x1_only, COMP[tail], x0_only)
-        if common_base:
-            name = "%s%s(%s)" % (common_base, last_op, name)
-        return name, common_base, x1_only, x0_only
+            x0_only = f"{name(self.x0_only.unrandomized_component)} + {name(self.x0_only.randomized_component)}"
+        if self.common_base:
+            return f"{name(self.common_base)} | {name(self.x1_only)} {op} {x0_only}"
+        return f"{name(self.x1)} {op} {x0_only}"
 
     @classmethod
-    def coerce(cls, x1, x0=None, tail=None, named_models={}):
-        if isinstance(x1, cls):
-            assert x0 is None
-            assert tail is None
-            return x1
-        if x1 in named_models:
-            x1 = named_models[x1]
-        if x0 in named_models:
-            x0 = named_models[x0]
-        elif x0 is None:
-            assert isinstance(x1, str)
-            assert tail is None
-            return parse_comparison(x1, named_models)
-        return cls(x1, x0, tail)
+    def coerce(cls, x, cv=True, named_models={}):
+        if isinstance(x, (cls, StructuredModel)):
+            return x
+        comp = parse_comparison(x)
+        return comp.initialize(named_models, cv)
 
     def __repr__(self):
-        args = (self.x1.name, self.x0.name)
-        if self.tail != 1:
-            args += (self.tail,)
-        return "Comparison(%s)" % ', '.join(map(repr, args))
+        return f"<Comparison: {self.name}>"
 
-    def __hash__(self):
-        return hash((self.x1, self.x0, self.tail))
-
-    def __eq__(self, other):
-        return (other.__class__, other.x1, other.x0, other.tail) == (self.__class__, self.x1, self.x0, self.tail)
+    def term_table(self):
+        "Generate a table comparing the terms in the two models"
+        return model_comparison_table(self.x1, self.x0)
 
 
-def _model_terms(string, named_models):
-    """Find terms in ``model``, expanding any named models"""
-    if isinstance(string, str):
-        m = re.match(r'(.+) \((.+)\)', string)
-        if m:
-            a, b = m.groups()
-            _, model_terms = _model_terms(a, named_models)
-            _, randomized_terms = _model_terms(b, named_models)
-            for x in randomized_terms:
-                i = model_terms.index(x[:x.index('$')])
-                model_terms[i] = x
-        else:
-            model_terms = map(str.strip, string.split(' + '))
-    else:
-        model_terms = string
-    model_terms = list(model_terms)
-    term_0 = model_terms[0]
-    if '$' in term_0:
-        term_0, rand = term_0.split('$')
-    else:
-        rand = None
+# components
+integer = Word(nums).addParseAction(lambda s,l,t: int(t[0]))
+pyword = Word(alphas+'_', alphanums+'_')
+name = Word(alphas+'_', alphanums+'_-+*:')
 
-    if named_models and term_0 in named_models:
-        named_model = named_models[term_0]
-        if rand:
-            model_terms[:1] = ('%s$%s' % (term, rand) for term in named_model.terms)
-        else:
-            model_terms[:1] = named_model.terms
-        return named_model, model_terms
-    else:
-        return None, model_terms
+# shuffling
+dash = Literal('-').suppress()
+index_slice = integer + Optional(dash + integer, None)
+index_slice.addParseAction(lambda s,l,t: t[0] if t[1] is None else slice(*t))
+shuffle_index = Literal('[').suppress() + (index_slice ^ pyword) + Literal(']').suppress()
+shuffle_method = oneOf('shift remask permute')
+shuffle_suffix = Literal('$').suppress() + Optional(shuffle_index, None) + shuffle_method + Optional(integer, 180)
 
+# term
+stimulus_prefix = name + Literal('|').suppress().leaveWhitespace()
+term = Optional(stimulus_prefix, '') + name + Optional(shuffle_suffix)
+term.addParseAction(lambda s,l,t: ModelTerm(*t))
 
-def _model_desc_template(model, name, named_models):
-    if name not in named_models:
-        return ['{%s}']
-    named_model = named_models[name]
-    if named_model.has_randomization:
-        raise NotImplementedError("named_model with randomization")
-    if model.has_randomization:
-        named_terms = (tr for t, tr in zip(model.terms_without_randomization, model.terms) if t in named_model.terms)
-        rand = {tr.partition('$')[2] for tr in named_terms}
-        assert len(rand) == 1
-        name_template = '{%s}$%s' % (name, rand.pop())
-        unnamed_terms = [tr for t, tr in zip(model.terms_without_randomization, model.terms) if t not in named_model.terms]
-    else:
-        name_template = '{%s}' % name
-        unnamed_terms = [t for t in model.terms if t not in named_model.terms]
-    return [name_template, *unnamed_terms]
+# model
+model = delimitedList(term, '+').addParseAction(lambda s,l,t: Model(tuple(t)))
+
+# comparison
+term_comparisons = model.copy().addParseAction(lambda s,l,t: TermComparisons(*t))
+direct_comparison = model + oneOf('= < >') + model
+direct_comparison.addParseAction(lambda s,l,t: DirectComparison(*t))
+omit_comparison = model + Literal('|').suppress() + model
+omit_comparison.addParseAction(lambda s,l,t: OmitComparison(*t))
+add_comparison = model + Literal('+|').suppress() + model
+add_comparison.addParseAction(lambda s,l,t: AddComparison(*t))
+add2_comparison = model + Literal('+|').suppress() + direct_comparison
+add2_comparison.addParseAction(lambda s,l,t: Add2Comparison(t[0], t[1].x, t[1].operator, t[1].x0))
+comparison = direct_comparison ^ omit_comparison ^ term_comparisons ^ add_comparison ^ add2_comparison
+
+# for name checking
+model_name_parser = Optional(stimulus_prefix) + name
 
 
-def parse_comparison(string, named_models=None, test_term_name=None):
-    """Parse a comparison string (see TRFExperiment module docstring)"""
-    named_components = {}
-    n_parentheses = string.count('(')
-    if n_parentheses != string.count(')'):
-        raise ValueError(f"Unequal number of opening and closing parentheses in {string!r}")
+def parse_term(string: str) -> ModelTerm:
+    try:
+        parse = term.parseString(string, True)
+    except ParseException:
+        raise DefinitionError(f"{string!r}: invalid term")
+    return parse[0]
 
-    # prepended model: model | comparison
-    m = BASE_RE.match(string)
-    if m:
-        if n_parentheses:
-            raise NotImplementedError(f"Comparisons with | and parentheses: {string!r}")
-        base_string, sep, comparison_string = m.groups()
-        name_x1, base_terms = _model_terms(base_string, named_models)
-        if name_x1:
-            named_components['x1'] = name_x1
-    else:
-        comparison_string = string
-        sep = base_terms = None
 
-    # common base from parentheses
-    if n_parentheses == 0:
-        common_base = None
-    elif n_parentheses == 1:
-        i_open = comparison_string.index('(')
-        i_close = comparison_string.index(')')
-        if comparison_string[i_close + 1:].strip():
-            raise NotImplementedError(f"Expression after closing parentheses in {string!r}")
-        common_base = comparison_string[:i_open]
-        comparison_string = comparison_string[i_open + 1: i_close]
-    else:
-        raise NotImplementedError(f"{string!r}: more than one set of parentheses")
+def parse_model(string: str) -> Model:
+    try:
+        parse = model.parseString(string, True)
+    except ParseException:
+        raise DefinitionError(f"{string!r}: invalid model")
+    return parse[0]
 
-    # comparison (</=/>)
-    m = COMPARISON_RE.match(comparison_string)
-    if m:
-        assert sep != '+|'
-        x1, comp, x0 = m.groups()
-        tail = TAIL[comp]
-        comp_name_x1, x1_only_terms = _model_terms(x1, named_models)
-        name_x0, x0_only_terms = _model_terms(x0, named_models)
-        if name_x0:
-            named_components['x0'] = name_x0
 
-        if base_terms:
-            # model | x > y
-            if comp_name_x1 or name_x0:
-                raise ValueError(f"{string!r}: marginal term (after |) can't contain named model")
-            elif any(t in x0_only_terms for t in x1_only_terms):
-                raise ValueError(f"{string!r}: models right of | share terms")
-            elif any(t in base_terms for t in x0_only_terms):
-                raise ValueError(f"{string!r}: term right of {comp} in base model")
-
-            if all(t in base_terms for t in x1_only_terms):
-                # model | x = u
-                x1_terms = [t for t in base_terms if t not in x0_only_terms]
-                x1_terms.extend(t for t in x1_only_terms if t not in base_terms)
-                x0_terms = [t for t in base_terms if t not in x1_only_terms]
-                x0_terms.extend(t for t in x0_only_terms if t not in base_terms)
-            elif all('$' in t for t in chain(x1_only_terms, x0_only_terms)):
-                x1_terms = list(base_terms)
-                for term in x1_only_terms:
-                    x1_terms[x1_terms.index(term.split('$')[0])] = term
-                x0_terms = list(base_terms)
-                for term in x0_only_terms:
-                    x0_terms[x0_terms.index(term.split('$')[0])] = term
-            else:
-                raise ValueError(f"{string!r}: invalid right of |")
-        else:
-            # x > y
-            if comp_name_x1:
-                named_components['x1'] = comp_name_x1
-            x1_terms = x1_only_terms
-            x0_terms = x0_only_terms
-    elif base_terms:
-        # model | x$rand
-        tail = 1
-        x1_terms = base_terms
-        name_x0, right_terms = _model_terms(comparison_string, named_models)
-        if not all('$' in t for t in right_terms):
-            raise ValueError(f"{string!r}: no randomization right of the model")
-        if name_x0:
-            named_components['x0rand'] = name_x0
-        rand_terms = {term.partition('$')[0]: term for term in right_terms}
-        if sep == '+|':
-            duplicate = set(x1_terms).intersection(rand_terms)
-            if duplicate:
-                raise ValueError(f"{string!r}: duplicate terms {', '.join(duplicate)}")
-            x1_terms.extend(rand_terms)
-        missing = set(rand_terms).difference(x1_terms)
-        if missing:
-            raise ValueError(f"{string!r}: terms after | that are not in base model: {', '.join(missing)}")
-        x0_terms = [rand_terms.get(term, term) for term in base_terms]
-    else:
-        raise ValueError(f"{string!r}: Can't split {comparison_string!r} into two models")
-
-    # add common base to models
-    if common_base:
-        name_x1, common_base_terms = _model_terms(common_base, named_models)
-        if name_x1:
-            raise NotImplementedError(f"Named model in comparison without |: {string!r}")
-        prefix = common_base_terms.pop(-1)
-        if prefix:
-            x1_terms = [prefix + item for item in x1_terms]
-            x0_terms = [prefix + item for item in x0_terms]
-        else:
-            if x1_terms == ['']:
-                x1_terms = []
-            if x0_terms == ['']:
-                x0_terms = []
-        x1_terms = common_base_terms + x1_terms
-        x0_terms = common_base_terms + x0_terms
-
-    return Comparison(x1_terms, x0_terms, tail, named_components, test_term_name)
+def parse_comparison(string: str) -> ComparisonSpec:
+    try:
+        parse = comparison.parseString(string, True)
+    except ParseException:
+        raise DefinitionError(f"{string!r}: invalid comparison")
+    return parse[0]
 
 
 def save_models(models, path):
@@ -619,7 +678,7 @@ def save_models(models, path):
 def load_models(path):
     with open(path, 'rb') as fid:
         out = pickle.load(fid)
-    return {k: Model(v) for k, v in out}
+    return {k: parse_model(v) for k, v in out}
 
 
 ModelArg = Union[Model, str]

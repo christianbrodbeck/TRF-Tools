@@ -9,7 +9,7 @@ import webbrowser
 from eelbrain import fmtxt, save
 from eelbrain._experiment.test_def import TestDims
 
-from ._model import StructuredModel, Model, ModelArg, parse_comparison
+from ._model import StructuredModel, Model, ModelArg
 
 
 def make_jobs(job_file, make_trfs=False, open_in_browser=False):
@@ -200,7 +200,7 @@ class TRFsJob(Job):
     def _init_trf_jobs(self, existing: bool = False):
         if self.postfit and not self._prefit_done:
             if self.postfit is True:
-                terms = self.model.terms
+                terms = [term.string for term in self.model.terms]
             else:
                 terms = [self.postfit]
             out = []
@@ -255,9 +255,9 @@ class ModelJob(Job):
     ...
         Model-test parameters.
     """
-    def __init__(self, model, experiment=None, report=True, reduce_model=False, parent=None, priority=False, postfit=False, reduction_tag='red', metric='z', smooth=False, **options):
+    def __init__(self, model, experiment=None, report=True, reduce_model=False, parent=None, priority=False, postfit=False, reduction_tag='red', metric='z', smooth=False, cv=False, **options):
         assert postfit is False
-        model = experiment._coerce_comparison(model)
+        model = experiment._coerce_comparison(model, cv)
         if isinstance(reduce_model, float):
             assert 0. < reduce_model < 1.
         elif not isinstance(reduce_model, bool):
@@ -276,6 +276,7 @@ class ModelJob(Job):
         else:
             public_name = None
 
+        options['cv'] = cv
         Job.__init__(self, experiment, model, priority, options, postfit, public_name, report)
         self._test_options = {'metric': metric, 'smooth': smooth}
         self._reduction_tag = reduction_tag
@@ -348,7 +349,7 @@ class ModelJob(Job):
             tmaxs = [(term, ress[term].t.max()) for term in pmins]
             least_term, tmin = min(tmaxs, key=itemgetter(1))
         # remove term
-        model = self.model.reduce(least_term)
+        model = self.model.without(least_term)
         return ModelJob(model, self.experiment, self.report, self.reduce_model, self, self.priority, self.postfit, self._reduction_tag, **self._test_options, **self.options)
 
     def reduction_table(self, labels=None, vertical=False, title=None, caption=None):
@@ -446,23 +447,8 @@ def read_job_file(filename):
             sys.path.remove(file_dir)
     # retrieve jobs
     jobs = list(namespace.get('JOBS', ()))
-    options = namespace.get('OPTIONS')
-    trfs = namespace.get('TRFS', ())
-    comparisons = namespace.get('COMPARISONS', ())
-
-    if (comparisons or trfs) and options is None:
-        raise ValueError("OPTIONS is missing from file with JOBS or TRFS: %s" %
-                         (filename,))
-
-    # comparisons
-    for line in split_lines(comparisons):
-        jobs.append(ModelJob(parse_comparison(line), **options))
-    # models
-    for line in split_lines(trfs):
-        jobs.append(TRFsJob(Model(line), **options))
-
     if not jobs:
-        raise RuntimeError("No jobs in file %s" % (filename,))
+        raise RuntimeError(f"No JOBS in file {filename}")
     return jobs
 
 
