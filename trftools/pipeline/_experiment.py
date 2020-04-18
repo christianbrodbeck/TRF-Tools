@@ -1,5 +1,5 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
-"""Base experiment for analyzing cocktail party experiments
+"""Eelbrain Experiment extension for analyzing continuous response models
 
 ========
 Analyses
@@ -109,7 +109,33 @@ Comparisons
 ===========
 
 .. Note::
-    Implementation in :func:`cssl.experiments.model.parse_comparison`.
+    Implementation in :func:`trftools.pipeline._model.parse_comparison`.
+
+Examples assume ``x_model`` = ``x1 + x2 + ...`` etc. (in examples with only one
+model ``model`` == ``x_model``).
+
+
+Comparing models
+^^^^^^^^^^^^^^^^
+
+Whole models can be compared with comparisons indicating tailedness::
+
+    x_model = y_model
+    x_model > y_model
+
+Components can be shared with parenthreses::
+
+    x_model + (y_model > z_model)
+
+Testing adding a component::
+
+    x_model += y_model
+
+Shared components
+
+
+With randomization
+^^^^^^^^^^^^^^^^^^
 
 Model-based names use the ``model | comparison`` pattern.
 Compare a model with a modified version in which one or several terms are
@@ -142,11 +168,6 @@ A common pattern is a test for incrementally adding a predictor ``y`` to a model
 Then, testing the incremental power of ``x``, which is present in ``model``::
 
     model + y | x$rand
-
-Whole models can also be compared with comparisons indicating tailedness::
-
-    model1 = model2
-    model1 > model2
 
 
 =================
@@ -193,7 +214,7 @@ from .._ndvar import pad
 from .._numpy_funcs import arctanh
 from ._code import SHUFFLE_METHODS, Code
 from ._jobs import TRFsJob, ModelJob
-from ._model import Comparison, Model, StructuredModel, is_comparison, load_models, save_models
+from ._model import Comparison, Model, StructuredModel, load_models, save_models
 from ._predictor import EventPredictor, FilePredictor, MakePredictor
 from ._results import ResultCollection
 from . import _trf_report as trf_report
@@ -479,7 +500,7 @@ class TRFExperiment(MneExperiment):
     def _register_model(self, model: Model) -> str:
         """Register a new named model"""
         assert len(model.terms) > 1
-        model = model.without_randomization()
+        model = model.without_randomization
         name = self._generate_model_name(model)
         self._update_models({name: model})
         return name
@@ -542,7 +563,7 @@ class TRFExperiment(MneExperiment):
                 old_pattern_public = "*%s*" % model.name
                 old_re_public = " %s[. ]" % re.escape(model.name)
             # TRFs for permuted predictors
-            if len(model.sorted_without_randomization) <= 100:
+            if len(model.without_randomization.sorted) <= 100:
                 n_terms = len(model.terms)
                 for shuffle_terms in product([True, False], repeat=n_terms):
                     if not any(shuffle_terms):
@@ -662,7 +683,7 @@ class TRFExperiment(MneExperiment):
         """
         x = self._coerce_model(model)
         for term in x.terms:
-            code = Code.coerce(term)
+            code = Code.coerce(term.string)  # TODO: use parse result
             self.add_predictor(ds, code, filter, y)
 
     def add_predictor(self, ds, code, filter=False, y=None):
@@ -869,7 +890,7 @@ class TRFExperiment(MneExperiment):
         model = self._coerce_model(model)
         out = []
         for term in model.terms:
-            y = self.load_predictor(f'{stim}|{term}', tstep, n_samples, tmin)
+            y = self.load_predictor(f'{stim}|{term.string}', tstep, n_samples, tmin)
             out.append(y)
         return out
 
@@ -986,8 +1007,8 @@ class TRFExperiment(MneExperiment):
             if not backward and hasattr(res, 'x'):  # not NCRF
                 res_keys = [res.x] if isinstance(res.x, str) else res.x
                 res_keys = sorted(Dataset.as_key(x) for x in res_keys)
-                x_keys = postfit.terms if postfit else x.terms
-                x_keys = sorted(Dataset.as_key(x) for x in x_keys)
+                x_terms = postfit.terms if postfit else x.terms
+                x_keys = sorted(Dataset.as_key(term.string) for term in x_terms)
                 if res_keys != x_keys:
                     raise RuntimeError(f"Result x mismatch:\n{dst}\nResult: {' + '.join(res_keys)}\nModel:  {' + '.join(x_keys)}")
             return res
@@ -1110,8 +1131,8 @@ class TRFExperiment(MneExperiment):
         is_variable_time = isinstance(y, Datalist)
         # load predictors
         xs = []
-        for code in sorted(x.terms):
-            code = Code.coerce(code)
+        for term in sorted(x.terms):
+            code = Code.coerce(term.string)
             self.add_predictor(ds, code, filter_x, data.y_name)
             xs.append(ds[code.key])
 
@@ -1346,7 +1367,7 @@ class TRFExperiment(MneExperiment):
                     residual = res.residual
                     det = res.proportion_explained
                     tstep = res.h_time.tstep
-                x_keys = [Dataset.as_key(term) for term in x_.terms]
+                x_keys = [Dataset.as_key(term.string) for term in x_.terms]
             else:
                 for hi, res_hi in zip(h, res_h):
                     hi += res_hi
@@ -1373,7 +1394,8 @@ class TRFExperiment(MneExperiment):
                 det /= permutations
 
         # output Dataset
-        ds = Dataset(info={'xs': x_keys, 'x_names': x.terms, 'samplingrate': 1 / tstep, 'partitions': partitions or res_partitions}, name=self._x_desc(x))
+        x_names = [term.string for term in x.terms]
+        ds = Dataset(info={'xs': x_keys, 'x_names': x_names, 'samplingrate': 1 / tstep, 'partitions': partitions or res_partitions}, name=self._x_desc(x))
         ds['subject'] = Factor([subject], random=True)
         if not is_dstrf:
             ds[:, 'r'] = r
@@ -1433,7 +1455,7 @@ class TRFExperiment(MneExperiment):
             assert not existing
             args = args[:-1]
             for term in x.terms:
-                out.extend(self._locate_missing_trfs(*args, term))
+                out.extend(self._locate_missing_trfs(*args, term.string))
             return out
 
         # one model, one epoch
@@ -1554,21 +1576,22 @@ class TRFExperiment(MneExperiment):
             compare_with_baseline_model = False
         # vector data can not be tested against 0
         if compare_with_baseline_model:
-            model = self._coerce_comparison(x)
-            if isinstance(model, StructuredModel):
+            comparison = self._coerce_comparison(x)
+            if isinstance(comparison, StructuredModel):
                 assert not postfit  # needs to post-fit relevant predictor
                 if return_data:
                     raise NotImplementedError("return_data=True for multiple comparisons")
-                ress = ((cmp.test_term_name, self.load_trf_test(cmp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, samples, test, return_data, xhemi, xhemi_smooth)) for cmp in model.comparisons)
-                return ResultCollection(ress)
-            if model.baseline_term_name is None:
+                return ResultCollection({
+                    cmp.test_term_name: self.load_trf_test(cmp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, samples, test, return_data, xhemi, xhemi_smooth) for cmp in comparison.comparisons(cv)
+                })
+            if comparison.baseline_term_name is None:
                 raise ValueError(f"x={x!r}: no unique baseline term")
-            y_key = Dataset.as_key(model.test_term_name)
+            y_key = Dataset.as_key(comparison.test_term_name)
             y_keys = None
         else:
-            model = self._coerce_model(x)
+            comparison = self._coerce_model(x)
             y_key = None
-            y_keys = [Dataset.as_key(key) for key in model.terms]
+            y_keys = [Dataset.as_key(term.string) for term in comparison.terms]
 
         if xhemi:
             if xhemi_smooth % 0.001:
@@ -1576,7 +1599,7 @@ class TRFExperiment(MneExperiment):
             test_options = f'xhemi-abs-{int(xhemi_smooth * 1000)}'
         else:
             test_options = None
-        self._set_trf_options(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, pmin=pmin, is_group_result=True, scale=scale, smooth_source=smooth, smooth_time=smooth_time, test=test, test_options=test_options, permutations=permutations)
+        self._set_trf_options(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, pmin=pmin, is_group_result=True, scale=scale, smooth_source=smooth, smooth_time=smooth_time, test=test, test_options=test_options, permutations=permutations)
 
         # check if cached
         dst = self.get('trf-test-file', mkdir=True)
@@ -1605,9 +1628,9 @@ class TRFExperiment(MneExperiment):
             # returns single test
             if return_data or res_modified:
                 assert not postfit  # need to post-fit relevant term
-                ds = self.load_trfs(-1, model.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vector_as_norm=True)
-                ds0 = self.load_trfs(-1, model.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, permutations=permutations, vector_as_norm=True)
-                y0_key = Dataset.as_key(model.baseline_term_name)
+                ds = self.load_trfs(-1, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vector_as_norm=True)
+                ds0 = self.load_trfs(-1, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, permutations=permutations, vector_as_norm=True)
+                y0_key = Dataset.as_key(comparison.baseline_term_name)
                 assert np.all(ds['subject'] == ds0['subject'])
                 if res_modified:
                     y = ds[y_key]
@@ -1623,7 +1646,7 @@ class TRFExperiment(MneExperiment):
             if xhemi:
                 assert not postfit
                 parc = self._xhemi_parc()
-                trf_ds, trf_res = self.load_trf_test(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, test=test, return_data=True)
+                trf_ds, trf_res = self.load_trf_test(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, test=test, return_data=True)
 
                 test_obj = XHEMI_TEST if test is True else self.tests[test]
                 # xhemi data
@@ -1634,7 +1657,7 @@ class TRFExperiment(MneExperiment):
                 else:
                     ds = trf_ds
 
-                for x in tqdm(y_keys, f"X-Hemi TRF-Tests for {model.name}"):
+                for x in tqdm(y_keys, f"X-Hemi TRF-Tests for {comparison.name}"):
                     y = trf_ds[x].abs()
                     if xhemi_smooth:
                         y = y.smooth('source', xhemi_smooth, 'gaussian')
@@ -1659,7 +1682,7 @@ class TRFExperiment(MneExperiment):
                     lms = {y: [] for y in y_keys}
                     dss = []
                     for subject in self:
-                        ds = self.load_trfs(1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations)
+                        ds = self.load_trfs(1, comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations)
                         if res_modified:
                             for y in y_keys:
                                 lms[y].append(test_obj.make_stage_1(y, ds, subject))
@@ -1674,9 +1697,9 @@ class TRFExperiment(MneExperiment):
                     if return_data:
                         ds = combine(dss)
                 else:
-                    ds = self.load_trfs(-1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations, vector_as_norm=True)
+                    ds = self.load_trfs(-1, comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, postfit=postfit, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations, vector_as_norm=True)
                     if res_modified:
-                        for x in tqdm(y_keys, f"TRF-Tests for {model.name}"):
+                        for x in tqdm(y_keys, f"TRF-Tests for {comparison.name}"):
                             test_kwargs['parc'] = trf_test_parc_arg(ds[x])
                             res[x] = self._make_test(x, ds, test_obj, test_kwargs)
 
@@ -1685,7 +1708,7 @@ class TRFExperiment(MneExperiment):
         else:
             ds = None
 
-        res = ResultCollection((key, res[Dataset.as_key(key)]) for key in model.terms)
+        res = ResultCollection({term.string: res[Dataset.as_key(term.string)] for term in comparison.terms})
 
         if return_data:
             return ds, res
@@ -1871,12 +1894,12 @@ class TRFExperiment(MneExperiment):
         out['epoch'] = epoch
         return out
 
-    def _coerce_model(self, x):
+    def _coerce_model(self, x: Union[str, Model]) -> Model:
         if x in self._named_models:
             return self._named_models[x]
         elif x in self._structured_models:
-            return self._structured_models[x].x
-        return Model.coerce(x, self._named_models)
+            return self._structured_models[x].model
+        return Model.coerce(x).initialize(self._structured_models)
 
     def _coerce_comparison(
             self,
@@ -1884,12 +1907,7 @@ class TRFExperiment(MneExperiment):
             tail=None,
     ) -> Union[Comparison, StructuredModel]:
         if isinstance(x, str):
-            if x in self._structured_models:
-                x = self._structured_models[x]
-            elif is_comparison(x):
-                return Comparison.coerce(x, None, tail, self._named_models)
-            else:
-                x = StructuredModel.coerce(x)
+            return Comparison.coerce(x, tail, self._structured_models)
         elif not isinstance(x, (StructuredModel, Comparison)):
             raise TypeError(f"x={x!r}: need comparison")
         assert tail is None
@@ -1900,14 +1918,16 @@ class TRFExperiment(MneExperiment):
         if isinstance(x, Model):
             if x.sorted in self._model_names:
                 return self._model_names[x.sorted]
-            elif x.sorted_without_randomization in self._model_names:
-                base_name = self._model_names[x.sorted_without_randomization]
+            elif x.without_randomization.sorted in self._model_names:
                 xrand = x.randomized_component()
-                xrand_desc = self._x_desc(xrand.without_randomization())
-                rand = {term.partition('$')[2] for term in xrand.terms}
+                xrand_desc = self._x_desc(xrand.without_randomization)
+                rand = {term.shuffle_string for term in xrand.terms}
                 if len(rand) != 1:
                     raise NotImplementedError(f"{len(rand)} randomization schemes in {x}")
                 rand_desc = f'{xrand_desc}${rand.pop()}'
+                if xrand.without_randomization == x:
+                    return rand_desc
+                base_name = self._model_names[x.without_randomization.sorted]
                 return f'{base_name} ({rand_desc})'
             elif len(x.terms) == 1:
                 return x.terms[0]
@@ -1915,17 +1935,13 @@ class TRFExperiment(MneExperiment):
                 self._register_model(x)
                 return self._x_desc(x)
         elif isinstance(x, Comparison):
-            component_names = {key: self._x_desc(model, is_public)
-                               for key, model in x._components.items()}
-            return x.relative_name(component_names)
+            if is_public:
+                return x.name
+            else:
+                return x.relative_name(self._named_models)
         elif isinstance(x, StructuredModel):
             assert is_public  # all internal names should be Model-based
-            desc = self._structured_model_names.get(x)
-            if desc:
-                return desc
-            elif len(x.model.name) > 100:
-                raise NameTooLong(x.model.name)
-            return x.model.name
+            return x.public_name
         else:
             raise TypeError(f"x={x!r}")
 
@@ -1978,16 +1994,10 @@ class TRFExperiment(MneExperiment):
         if isinstance(comparison, StructuredModel):
             if state:
                 self.set(**state)
-            ress = [
-                (
-                    comp.test_term_name,
-                    self.load_model_test(comp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, metric, smooth, test, tail, return_data, pmin, xhemi, xhemi_mask, make)
-                )
-                for comp in comparison.comparisons(cv)
-            ]
+            ress = {comp.test_term_name: self.load_model_test(comp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, metric, smooth, test, tail, return_data, pmin, xhemi, xhemi_mask, make) for comp in comparison.comparisons(cv)}
             if return_data:
-                dss = {key: res[0] for key, res in ress}
-                ress = ResultCollection((key, res[1]) for key, res in ress)
+                dss = {key: res[0] for key, res in ress.items()}
+                ress = ResultCollection({key: res[1] for key, res in ress.items()})
                 return dss, ress
             else:
                 return ResultCollection(ress)
@@ -2171,10 +2181,10 @@ class TRFExperiment(MneExperiment):
                     section = report.add_section(hemi)
                     brain = plot.brain.brain(ds[metric].source, w=220, h=150, hemi=hemi, **surfer_kwargs)
                     # brain.set_parallel_view(*BRAIN_VIEW[1:])
-                    for x in comparisons:
-                        subsection = section.add_section(x.test_term_name)
+                    for x_ in comparisons:
+                        subsection = section.add_section(x_.test_term_name)
                         row = []
-                        for subject, dmap in zip(subjects, diffs[x.test_term_name, hemi]):
+                        for subject, dmap in zip(subjects, diffs[x_.test_term_name, hemi]):
                             brain.add_ndvar(dmap, remove_existing=True)
                             brain.add_text(0, 0, subject, 'subject', (0, 0, 0), font_size=30, justification='left')
                             brain.texts_dict['subject']['text'].property.font_size = 28
@@ -2201,12 +2211,12 @@ class TRFExperiment(MneExperiment):
         model_info = List("Predictor model")
         if isinstance(x, StructuredModel):
             model_info.add_item("Incremental model improvement for each term")
-            model_info.add_item(x.model.name)
+            model_info.add_item(x.public_name)
         elif isinstance(x, Comparison):
             if x.common_base:
-                model_info.add_item("Common base:  " + x.common_base)
-                model_info.add_item("Test model:  + " + x.x1_only)
-                model_info.add_item("Baseline model:  + " + x.x0_only)
+                model_info.add_item("Common base:  " + x.common_base.name)
+                model_info.add_item("Test model:  + " + x.x1_only.name)
+                model_info.add_item("Baseline model:  + " + x.x0_only.name)
             else:
                 model_info.add_item("Test model:  " + x.x1.name)
                 model_info.add_item("Baseline model:  " + x.x0.name)
