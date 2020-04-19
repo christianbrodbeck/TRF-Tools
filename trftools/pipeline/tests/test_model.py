@@ -51,6 +51,8 @@ test_data = [
     # named add
     ('x-ab +| x-c', True, 'x-a + x-b + x-c', 'x-a + x-b'),
     ('x-ab +| x-c$shift', False, 'x-a + x-b + x-c', 'x-a + x-b + x-c$shift'),
+    # named add2
+    ('x-ab +| x-c > x-d', True, 'x-a + x-b + x-c', 'x-a + x-b + x-d'),
 ]
 test_data = [(*t, None) if len(t) == 4 else t for t in test_data]
 

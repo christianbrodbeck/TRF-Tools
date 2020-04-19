@@ -435,6 +435,26 @@ class AddComparison(ComparisonSpec):
         return Comparison(x1, x0, 1, public_name)
 
 
+@dataclass
+class Add2Comparison(ComparisonSpec):
+    x1_add: Model
+    operator: str
+    x0_add: Model
+
+    def initialize(
+            self,
+            named_models: Dict[str, StructuredModel],
+            cv: bool = True,  # cross-validation (ignore shuffle)
+    ) -> 'Comparison':
+        public_name = f"{self.x.name} +| {self.x1_add.name} {self.operator} {self.x0_add.name}"
+        x = self.x.initialize(named_models)
+        x1_add = self.x1_add.initialize(named_models)
+        x0_add = self.x0_add.initialize(named_models)
+        x1 = x + x1_add
+        x0 = x + x0_add
+        return Comparison(x1, x0, TAIL[self.operator], public_name)
+
+
 @dataclass(frozen=True)
 class Comparison:
     """Model comparison for test or report"""
@@ -533,7 +553,9 @@ omit_comparison = model + Literal('|').suppress() + model
 omit_comparison.addParseAction(lambda s,l,t: OmitComparison(*t))
 add_comparison = model + Literal('+|').suppress() + model
 add_comparison.addParseAction(lambda s,l,t: AddComparison(*t))
-comparison = direct_comparison ^ omit_comparison ^ term_comparisons ^ add_comparison
+add2_comparison = model + Literal('+|').suppress() + direct_comparison
+add2_comparison.addParseAction(lambda s,l,t: Add2Comparison(t[0], t[1].x, t[1].operator, t[1].x0))
+comparison = direct_comparison ^ omit_comparison ^ term_comparisons ^ add_comparison ^ add2_comparison
 
 
 def parse_model(string: str) -> Model:
