@@ -292,6 +292,8 @@ class StructuredModel:
                     term = Term._coerce(key, *v)
                 elif isinstance(v, int):
                     term = Term(key, v)
+                elif isinstance(v, str):
+                    term = Term(key, shuffle=v)
                 else:
                     raise DefinitionError(f"{x}: invalid term ({key})")
                 terms.append(term)
@@ -559,7 +561,7 @@ def save_models(models, path):
 def load_models(path):
     with open(path, 'rb') as fid:
         out = pickle.load(fid)
-    return {k: Model(v) for k, v in out}
+    return {k: parse_model(v) for k, v in out}
 
 
 ModelArg = Union[Model, str]
