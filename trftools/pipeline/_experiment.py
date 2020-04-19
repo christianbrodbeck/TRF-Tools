@@ -548,7 +548,7 @@ class TRFExperiment(MneExperiment):
             old_re_public = old_re_private = rf" {re.escape(old)}(-red\d+)?[$. ]"
         else:
             old_name = None
-            model = Model.coerce(old, self._named_models)
+            model = Model.coerce(old).initialize(self._structured_models)
             assert not model.has_randomization
             assert model.sorted not in self._model_names
             if len(model.sorted) > 100:
