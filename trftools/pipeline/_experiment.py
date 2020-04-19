@@ -426,34 +426,36 @@ class TRFExperiment(MneExperiment):
             self._stim_var = self.stim_var.copy()
         else:
             raise TypeError(f"MneExperiment.stim_var={self.stim_var!r}")
-        # named models
+        # structured models
+        assert all(isinstance(k, str) for k in self.models)
         self._structured_models = {k: StructuredModel.coerce(v) for k, v in self.models.items()}
         self._structured_model_names = {m: k for k, m in self._structured_models.items()}
-        # load cached models:  {str: Model}
+        # TODO: detect changes in structured models
+        # load cache models:  {str: Model}
         self._model_names_file = join(self.get('cache-dir', mkdir=True), 'model-names.pickle')
         if exists(self._model_names_file):
             self._named_models = load_models(self._model_names_file)
         else:
             self._named_models = {}
-        self._model_names = {model.sorted: name for name, model in self._named_models.items()}
+        self._model_names = {model.sorted_key: name for name, model in self._named_models.items()}
         # update from .models
         implied_model_names = {}
-        for key, smodel in self._structured_models.items():
-            desc = smodel.model.sorted
-            if desc not in implied_model_names or len(implied_model_names[desc]) > len(key):
-                implied_model_names[desc] = key
+        for name, smodel in self._structured_models.items():
+            key = smodel.model.sorted_key
+            if key not in implied_model_names or len(implied_model_names[key]) > len(name):
+                implied_model_names[key] = name
         implied_models = {k: self._structured_models[k].model for k in implied_model_names.values()}
         self._update_models(implied_models)
 
     def _update_models(self, models: Dict[str, Model]):
         "Add new entries to model-names"
         # check for duplicate models
-        counter = Counter(model.sorted for model in models.values())
+        counter = Counter(model.sorted_key for model in models.values())
         if any(v > 1 for v in counter.values()):
             msg = ["Models with more than one name:"]
             for model, count in counter.items():
                 if count > 1:
-                    names = (n for n, m in models.items() if m.sorted == model)
+                    names = (n for n, m in models.items() if m.sorted_key == model)
                     msg.append(' == '.join(names))
             raise DefinitionError('\n'.join(msg))
         # models need more than 1 term
@@ -467,20 +469,20 @@ class TRFExperiment(MneExperiment):
                 raise ValueError(f"{name}: illegal model name (-red* pattern is reservered)")
         # find redefined models
         conflicts = [name for name in models if name in self._named_models and
-                     models[name].sorted != self._named_models[name].sorted]
+                     models[name].sorted_key != self._named_models[name].sorted_key]
         if conflicts:
             for name in conflicts:
                 print(f"Model {name} redefined:")
-                print(f" old: {self._named_models[name].sorted}")
-                print(f" new: {models[name].sorted}")
+                print(f" old: {self._named_models[name].sorted_key}")
+                print(f" new: {models[name].sorted_key}")
                 self._remove_model(name)
         # find renamed model
-        model_names = {model.sorted: name for name, model in models.items()}
+        model_names = {model.sorted_key: name for name, model in models.items()}
         rename_files = {}
         remove_models = []
-        for model, name in model_names.items():
-            if model in self._model_names:
-                old_name = self._model_names[model]
+        for sorted_key, name in model_names.items():
+            if sorted_key in self._model_names:
+                old_name = self._model_names[sorted_key]
                 if name == old_name:
                     continue
                 files = self._rename_model(old_name, name, True)
@@ -499,26 +501,29 @@ class TRFExperiment(MneExperiment):
 
     def _register_model(self, model: Model) -> str:
         """Register a new named model"""
-        assert len(model.terms) > 1
         model = model.without_randomization
+        assert model.sorted_key not in self._named_models
         name = self._generate_model_name(model)
         self._update_models({name: model})
         return name
 
-    def _generate_model_name(self, model):
+    def _generate_model_name(self, model: Model):
+        assert not model.has_randomization
         if len(model.terms) == 1:
-            if model.terms[0] not in self._named_models:
-                return model.terms[0]
-        conc_name = '+'.join(model.terms)
-        if len(conc_name) < 80:
-            return conc_name
+            if model.name not in self._named_models:
+                return model.name
         for i in range(9999999):
             name = f"model{i}"
             if name not in self._named_models:
                 return name
         raise RuntimeError("Ran out of model names...")
 
-    def _rename_model(self, old, new, return_files=False):
+    def _rename_model(
+            self,
+            old: Union[str, Model],
+            new: str,
+            return_files: bool = False,
+    ):
         """Change the name of a named model, rename all corresponding files
 
         Parameters
@@ -550,20 +555,20 @@ class TRFExperiment(MneExperiment):
             old_name = None
             model = Model.coerce(old).initialize(self._structured_models)
             assert not model.has_randomization
-            assert model.sorted not in self._model_names
-            if len(model.sorted) > 100:
+            assert model.sorted_key not in self._model_names
+            if len(model.sorted_key) > 100:
                 return {} if return_files else None
             old_public = model.name
-            old_private = model.sorted
-            old_pattern_private = "*%s*" % model.sorted
-            old_re_private = " %s[. ]" % re.escape(model.sorted)
+            old_private = model.sorted_key
+            old_pattern_private = "*%s*" % model.sorted_key
+            old_re_private = " %s[. ]" % re.escape(model.sorted_key)
             if len(model.name) > 100:
                 old_pattern_public = old_re_public = None
             else:
                 old_pattern_public = "*%s*" % model.name
                 old_re_public = " %s[. ]" % re.escape(model.name)
             # TRFs for permuted predictors
-            if len(model.without_randomization.sorted) <= 100:
+            if len(model.without_randomization.sorted_key) <= 100:
                 n_terms = len(model.terms)
                 for shuffle_terms in product([True, False], repeat=n_terms):
                     if not any(shuffle_terms):
@@ -571,7 +576,7 @@ class TRFExperiment(MneExperiment):
                     for shuffle_method in SHUFFLE_METHODS:
                         p_model = Model((term + '$' + shuffle_method if s else term for s, term in zip(shuffle_terms, model.terms)))
                         # x + y$rand -> name (y$rand)
-                        old_repr = p_model.sorted
+                        old_repr = p_model.sorted_key
                         old_pattern = "*%s*" % old_repr
                         new_repr = "%s (%s)" % (new, p_model.sorted_randomized)
                         old_permuted.append((old_pattern, old_repr, new_repr))
@@ -612,14 +617,14 @@ class TRFExperiment(MneExperiment):
             answer = 'yes'
         else:
             verb = 'Name' if old_name is None else 'Rename'
-            answer = ask(f"{verb} {old_public} -> {new} and rename {len(rename)} files?",
-                         (('yes', f'rename {len(rename)} files'),), allow_empty=True)
+            n = len(rename)
+            answer = ask(f"{verb} {old_public} -> {new} and rename {n} files?", {'yes': f'rename {n} files'}, allow_empty=True)
 
         if answer == 'yes':
             if old_name is not None:
                 del self._named_models[old_name]
             self._named_models[new] = model
-            self._model_names[model.sorted] = new
+            self._model_names[model.sorted_key] = new
             if return_files:
                 return rename
             for src, dst in rename.items():
@@ -659,7 +664,7 @@ class TRFExperiment(MneExperiment):
                     raise RuntimeError("Model deletion aborted")
 
         model = self._named_models.pop(name)
-        del self._model_names[model.sorted]
+        del self._model_names[model.sorted_key]
         for path in files:
             os.remove(path)
         save_models(self._named_models, self._model_names_file)
@@ -1309,7 +1314,7 @@ class TRFExperiment(MneExperiment):
         elif postfit:
             postfit = self._coerce_model(postfit)
             if x.has_randomization:
-                assert x.randomized_component() == postfit
+                assert x.randomized_component == postfit
 
         # single subject and epoch
         if permutations == 1:
@@ -1331,7 +1336,7 @@ class TRFExperiment(MneExperiment):
         post_fit_xs = set()
         for x_ in xs:
             if postfit:
-                postfit_x = x_.randomized_component() if x_.has_randomization else postfit
+                postfit_x = x_.randomized_component if x_.has_randomization else postfit
                 post_fit_xs.update(map(Dataset.as_key, postfit_x.terms))
             else:
                 postfit_x = False
@@ -1916,21 +1921,22 @@ class TRFExperiment(MneExperiment):
     def _x_desc(self, x, is_public=False):
         "Description for x"
         if isinstance(x, Model):
-            if x.sorted in self._model_names:
-                return self._model_names[x.sorted]
-            elif x.without_randomization.sorted in self._model_names:
-                xrand = x.randomized_component()
+            assert not is_public
+            if not x:
+                return '0'
+            elif x.sorted_key in self._model_names:
+                return self._model_names[x.sorted_key]
+            elif x.without_randomization.sorted_key in self._model_names:
+                xrand = x.randomized_component
                 xrand_desc = self._x_desc(xrand.without_randomization)
                 rand = {term.shuffle_string for term in xrand.terms}
                 if len(rand) != 1:
                     raise NotImplementedError(f"{len(rand)} randomization schemes in {x}")
-                rand_desc = f'{xrand_desc}${rand.pop()}'
-                if xrand.without_randomization == x:
+                rand_desc = f'{xrand_desc}{rand.pop()}'
+                if xrand == x:
                     return rand_desc
-                base_name = self._model_names[x.without_randomization.sorted]
+                base_name = self._model_names[x.without_randomization.sorted_key]
                 return f'{base_name} ({rand_desc})'
-            elif len(x.terms) == 1:
-                return x.terms[0]
             else:
                 self._register_model(x)
                 return self._x_desc(x)
@@ -1938,10 +1944,15 @@ class TRFExperiment(MneExperiment):
             if is_public:
                 return x.name
             else:
-                return x.relative_name(self._named_models)
+                return x.compose_name(self._x_desc)
         elif isinstance(x, StructuredModel):
             assert is_public  # all internal names should be Model-based
-            return x.public_name
+            if x in self._structured_model_names:
+                return self._structured_model_names[x]
+            elif x.public_name:
+                return x.public_name
+            else:
+                raise RuntimeError(f"{x} has no public name")
         else:
             raise TypeError(f"x={x!r}")
 
@@ -2527,7 +2538,7 @@ class TRFExperiment(MneExperiment):
             t.cell('*' if name in self.models else '')
             t.cell(name)
             if sort:
-                t.cell(model.sorted)
+                t.cell(model.sorted_key)
             else:
                 t.cell(model.name)
             if files:

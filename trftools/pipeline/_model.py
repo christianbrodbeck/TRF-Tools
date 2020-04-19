@@ -45,7 +45,7 @@ a + b$rnd > b + a$rnd
 from collections.abc import Sequence
 from dataclasses import dataclass
 import pickle
-from typing import Dict, List, Tuple, Union
+from typing import Dict, Callable, List, Tuple, Union
 
 import numpy as np
 from eelbrain._experiment.mne_experiment import DefinitionError
@@ -112,11 +112,13 @@ class Model:
 
     @LazyProperty
     def name(self):
+        if not self.terms:
+            return '0'
         return ' + '.join(term.string for term in self.terms)
 
     @LazyProperty
-    def sorted(self):
-        return '+'.join(sorted(term.string for term in self.terms))
+    def sorted_key(self):
+        return '+'.join(sorted([term.string for term in self.terms]))
 
     @classmethod
     def from_string(cls, string):
@@ -169,16 +171,26 @@ class Model:
             return Model(self.terms_without_randomization)
         return self
 
+    @LazyProperty
+    def randomized_component(self) -> 'Model':
+        terms = [term for term in self.terms if term.shuffle]
+        if len(terms) == len(self.terms):
+            return self
+        return Model(tuple(terms))
+
+    @LazyProperty
+    def unrandomized_component(self) -> 'Model':
+        terms = [term for term in self.terms if not term.shuffle]
+        if len(terms) == len(self.terms):
+            return self
+        return Model(tuple(terms))
+
     def difference(self, other: 'Model') -> 'Model':
         terms = [term for term in self.terms is term not in other.terms]
         return Model(tuple(terms))
 
     def intersection(self, other: 'Model') -> 'Model':
         terms = [term for term in self.terms if term in other.terms]
-        return Model(tuple(terms))
-
-    def randomized_component(self) -> 'Model':
-        terms = [term for term in self.terms if term.shuffle]
         return Model(tuple(terms))
 
     def initialize(self, named_models: Dict[str, 'StructuredModel']) -> 'Model':
@@ -304,7 +316,7 @@ class StructuredModel:
         return cls(tuple(terms))
 
     @LazyProperty
-    def model(self):
+    def model(self) -> Model:
         return Model(tuple([term._model_term for term in self.terms]))
 
     @LazyProperty
@@ -320,6 +332,7 @@ class StructuredModel:
 
     def without(self, term_to_remove: str):
         """Reduced model, excluding ``term``"""
+        # FIXME: -red public name
         parents = {term.parent for term in self.terms}
         terms = []
         removed = False
@@ -464,19 +477,23 @@ class Comparison:
     public_name: str = None
 
     @LazyProperty
-    def models(self):
+    def operator(self) -> str:
+        return COMP[self.tail]
+
+    @LazyProperty
+    def models(self) -> Tuple[Model, Model]:
         return self.x1, self.x0
 
     @LazyProperty
-    def common_base(self):
+    def common_base(self) -> Model:
         return self.x1.intersection(self.x0)
 
     @LazyProperty
-    def x1_only(self):
+    def x1_only(self) -> Model:
         return self.x1.difference(self.x0)
 
     @LazyProperty
-    def x0_only(self):
+    def x0_only(self) -> Model:
         return self.x0.difference(self.x1)
 
     @LazyProperty
@@ -490,28 +507,33 @@ class Comparison:
             return self.x0_only.name
 
     @LazyProperty
-    def name(self):
+    def name(self) -> str:
         if self.public_name:
             return self.public_name
-        op = COMP[self.tail]
+        return self.compose_name()
+
+    def compose_name(self, name: Callable[[Model], str] = lambda m: m.name) -> str:
+        # implement only parsable comparisons
+        op = self.operator
+        assert not self.common_base.has_randomization
+        assert not self.x1_only.has_randomization
+        if not self.x0.has_randomization:
+            return f"{name(self.x1)} {op} {name(self.x0)}"
+        assert self.x1_only
+        if self.x0_only.without_randomization.sorted_key == self.x1_only.sorted_key:
+            if not self.common_base:
+                return f"{name(self.x1)} {op} {name(self.x0)}"
+            elif op == '>':
+                return f"{name(self.x1)} | {name(self.x0_only)}"
+            else:
+                raise NotImplementedError
+        if self.x0_only.randomized_component == self.x0_only:
+            x0_only = name(self.x0_only)
+        else:
+            x0_only = f"{name(self.x0_only.unrandomized_component)} + {name(self.x0_only.randomized_component)}"
         if self.common_base:
-            if self.x1_only:
-                if self.x0_only:
-                    return f"{self.common_base} ({self.x1_only} {op} {self.x0_only}"
-                else:
-                    return f"{self.common_base} +| {self.x1_only}"
-            elif self.x0_only:
-                return f"{self.common_base} -| {self.x1_only}"
-            else:
-                raise RuntimeError("Comparing identical models")
-        elif self.x1_only:
-            if self.x0_only:
-                return f"{self.x1_only} {op} {self.x0_only}"
-            else:
-                return f"{self.x1_only} {op} 0"
-        elif self.x0_only:
-            return f"0 {op} {self.x1_only}"
-        raise RuntimeError("Comparing identical models")
+            return f"{name(self.common_base)} | {name(self.x1_only)} {op} {x0_only}"
+        return f"{name(self.x1)} {op} {x0_only}"
 
     @classmethod
     def coerce(cls, x, cv=True, named_models={}):
