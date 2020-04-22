@@ -1351,7 +1351,7 @@ class TRFExperiment(MneExperiment):
         ds['subject'] = Factor([subject], random=True)
         if not is_dstrf:
             ds[:, 'r'] = r
-            ds[:, 'residual'] = 1 - residual
+            ds[:, 'residual'] = residual
             ds[:, 'det'] = det
             ds[:, 'z'] = z
             if is_vector_data:
