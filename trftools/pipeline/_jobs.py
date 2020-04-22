@@ -56,7 +56,6 @@ class Job:
             model: ModelArg,
             priority: bool,
             options: Dict[str, Any],
-            postfit: ModelArg = False,
             public_name: str = None,
             report: bool = False,
     ):
@@ -73,7 +72,6 @@ class Job:
         self.experiment = experiment
         self.options = options
         self.priority = priority
-        self.postfit = postfit
         self.public_model_name = public_name
         self.model_name = public_name or experiment._x_desc(model, True)
 
@@ -93,8 +91,7 @@ class Job:
             self.model == other.model and
             self.report == other.report and
             self.experiment.__class__.__name__ == other.experiment.__class__.__name__ and
-            self.options == other.options and
-            self.postfit == other.postfit)
+            self.options == other.options)
 
     def init_test_path(self):
         raise NotImplementedError
@@ -168,47 +165,27 @@ class TRFsJob(Job):
         Parent job (for reduced model jobs).
     priority : bool
         Insert job at the beginning of the queue (default ``False``).
-    postfit : Model | bool
-        Component of ``x`` to post-fit.
     reduction_tag : str
         Tag to use for reduced models (to distinguish different reduction
         algorithms, default ``'red'``).
     ...
         Model-test parameters.
     """
-    _prefit_done = False  # mark whether this is the first or second stage
-
     def __init__(
             self,
             model: ModelArg,
             experiment=None,
             priority: bool = False,
-            postfit: Union[ModelArg, bool] = False,
             **options,
     ):
         model = experiment._coerce_model(model)
-        Job.__init__(self, experiment, model, priority, options, postfit)
-
-    def is_same(self, other: 'TRFsJob'):
-        return (
-            Job.is_same(self, other) and
-            self._prefit_done == other._prefit_done)
+        Job.__init__(self, experiment, model, priority, options)
 
     def init_test_path(self):
         pass
 
     def _init_trf_jobs(self, existing: bool = False):
-        if self.postfit and not self._prefit_done:
-            if self.postfit is True:
-                terms = [term.string for term in self.model.terms]
-            else:
-                terms = [self.postfit]
-            out = []
-            for term in terms:
-                model = self.model - self.experiment._coerce_model(term)
-                out.extend(self.experiment._locate_missing_trfs(model, existing=existing, **self.options))
-            return out
-        return self.experiment._locate_missing_trfs(self.model, existing=existing, **self.options, postfit=self.postfit)
+        return self.experiment._locate_missing_trfs(self.model, existing=existing, **self.options)
 
     def _execute(self):
         self.init_sub_jobs()
@@ -218,15 +195,10 @@ class TRFsJob(Job):
             job.execute()
 
     def has_followup_jobs(self):
-        return self.postfit and not self._prefit_done
+        return False
 
     def get_followup_jobs(self, log=None):
-        if self.postfit and not self._prefit_done:
-            job = TRFsJob(self.model, self.experiment, self.priority, self.postfit, **self.options)
-            job._prefit_done = True
-            return [job]
-        else:
-            return []
+        return []
 
 
 class ModelJob(Job):
@@ -247,16 +219,13 @@ class ModelJob(Job):
         Parent job (for reduced model jobs).
     priority : bool
         Insert job at the beginning of the queue (default ``False``).
-    postfit : Model | bool
-        Component of ``x`` to post-fit.
     reduction_tag : str
         Tag to use for reduced models (to distinguish different reduction
         algorithms, default ``'red'``).
     ...
         Model-test parameters.
     """
-    def __init__(self, model, experiment=None, report=True, reduce_model=False, parent=None, priority=False, postfit=False, reduction_tag='red', metric='z', smooth=False, cv=False, **options):
-        assert postfit is False
+    def __init__(self, model, experiment=None, report=True, reduce_model=False, parent=None, priority=False, reduction_tag='red', metric='z', smooth=False, cv=False, **options):
         model = experiment._coerce_comparison(model, cv)
         if isinstance(reduce_model, float):
             assert 0. < reduce_model < 1.
@@ -277,7 +246,7 @@ class ModelJob(Job):
             public_name = None
 
         options['cv'] = cv
-        Job.__init__(self, experiment, model, priority, options, postfit, public_name, report)
+        Job.__init__(self, experiment, model, priority, options, public_name, report)
         self._test_options = {'metric': metric, 'smooth': smooth}
         self._reduction_tag = reduction_tag
         self.reduce_model = reduce_model
@@ -350,7 +319,7 @@ class ModelJob(Job):
             least_term, tmin = min(tmaxs, key=itemgetter(1))
         # remove term
         model = self.model.without(least_term)
-        return ModelJob(model, self.experiment, self.report, self.reduce_model, self, self.priority, self.postfit, self._reduction_tag, **self._test_options, **self.options)
+        return ModelJob(model, self.experiment, self.report, self.reduce_model, self, self.priority, self._reduction_tag, **self._test_options, **self.options)
 
     def reduction_table(self, labels=None, vertical=False, title=None, caption=None):
         """Table with steps of model reduction
