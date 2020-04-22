@@ -807,18 +807,23 @@ class TRFExperiment(MneExperiment):
             os.remove(path)
         return path
 
-    def _trf_job(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, postfit=False):
+    def _trf_job(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, postfit=False, **state):
         "Return ``func`` to create TRF result"
-        inv = self.get('inv')
-        m = DSTRF_RE.match(inv)
-        if m:
-            data = TestDims('sensor')
-        else:
-            morph = is_fake_mri(self.get('mri-dir'))
-            data = TestDims.coerce(data, morph=morph)
-        epoch = self.get('epoch')
+        data = TestDims.coerce(data)
+        epoch = self.get('epoch', **state)
         assert not isinstance(self._epochs[epoch], EpochCollection)
         x = self._coerce_model(x)
+        if data.source:
+            inv = self.get('inv')
+            m = DSTRF_RE.match(inv)
+            if m:
+                data = TestDims('sensor')
+            else:
+                morph = is_fake_mri(self.get('mri-dir'))
+                data = TestDims.coerce(data, morph=morph)
+        else:
+            inv = m = None
+
         if postfit:
             postfit = self._coerce_model(postfit)
             x_prefit = x - postfit
@@ -1028,7 +1033,9 @@ class TRFExperiment(MneExperiment):
             try:
                 out = combine(dss)
             except DimensionMismatchError:
-                # backward model can have incompatible
+                if not backward:
+                    raise
+                # backward model can have incompatible sensor dimensions
                 for ds in dss:
                     del ds[data.y_name]
                 out = combine(dss)
