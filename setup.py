@@ -30,6 +30,7 @@ setup(
     url="https://github.com/christianbrodbeck/TRF-Tools",
     install_requires=[
         "textgrid >=1.5",
+        "filelock",
     ],
     packages=find_packages(),
     entry_points={

@@ -104,6 +104,7 @@ from eelbrain._text import ms, n_of
 from eelbrain._utils.mne_utils import is_fake_mri
 from eelbrain._utils.numpy_utils import newaxis
 from eelbrain._utils import ask
+from filelock import FileLock
 import numpy as np
 from tqdm import tqdm
 
@@ -337,6 +338,11 @@ class TRFExperiment(MneExperiment):
         # TODO: detect changes in structured models
         # load cache models:  {str: Model}
         self._model_names_file = join(self.get('cache-dir', mkdir=True), 'model-names.pickle')
+        self._model_names_file_lock = FileLock(self._model_names_file + '.lock')
+        with self._model_names_file_lock:
+            self._load_model_names()
+
+    def _load_model_names(self):
         if exists(self._model_names_file):
             self._named_models = load_models(self._model_names_file)
         else:
@@ -344,13 +350,16 @@ class TRFExperiment(MneExperiment):
         self._model_names = {model.sorted_key: name for name, model in self._named_models.items()}
 
     def _register_model(self, model: Model) -> str:
-        """Register a new named model"""
+        "Register a new model (generate a name)"
         model = model.without_randomization
-        assert model.sorted_key not in self._named_models
-        name = self._generate_model_name(model)
-        self._named_models[name] = model
+        with self._model_names_file_lock:
+            self._load_model_names()
+            if model.sorted_key in self._named_models:
+                return self._named_models[model.sorted_key]
+            name = self._generate_model_name(model)
+            self._named_models[name] = model
+            save_models(self._named_models, self._model_names_file)
         self._model_names[model.sorted_key] = name
-        save_models(self._named_models, self._model_names_file)
         return name
 
     def _generate_model_name(self, model: Model):
@@ -384,7 +393,16 @@ class TRFExperiment(MneExperiment):
         return files
 
     def _remove_model(self, name, files=None):
-        """Remove a named model and delete all associated files"""
+        """Remove a named model and delete all associated files
+
+        .. warning::
+            Only use this command when only a single instance of this
+            TRFExperiment class exists.
+            A separate, previously created instance of the same TRFExperiment
+            class would retain a reference to this model name and might use it
+            again, leading to conflicts later.
+        """
+        # FIXME: check model names file mtime any time model names are accessed?
         if files is None:
             files = self._find_model_files(name)
         if files:
@@ -400,11 +418,14 @@ class TRFExperiment(MneExperiment):
                 else:
                     raise RuntimeError("Model deletion aborted")
 
-        model = self._named_models.pop(name)
-        del self._model_names[model.sorted_key]
         for path in files:
             os.remove(path)
-        save_models(self._named_models, self._model_names_file)
+
+        with self._model_names_file_lock:
+            self._load_model_names()
+            model = self._named_models.pop(name)
+            del self._model_names[model.sorted_key]
+            save_models(self._named_models, self._model_names_file)
 
     # Stimuli
     #########

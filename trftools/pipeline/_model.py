@@ -44,6 +44,7 @@ a + b$rnd > b + a$rnd
 """
 from collections import abc
 from dataclasses import dataclass
+from pathlib import Path
 import pickle
 from typing import Dict, Callable, List, Tuple, Sequence, Union
 
@@ -670,7 +671,11 @@ def parse_comparison(string: str) -> ComparisonSpec:
 
 
 def save_models(models, path):
+    path = Path(path)
     out = [(k, v.name) for k, v in models.items()]
+    if path.exists():
+        backup_path = path.with_suffix('.backup')
+        path.rename(backup_path)
     with open(path, 'wb') as fid:
         pickle.dump(out, fid, pickle.HIGHEST_PROTOCOL)
 
