@@ -2224,14 +2224,14 @@ class TRFExperiment(MneExperiment):
         :attr:`.models`.
         """
         if term is None:
-            pattern = '.*'
+            pattern = None
         else:
             pattern = fnmatch.translate(term)
             if stim:
                 pattern = r'(\w+\|)?' + pattern
             if rand:
                 pattern += r'(\$.*)?'
-        pattern = re.compile(pattern)
+            pattern = re.compile(pattern)
         model_pattern = model
 
         t = fmtxt.Table('lll' + 'r'*files)
@@ -2240,10 +2240,12 @@ class TRFExperiment(MneExperiment):
             t.cell('n')
         t.midrule()
         for name, model in self._named_models.items():
-            if not any(pattern.match(t) for t in model.terms):
-                continue
-            elif model_pattern and not fnmatch.fnmatch(name, model_pattern):
-                continue
+            if pattern is not None:
+                if not any(pattern.match(t.string) for t in model.terms):
+                    continue
+            if model_pattern is not None:
+                if not fnmatch.fnmatch(name, model_pattern):
+                    continue
             t.cell('*' if name in self.models else '')
             t.cell(name)
             if sort:
