@@ -1,15 +1,17 @@
+from __future__ import annotations
+
 from argparse import ArgumentParser
 from operator import itemgetter
 import os
 from os.path import relpath, dirname
 import sys
-from typing import Any, Dict, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional
 import webbrowser
 
 from eelbrain import fmtxt, save
 from eelbrain._experiment.test_def import TestDims
 
-from ._model import StructuredModel, Model, ModelArg
+from ._model import StructuredModel, ModelArg
 
 
 def make_jobs(job_file, make_trfs=False, open_in_browser=False):
@@ -24,23 +26,17 @@ def make_jobs(job_file, make_trfs=False, open_in_browser=False):
             webbrowser.open(f"file://{path}")
 
 
-class TRFJob:
-    """Jopb for a single TRF"""
-    __slots__ = ('experiment', 'path', 'state', 'args', 'desc')
-
-    def __init__(self, experiment, path, state, args):
-        self.experiment = experiment
+class Job:
+    "Single function to be executed"
+    def __init__(self, path, desc=None):
         self.path = path
-        self.state = state
-        self.args = args
-        self.desc = f"{experiment.__class__.__name__} {relpath(path, experiment.get('trf-sdir'))}"
+        self.desc = desc or path
 
     def __repr__(self):
-        return f"<TRFJob: {self.desc}>"
+        return f"<{self.__class__.__name__}: {self.desc}>"
 
-    def generate_job(self):
-        self.experiment._restore_state(self.state)
-        return self.experiment._trf_job(*self.args)
+    def generate_job(self) -> Optional[Callable]:
+        return
 
     def _execute(self):
         job = self.generate_job()
@@ -48,7 +44,97 @@ class TRFJob:
             save.pickle(job(), self.path)
 
 
-class Job:
+class FuncJob(Job):
+    "Job based on a pre-defined function"
+    def __init__(
+            self,
+            path: str,
+            job_loader: Callable,
+            desc: str = None,
+    ):
+        Job.__init__(self, path, desc)
+        self.job_loader = job_loader
+
+    def generate_job(self) -> Optional[Callable]:
+        return self.job_loader()
+
+
+class TRFJob(Job):
+    "Jop for a single TRF"
+    def __init__(self, experiment, path, state, args):
+        desc = f"{experiment.__class__.__name__} {relpath(path, experiment.get('trf-sdir'))}"
+        Job.__init__(self, path, desc)
+        self.experiment = experiment
+        self.state = state
+        self.args = args
+
+    def generate_job(self):
+        self.experiment._restore_state(self.state)
+        return self.experiment._trf_job(*self.args)
+
+
+class UserJob:
+    """Baseclass for a user-request, able to generate Job instances"""
+    # to be initialized
+    trf_jobs = None
+    missing_trfs = None
+    test_path = None
+
+    def __init__(
+            self,
+            name: str,
+            priority: bool,
+    ):
+        self.name = str(name)
+        self.priority = priority
+
+    def __repr__(self):
+        args = [self.name, *self._repr_items()]
+        return f"<{self.__class__.__name__}: {', '.join(args)}>"
+
+    def _repr_items(self) -> List[str]:
+        return []
+
+    def is_same(self, other: UserJob):
+        return NotImplemented
+
+    def init_sub_jobs(self):
+        pass
+
+    def has_followup_jobs(self):
+        return False
+
+    def cancel(self):
+        self.trf_jobs = None
+        self.missing_trfs.clear()
+
+
+class FuncIterJob(UserJob):
+
+    def __init__(
+            self,
+            name: str,
+            jobs: Iterable,
+            priority: bool = False,
+    ):
+        UserJob.__init__(self, name, priority)
+        self._job_iter = jobs
+
+    def is_same(self, other: UserJob):
+        return type(self) is type(other) and self.name == other.name
+
+    def init_sub_jobs(self):
+        self.missing_trfs = set()
+        self.trf_jobs = []
+        for i, (path, job_loader) in enumerate(self._job_iter):
+            if not callable(job_loader):
+                raise TypeError(f"job_loader must be callable, got {job_loader!r}")
+            job = FuncJob(path, job_loader, f'{self.name}-{i}')
+            self.trf_jobs.append(job)
+            self.missing_trfs.add(job.path)
+
+
+class ExperimentJob(UserJob):
     """Baseclass for multi-TRF jobs (TRFs or model-comparison)"""
     def __init__(
             self,
@@ -63,6 +149,8 @@ class Job:
         from ._experiment import TRFExperiment
         if not isinstance(experiment, TRFExperiment):
             raise TypeError(f"experiment={experiment!r}")
+        name = public_name or experiment._x_desc(model, True)
+        UserJob.__init__(self, name, priority)
 
         if 'data' in options:
             options['data'] = TestDims.coerce(options['data'])
@@ -71,21 +159,12 @@ class Job:
         self.report = report
         self.experiment = experiment
         self.options = options
-        self.priority = priority
         self.public_model_name = public_name
-        self.model_name = public_name or experiment._x_desc(model, True)
 
-        # to be initialized
-        self.trf_jobs = None
-        self.missing_trfs = None
-        self.test_path = None
+    def _repr_items(self) -> List[str]:
+        return [f'{k}={v!r}' for k, v in self.options.items()]
 
-    def __repr__(self):
-        args = [self.model_name]
-        args.extend(f'{k}={v!r}' for k, v in self.options.items())
-        return f"<{self.__class__.__name__}: {', '.join(args)}>"
-
-    def is_same(self, other: 'Job'):
+    def is_same(self, other: ExperimentJob):
         return (
             type(self) is type(other) and
             self.model == other.model and
@@ -99,6 +178,7 @@ class Job:
     def init_sub_jobs(self):
         self.trf_jobs = self.generate_trf_jobs()
         self.missing_trfs = {job.path for job in self.trf_jobs}
+        self.all_jobs_generated = True
 
     def _init_trf_jobs(self, existing: bool = False):
         raise NotImplementedError
@@ -108,9 +188,6 @@ class Job:
         return self._execute()
 
     def _execute(self):
-        raise NotImplementedError
-
-    def has_followup_jobs(self):
         raise NotImplementedError
 
     def get_followup_jobs(self, log):
@@ -129,25 +206,7 @@ class Job:
         return [TRFJob(self.experiment, *args) for args in self._init_trf_jobs(existing)]
 
 
-class FuncJob:
-
-    def __init__(self, name, jobs, priority=False):
-        self.name = name
-        self.jobs = jobs
-        self.priority = priority
-        self._i = -1
-
-    def __next__(self):
-        out = next(self.jobs)
-        self._i += 1
-        return out
-
-    @property
-    def desc(self):
-        return f"{self.name}-{self._i}"
-
-
-class TRFsJob(Job):
+class TRFsJob(ExperimentJob):
     """Job for group of TRFs
 
     Parameters
@@ -161,7 +220,7 @@ class TRFsJob(Job):
     reduce_model : bool
         Reduce the model until it only contains predictors significant at the
         .05 level.
-    parent : Job
+    parent : UserJob
         Parent job (for reduced model jobs).
     priority : bool
         Insert job at the beginning of the queue (default ``False``).
@@ -179,7 +238,7 @@ class TRFsJob(Job):
             **options,
     ):
         model = experiment._coerce_model(model)
-        Job.__init__(self, experiment, model, priority, options)
+        ExperimentJob.__init__(self, experiment, model, priority, options)
 
     def init_test_path(self):
         pass
@@ -201,7 +260,7 @@ class TRFsJob(Job):
         return []
 
 
-class ModelJob(Job):
+class ModelJob(ExperimentJob):
     """Job for model-comparison
 
     Parameters
@@ -215,7 +274,7 @@ class ModelJob(Job):
     reduce_model : bool
         Reduce the model until it only contains predictors significant at the
         .05 level.
-    parent : Job
+    parent : UserJob
         Parent job (for reduced model jobs).
     priority : bool
         Insert job at the beginning of the queue (default ``False``).
@@ -246,7 +305,7 @@ class ModelJob(Job):
             public_name = None
 
         options['cv'] = cv
-        Job.__init__(self, experiment, model, priority, options, public_name, report)
+        ExperimentJob.__init__(self, experiment, model, priority, options, public_name, report)
         self._test_options = {'metric': metric, 'smooth': smooth}
         self._reduction_tag = reduction_tag
         self.reduce_model = reduce_model
@@ -255,7 +314,7 @@ class ModelJob(Job):
 
     def is_same(self, other: 'ModelJob'):
         return (
-            Job.is_same(self, other) and
+            ExperimentJob.is_same(self, other) and
             self._test_options == other._test_options)
 
     def init_test_path(self):
@@ -397,7 +456,7 @@ def read_job_file(filename):
 
     Returns
     -------
-    jobs : list of Job
+    jobs : list of UserJob
         All jobs found in the file.
     """
     with open(filename) as fid:

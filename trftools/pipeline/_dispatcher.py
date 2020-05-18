@@ -39,7 +39,7 @@ from eelbrain._utils import ask
 from eelfarm.server import JobServer, JobServerTerminated
 
 from . import read_job_file
-from ._jobs import FuncJob
+from ._jobs import FuncIterJob
 
 
 MIN_IO_CYCLE_TIME = 5  # I/O thread
@@ -165,19 +165,65 @@ class Dispatcher(object):
                 n += 1
         self.logger.info("%i jobs requested", n)
 
-    def add_jobs_from_iter(self, name, jobs):
+    def add_jobs_from_iter(self, name, job_factory, priority=False):
         """Add jobs by providing an iterator over ``(path, func)`` pairs
 
         Parameters
         ----------
         name : str
             Name by which the job will be known.
-        jobs : iterator over (path_like, callable)
-            Iterator over jobs. Each job should consist of a path_like, where
-            the result will be saved, and a callable, the function generating
-            the result.
+        job_factory : iterator over (path_like, callable)
+            Iterator over ``(path, job_loader)`` tuples. A ``job_loader`` is a
+            function which will load the required data and return the ``job``.
+            The ``job`` itself is a function, whose return value will be saved at
+            ``path`` (see example). Make sure that most of the data is not
+            loaded until ``job`` is called.
+        priority : bool
+            Insert the jobs at the beginning of the queue (default ``False``).
+
+        Examples
+        --------
+        Generate a job for each of several subjects::
+
+            from functools import partial
+            import os
+            from eelbrain import boosting
+            import trftools
+
+
+            def load_job(subject):
+                y = load_data_for(subject)
+                x = load_predictors_for(subject)
+                return partial(boosting, y, x, tstart=0, tstop=0.500)
+
+            def job_factory():
+                for subject in range(1, 10):
+                    path = f'save/to-{subject}.pickle'
+                    if os.path.exists(path):
+                        continue
+                    job_loader = partial(load_job, subject)
+                    yield path, job_loader
+
+            dispatcher = trftools.start_dispatcher()
+            dispatcher.add_jobs_from_iter('my_job', job_factory())
+
+        An example that works, turning strings into uppercase::
+
+            def load_job(string):
+                return partial(str.upper, string)
+
+            def job_factory():
+                for string in ['test', 'this']:
+                    path = f'{string}.pickle'
+                    if os.path.exists(path):
+                        continue
+                    job_loader = partial(load_job, string)
+                    yield path, job_loader
+
+            dispatcher.add_jobs_from_iter('my_job', job_factory())
+
         """
-        self._request_queue.put(FuncJob(name, jobs))
+        self._request_queue.put(FuncIterJob(name, job_factory, priority))
 
     def _local_io(self):
         n_exceptions = n_trf_exceptions = 0
@@ -202,20 +248,13 @@ class Dispatcher(object):
                         self.logger.info("%i requests processed, no new jobs", jobs_processed)
                     break
                 jobs_processed += 1
-
-                if isinstance(job, FuncJob):
-                    if job.priority:
-                        self._trf_job_queue.appendleft(job)
-                    else:
-                        self._trf_job_queue.append(job)
-                    break
+                # check whether job already exists
+                if any(job.is_same(j) for j in self._user_jobs):
+                    continue
 
                 # initialize job
                 try:
                     with self.e_lock:
-                        # check whether job already exists
-                        if any(job.is_same(j) for j in self._user_jobs):
-                            continue
                         job.init_sub_jobs()
                         # check whether all target files already exist
                         if not job.test_path and not job.missing_trfs and not job.has_followup_jobs():
@@ -263,24 +302,8 @@ class Dispatcher(object):
             if self._trf_job_queue and not self._shutdown and not self.server.full():
                 path = self._trf_job_queue.popleft()
                 func = trfjob = None
-                if isinstance(path, FuncJob):
-                    trfjob = path
-                    try:
-                        dst, func = next(trfjob)
-                        path = dst
-                    except StopIteration:
-                        pass
-                    except Exception:
-                        n_trf_exceptions += 1
-                        self.logger.error(f"Error creating job {trfjob.desc}, dropping iterator")
-                        print_traceback(sys.exc_info())
-                    else:
-                        if trfjob.priority:
-                            self._trf_job_queue.appendleft(trfjob)
-                        else:
-                            self._trf_job_queue.append(trfjob)
-                elif path not in self._trf_jobs:
-                    self.logger.warning("Key missing from jobs; was the result received as an orphan? %s", path)
+                if path not in self._trf_jobs:
+                    self.logger.error("Trying to queue non-existing job: %s", path)
                 else:
                     trfjob = self._trf_jobs[path]
                     try:
@@ -362,9 +385,16 @@ class Dispatcher(object):
                 if cycle_time < MIN_IO_CYCLE_TIME:
                     sleep(MIN_IO_CYCLE_TIME - cycle_time)
 
-    def cancel_job(self, pattern):
-        """Cancel all TRF-jobs related to this model"""
-        jobs = [job for job in self._user_jobs if fnmatch.fnmatch(job.model_name, pattern)]
+    def cancel_job(self, pattern: str):
+        """Cancel one or several jobs
+
+        Parameters
+        ----------
+        pattern
+            Pattern to match jobs. For example, a job's name, or '*' to match
+            all jobs.
+        """
+        jobs = [job for job in self._user_jobs if fnmatch.fnmatch(job.name, pattern)]
         if not jobs:
             raise ValueError(f"{pattern!r}: no job with this model name")
         n_removed = 0
@@ -375,15 +405,8 @@ class Dispatcher(object):
                     if trf_job.path in self._trf_job_queue:
                         self._trf_job_queue.remove(trf_job.path)
                     n_removed += 1
-            job.trf_jobs = None
-            job.missing_trfs.clear()
+            job.cancel()
         print(f"{len(jobs)} jobs with {n_removed} TRF-jobs canceled")
-
-    def clear_job_queue(self):
-        "Remove all TRF requests that have not been sent to the server yet"
-        while self._trf_job_queue:
-            path = self._trf_job_queue.popleft()
-            del self._trf_jobs[path]
 
     def clear_report_queue(self):
         "Remove all report requests (but leave TRF-requests)"
@@ -458,7 +481,7 @@ class Dispatcher(object):
         priority = bool(priority)
         jobs = self._report_jobs.values()
         if model is not None:
-            jobs = (job for job in jobs if fnmatch.fnmatch(job.model_name, model))
+            jobs = (job for job in jobs if fnmatch.fnmatch(job.name, model))
 
         for job in jobs:
             job.priority = priority
@@ -468,7 +491,8 @@ class Dispatcher(object):
             key = self.server.get_failed(True)
             if key is None:
                 break
-            self._trf_job_queue.appendleft(key)
+            elif key in self._trf_jobs:
+                self._trf_job_queue.appendleft(key)
 
     def remove_broken_worker(self, worker, blacklist=False):
         """Move jobs sent to this worker back into the queue"""
@@ -505,7 +529,7 @@ class Dispatcher(object):
         """
         # check if pattern is a model
         if isinstance(pattern, str):
-            model_jobs = [job for job in self._user_jobs if job.trf_jobs and fnmatch.fnmatch(job.model_name, pattern)]
+            model_jobs = [job for job in self._user_jobs if job.trf_jobs and fnmatch.fnmatch(job.name, pattern)]
         else:
             model_jobs = None
         # find TRF-job keys
@@ -574,12 +598,12 @@ class Dispatcher(object):
                     report = '\u2612'
                 else:
                     report = ''
-            job_desc = job.model_name
-            if len(job_desc) > width:
-                job_desc = job_desc[:width-3] + '...'
-            t.cell(job.experiment.__class__.__name__)  # Exp
-            t.cell(job.options.get('epoch', ''))  # Epoch
-            t.cell(job_desc)  # Model
+            if isinstance(job, FuncIterJob):
+                t.cells('<iter>', '')
+            else:
+                t.cell(job.experiment.__class__.__name__)  # Exp
+                t.cell(job.options.get('epoch', ''))  # Epoch
+            t.cell(job.name if len(job.name) <= width else f"{job.name[:width-3]}...")
             t.cell(n_trfs)  # TRFs
             t.cell(n_missing)  # Pending
             if priority:
