@@ -354,8 +354,8 @@ class TRFExperiment(MneExperiment):
         model = model.without_randomization
         with self._model_names_file_lock:
             self._load_model_names()
-            if model.sorted_key in self._named_models:
-                return self._named_models[model.sorted_key]
+            if model.sorted_key in self._model_names:
+                return self._model_names[model.sorted_key]
             name = self._generate_model_name(model)
             self._named_models[name] = model
             save_models(self._named_models, self._model_names_file)
