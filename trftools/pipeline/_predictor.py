@@ -161,7 +161,7 @@ class FilePredictor:
             dimnames = v.get_dimnames(first='time')
             dims = (uts, *v.get_dims(dimnames[1:]))
             shape = [len(dim) for dim in dims]
-            x = NDVar(numpy.zeros(shape), dims, code.code_with_rand)
+            x = NDVar(numpy.zeros(shape), dims, code.key)
             for t, stim in ds.zip('T_relative', stim_var):
                 x_stim = cache[stim]
                 i_start = uts._array_index(t + x_stim.time.tmin)
@@ -215,7 +215,7 @@ class FilePredictor:
                 ds['value'].x[shuffle_mask] = values
             code.register_shuffle(index=True)
 
-        x = NDVar(numpy.zeros(len(uts)), uts, name=code.code_with_rand)
+        x = NDVar(numpy.zeros(len(uts)), uts, name=code.key)
         ds = ds[ds['time'] < x.time.tstop]
         for t, v in ds.zip('time', 'value'):
             x[t] = v

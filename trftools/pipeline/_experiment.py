@@ -516,15 +516,12 @@ class TRFExperiment(MneExperiment):
         # load predictors (cache for same stimulus unless they are randomized)
         if code.has_randomization or is_variable_time:
             time_dims = time if is_variable_time else repeat(time, ds.n_cases)
-            xs = [self.load_predictor(code.with_stim(stim), time.tstep, time.nsamples, time.tmin, filter) for stim, time in zip(ds[stim_var], time_dims)]
+            xs = [self.load_predictor(code.with_stim(stim), time.tstep, time.nsamples, time.tmin, filter, code.key) for stim, time in zip(ds[stim_var], time_dims)]
         else:
-            x_cache = {stim: self.load_predictor(code.with_stim(stim), time.tstep, time.nsamples, time.tmin, filter) for stim in ds[stim_var].cells}
+            x_cache = {stim: self.load_predictor(code.with_stim(stim), time.tstep, time.nsamples, time.tmin, filter, code.key) for stim in ds[stim_var].cells}
             xs = [x_cache[stim] for stim in ds[stim_var]]
 
-        if is_variable_time:
-            for x in xs:
-                x.name = Dataset.as_key(x.name)
-        else:
+        if not is_variable_time:
             xs = combine(xs)
         ds[code.key] = xs
 
