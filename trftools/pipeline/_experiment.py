@@ -210,7 +210,7 @@ class TRFExperiment(MneExperiment):
         # TRF
         'trf-sdir': join('{cache-dir}', 'trf'),
         'trf-dir': join('{trf-sdir}', '{subject}'),
-        'trf-file': join('{trf-dir}', '{analysis}', '{epoch} {test_options}.pickle'),
+        'trf-file': join('{trf-dir}', '{analysis}', '{epoch_visit} {test_options}.pickle'),
         'trf-test-file': join('{cache-dir}', 'trf-test', '{analysis} {group}', '{folder}', '{test_desc}.pickle'),
         # model comparisons
         'model-test-file': join('{cache-dir}', 'model-test', '{analysis} {group}', '{folder}', '{test_desc}.pickle'),
