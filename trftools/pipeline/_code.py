@@ -1,5 +1,6 @@
 import random
 import re
+from typing import List
 
 from eelbrain import Dataset
 from eelbrain._experiment.definitions import CodeBase, CodeError
@@ -10,6 +11,7 @@ from .._ndvar import SHUFFLE_METHODS as NDVAR_SHUFFLE_METHODS
 
 VALUE_SHUFFLE_METHODS = ('permute', 'remask', 'relocate')
 SHUFFLE_METHODS = NDVAR_SHUFFLE_METHODS + VALUE_SHUFFLE_METHODS
+NUTS_METHODS = ('step',)
 
 
 class Code(CodeBase):
@@ -45,7 +47,8 @@ class Code(CodeBase):
         stim, code_string, shuffle_index, shuffle, angle = m.groups()
         if shuffle:
             index_str = '' if shuffle_index is None else f'[{shuffle_index}]'
-            self.code_with_rand = f'{code_string}${index_str}{shuffle}{angle}'
+            self.shuffle_string = f"${index_str}{shuffle}{angle}"
+            self.code_with_rand = f'{code_string}{self.shuffle_string}'
             if angle:
                 angle = int(angle)
                 if angle == 180:
@@ -71,6 +74,7 @@ class Code(CodeBase):
                 shuffle_index = None
         else:
             self.code_with_rand = code_string
+            self.shuffle_string = ''
             shuffle_index = shuffle = angle = None
         self.stim = stim or None
         self.code = code_string
@@ -82,6 +86,12 @@ class Code(CodeBase):
         self.has_permutation = shuffle in SHUFFLE_METHODS or '>' in string
         self._shuffle_done = False
         self.key = Dataset.as_key(self.string)
+
+    @classmethod
+    def from_strings(cls, stim: str, items: List[str], shuffle_string: str = ''):
+        stim = f'{stim}|' if stim else ''
+        code = cls._sep.join(items)
+        return cls(f"{stim}{code}{shuffle_string}")
 
     def register_string_done(self):
         self._i = len(self._items) - 1
@@ -136,6 +146,19 @@ class Code(CodeBase):
             i = len(self.stim) + 1
             code_string = code_string[i:]
         return Code(f'{stim}|{code_string}')
+
+    @property
+    def nuts_method(self):
+        if self._items[-1] in NUTS_METHODS:
+            return self._items[-1]
+
+    @property
+    def nuts_filename(self):
+        if self._items[-1] in NUTS_METHODS:
+            code = self.from_strings(self.stim, self._items[:-1])
+        else:
+            code = self
+        return code.string_without_rand
 
 
 def parse_index(code):

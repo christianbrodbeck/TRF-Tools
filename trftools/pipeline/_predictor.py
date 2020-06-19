@@ -1,9 +1,10 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
+from itertools import chain
 from pathlib import Path
 
 from eelbrain import load, Dataset, NDVar, UTS, combine, epoch_impulse_predictor, resample
 try:
-    from eelbrain import event_impulse_predictor
+    from eelbrain import Var, Factor, event_impulse_predictor
 except ImportError:
     from .._utils import requires_eelbrain_dev as event_impulse_predictor
 from eelbrain._experiment.definitions import typed_arg
@@ -11,6 +12,22 @@ import numpy
 
 from .._ndvar import pad, shuffle
 from ._code import NDVAR_SHUFFLE_METHODS, Code
+
+
+def t_stop_ds(ds: Dataset, t: float):
+    "Dummy-event for the end of the last step"
+    t_stop = ds.info['tstop'] + t
+    out = {}
+    for k, v in ds.items():
+        if k == 'time':
+            out['time'] = Var([t_stop])
+        elif isinstance(v, Var):
+            out[k] = Var(numpy.asarray([0], v.x.dtype))
+        elif isinstance(v, Factor):
+            out[k] = Factor([''])
+        else:
+            raise ValueError(f"{k!r} in predictor: {v!r}")
+    return Dataset(out)
 
 
 class EventPredictor:
@@ -126,14 +143,14 @@ class FilePredictor:
         return x
 
     def _generate(self, tmin: float, tstep: float, n_samples: int, code: Code, directory: Path):
-        x = self._load(tstep, code.string_without_rand, directory)
-        if isinstance(x, NDVar):
-            x = pad(x, tmin, nsamples=n_samples)
-        elif isinstance(x, Dataset):
+        x = self._load(tstep, code.nuts_filename, directory)
+        if isinstance(x, Dataset):
             if n_samples is None:
                 raise ValueError(f"n_samples={n_samples!r}")
             uts = UTS(tmin, tstep, n_samples)
             x = self._ds_to_ndvar(x, uts, code)
+        elif isinstance(x, NDVar):
+            x = pad(x, tmin, nsamples=n_samples)
         else:
             raise RuntimeError(x)
 
@@ -143,7 +160,7 @@ class FilePredictor:
         return x
 
     def _generate_continuous(self, uts: UTS, ds: Dataset, stim_var: str, code: Code, directory: Path):
-        cache = {stim: self._load(uts.tstep, code.with_stim(stim).string_without_rand, directory) for stim in ds[stim_var].cells}
+        cache = {stim: self._load(uts.tstep, code.with_stim(stim).nuts_filename, directory) for stim in ds[stim_var].cells}
         # determine type
         stim_type = {type(s) for s in cache.values()}
         assert len(stim_type) == 1
@@ -155,6 +172,9 @@ class FilePredictor:
                 x = cache[stim].copy()
                 x['time'] += t
                 dss.append(x)
+                if code.nuts_method == 'step':
+                    x_stop_ds = t_stop_ds(x, t)
+                    dss.append(x_stop_ds)
             x = self._ds_to_ndvar(combine(dss), uts, code)
         elif stim_type is NDVar:
             v = cache[ds[0, stim_var]]
@@ -217,8 +237,19 @@ class FilePredictor:
 
         x = NDVar(numpy.zeros(len(uts)), uts, name=code.key)
         ds = ds[ds['time'] < x.time.tstop]
-        for t, v in ds.zip('time', 'value'):
-            x[t] = v
+        if code.nuts_method is None:
+            for t, v in ds.zip('time', 'value'):
+                x[t] = v
+        elif code.nuts_method == 'step':
+            t_stops = ds[1:, 'time']
+            if ds[-1, 'value'] != 0:
+                if 'tstop' not in ds.info:
+                    raise code.error("For step representation, the predictor datasets needs to contain ds.info['tstop'] to determine the end of the last step", -1)
+                t_stops = chain(t_stops, [ds.info['tstop']])
+            for t0, t1, v in zip(ds['time'], t_stops, ds['value']):
+                x[t0:t1] = v
+        else:
+            raise code.error(f"NUTS-method={code.nuts_method!r}")
         return x
 
 
