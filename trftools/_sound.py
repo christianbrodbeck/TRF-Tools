@@ -61,11 +61,9 @@ def gammatone_bank(wav: NDVar, f_min: float, f_max: float, n: int, integration_w
             wav_ = _pad_func(wav, wav.time.tmin - dt, wav.time.tstop + dt)
     else:
         raise ValueError(f"mode={location!r}")
+    sfreq = 1 / wav.time.tstep
     if tstep is None:
         tstep = wav.time.tstep
-    elif tstep % wav.time.tstep:
-        raise ValueError(f"tstep={tstep}: must be a multiple of wav tstep ({wav.time.tstep})")
-    sfreq = 1 / wav.time.tstep
     x = gtgram(wav_.get_data('time'), sfreq, integration_window, tstep, n, f_min, f_max)
     freqs = centre_freqs(sfreq, n, f_min, f_max)
     # freqs = np.round(freqs, out=freqs).astype(int)
