@@ -373,20 +373,24 @@ class TRFExperiment(MneExperiment):
                 return name
         raise RuntimeError("Ran out of model names...")
 
-    def _find_model_files(self, name, public=False):
+    def _find_model_files(self, name, trfs: bool = False, tests: bool = False):
         """Find all files associated with a model
 
         Will not find ``model (name$shift)``
         """
+        assert trfs or tests
         if name not in self._named_models:
             raise ValueError(f"{name!r}: not a named model")
-        raise NotImplementedError  # TODO: distinguish private and public names
         files = []
         pattern = f"*{name}*"
-        regex = re.compile(rf" {re.escape(name)}(-red\d+)?[. ]")  # -red for legacy names
+        regex = re.compile(rf"(^| ){re.escape(name)}(-red\d+)?($|[. ])")  # -red for legacy names
         for temp, is_public in TRF_TEMPLATES:
-            if is_public != public:
-                continue
+            if temp.startswith('trf'):
+                if not trfs:
+                    continue
+            if temp.startswith('model'):
+                if not tests:
+                    continue
             for path in self.glob(temp, True, test_options=pattern):
                 if regex.search(path):
                     files.append(path)
@@ -404,7 +408,7 @@ class TRFExperiment(MneExperiment):
         """
         # FIXME: check model names file mtime any time model names are accessed?
         if files is None:
-            files = self._find_model_files(name)
+            files = self._find_model_files(name, trfs=True, tests=True)
         if files:
             while True:
                 command = ask(f"Remove model {name} and delete {len(files)} files?", {"remove": "confirm", 'show': 'list files'}, allow_empty=True)
@@ -525,7 +529,7 @@ class TRFExperiment(MneExperiment):
             xs = combine(xs)
         ds[code.key] = xs
 
-    def clean_models(self):
+    def prune_models(self):
         """Remove internal models that have no corresponding files
 
         See Also
@@ -535,9 +539,7 @@ class TRFExperiment(MneExperiment):
         """
         models = list(self._named_models)
         for model in models:
-            if model in self.models:
-                continue
-            for _ in self._find_model_files(model):
+            for _ in self._find_model_files(model, trfs=True, tests=True):
                 break
             else:
                 self._remove_model(model, files=[])
@@ -1972,29 +1974,13 @@ class TRFExperiment(MneExperiment):
         # patterns
         reg_re = fnmatch.translate(regressor)
         reg_re_term = re.compile(rf"^{reg_re}$")
-        reg_re_public = re.compile(rf"(?:^| ){reg_re}(?:$| )")
-        reg_re_private = re.compile(rf"(?:^| |\+){reg_re}(?:$| |\+)")
-        reg_pattern = f"*{regressor}*"
 
         # find all named models that contain term
-        models = [(regressor, None)]  # single-term model
+        models = []  # single-term model
         for name, model in self._named_models.items():
-            if any(reg_re_term.match(term) for term in model.terms_without_randomization):
-                models.append((name, model))
-
-        # files corresponding to named models
-        for name, model in models:
-            model_pattern = f"*{name}*"
-            model_re = re.compile(rf" {re.escape(name)}[$. ]")
-            for temp, public in TRF_TEMPLATES:
-                new_files = self.glob(temp, True, test_options=model_pattern)
-                files.update(f for f in new_files if model_re.search(f))
-
-        # files with full model
-        for temp, public in TRF_TEMPLATES:
-            reg_re = reg_re_public if public else reg_re_private
-            new_files = self.glob(temp, True, test_options=reg_pattern)
-            files.update(f for f in new_files if reg_re.search(f))
+            if any(reg_re_term.match(term.code) for term in model.terms_without_randomization):
+                models.append(name)
+                files.update(self._find_model_files(name, trfs=True, tests=True))
 
         # cached regressor files
         cache_dir = self.get('predictor-cache-dir', mkdir=True)
@@ -2010,9 +1996,10 @@ class TRFExperiment(MneExperiment):
                 for path in files:
                     os.remove(path)
             elif command == 'show':
+                print(f"Models: {', '.join(models)}")
                 paths = sorted(files)
                 prefix = os.path.commonprefix(paths)
-                print(f"In {prefix}:")
+                print(f"Files in {prefix}:")
                 for path in paths:
                     print(relpath(path, prefix))
                 continue
@@ -2231,10 +2218,13 @@ class TRFExperiment(MneExperiment):
             pattern = re.compile(pattern)
         model_pattern = model
 
-        t = fmtxt.Table('lll' + 'r'*files)
+        columns = 'lll'
+        if files:
+            columns += 'rr'
+        t = fmtxt.Table(columns)
         t.cells('.', 'Name', 'Terms')
         if files:
-            t.cell('n')
+            t.cells('trfs', 'tests')
         t.midrule()
         for name, model in self._named_models.items():
             if pattern is not None:
@@ -2250,6 +2240,8 @@ class TRFExperiment(MneExperiment):
             else:
                 t.cell(model.name)
             if files:
-                n = len(self._find_model_files(name))
+                n = len(self._find_model_files(name, trfs=True))
+                t.cell(n or '')
+                n = len(self._find_model_files(name, tests=True))
                 t.cell(n or '')
         return t
