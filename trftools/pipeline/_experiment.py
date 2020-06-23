@@ -97,7 +97,7 @@ from eelbrain.fmtxt import List, Report, Table
 from eelbrain.pipeline import TTestOneSample, TTestRelated, TwoStageTest, RawFilter, RawSource
 from eelbrain._experiment.definitions import FieldCode
 from eelbrain._experiment.epochs import EpochCollection
-from eelbrain._experiment.mne_experiment import DefinitionError, TestDims, guess_y, cache_valid
+from eelbrain._experiment.mne_experiment import DataArg, PMinArg, DefinitionError, TestDims, guess_y, cache_valid
 from eelbrain._data_obj import legal_dataset_key_re, isuv
 from eelbrain._io.pickle import update_subjects_dir
 from eelbrain._text import ms, n_of
@@ -120,6 +120,8 @@ from . import _trf_report as trf_report
 
 DATA_DEFAULT = 'source'
 FIT_METRICS = ('r', 'z', 'r1', 'z1', 'residual', 'det')
+UV_FUNCTIONS = ('sum', 'mean', 'max')
+FIT_METRIC_RE = re.compile(rf"^({'|'.join(FIT_METRICS)})(?:\.({'|'.join(UV_FUNCTIONS)}))?$")
 # https://en.wikipedia.org/wiki/Fisher_transformation
 
 # templates for files affected by models; is_public
@@ -138,6 +140,8 @@ MODEL_TEST = {
 }
 TRF_TEST = TTestOneSample()
 DSTRF_RE = re.compile(r'(ncrf)(?:-(\w+))?$')
+
+ComparisonArg = Union[str, Comparison, StructuredModel]
 
 
 class NameTooLong(Exception):
@@ -1438,7 +1442,7 @@ class TRFExperiment(MneExperiment):
     def _set_trf_options(self, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward=False, pmin=None, is_group_result=False, metric=None, scale=None, smooth_source=None, smooth_time=None, is_public=False, test=None, test_options=None, permutations=1, by_subject=False, public_name=None, state=None):
         # avoid _set_trf_options(**state) because _set_trf_options could catch invalid state
         # parameters like `scale`
-        if metric and metric not in FIT_METRICS:
+        if metric and not FIT_METRIC_RE.match(metric):
             raise ValueError(f'metric={metric!r}')
         data = TestDims.coerce(data)
 
@@ -1615,7 +1619,7 @@ class TRFExperiment(MneExperiment):
 
     def _coerce_comparison(
             self,
-            x: Union[str, Comparison, StructuredModel],
+            x: ComparisonArg,
             cv: bool,
     ) -> Union[Comparison, StructuredModel]:
         if isinstance(x, str):
@@ -1663,21 +1667,47 @@ class TRFExperiment(MneExperiment):
         else:
             raise TypeError(f"x={x!r}")
 
-    def load_model_test(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, test=True, return_data=False, pmin='tfce', xhemi=False, xhemi_mask=True, make=False, **state):
+    def load_model_test(
+            self,
+            x: ComparisonArg,
+            tstart: float = 0,
+            tstop: float = 0.5,
+            basis: float = 0.050,
+            error: str = 'l1',
+            partitions: int = None,
+            samplingrate: int = None,
+            mask: str = None,
+            delta: float = 0.005,
+            mindelta: float = None,
+            filter_x: bool = False,
+            selective_stopping: int = 0,
+            cv: bool = False,
+            data: DataArg = DATA_DEFAULT,
+            permutations: int = 1,
+            metric: str = 'z',
+            smooth: str = None,
+            test: str = None,
+            return_data: bool = False,
+            pmin: PMinArg = 'tfce',
+            xhemi: bool = False,
+            xhemi_mask: bool = True,
+            make: bool = False,
+            **state,
+    ):
         """Test comparing model fit between two models
 
         Parameters
         ----------
         ...
-        xhemi : bool
+        xhemi
             Test between hemispheres.
-        xhemi_mask : bool
+        xhemi_mask
             When doing ``xhemi`` test, mask data with region that is significant
             in at least one hemisphere.
-        permutations : int
+        permutations
             When testing against a partially permuted model, average the result
             of ``permutations`` different permutations as baseline model.
-        metric : str
+        metric
             Fit metric to use for test:
 
             - ``r``:   Pearson correlation
@@ -1729,7 +1759,8 @@ class TRFExperiment(MneExperiment):
         else:
             test_options = None
 
-        self._set_trf_options(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, pmin=pmin, test=test, smooth_source=smooth, metric=metric, is_group_result=True, test_options=test_options, permutations=permutations, state=state)
+        test_desc = True if test is None else test
+        self._set_trf_options(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, pmin=pmin, test=test_desc, smooth_source=smooth, metric=metric, is_group_result=True, test_options=test_options, permutations=permutations, state=state)
         dst = self.get('model-test-file', mkdir=True)
         dst = self._cache_path(dst)
         if self._result_file_mtime(dst, data):
@@ -1739,18 +1770,24 @@ class TRFExperiment(MneExperiment):
         else:
             res = None
 
+        y, to_uv = FIT_METRIC_RE.match(metric).groups()
+        if to_uv:  # make sure variables that don't affect tests are default
+            if xhemi:
+                raise ValueError(f"xhemi={xhemi!r} with metric={metric!r}")
+            elif pmin != 'tfce':
+                raise ValueError(f"pmin={pmin!r} with metric={metric!r}")
+
         if return_data or res is None:
             # load data
             group = self.get('group')
-            vardef = None if test is True else self._tests[test].vars
+            vardef = None if test is None else self._tests[test].vars
             x1_permutations = permutations if comparison.x1.has_randomization else 1
             ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, vardef=vardef, permutations=x1_permutations)
             ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, vardef=vardef, permutations=permutations)
 
             # restructure data
-            y = metric
             assert np.all(ds1['subject'] == ds0['subject'])
-            if test is True:
+            if test is None:
                 test_obj = XHEMI_TEST if xhemi else MODEL_TEST[comparison.tail]
                 ds = combine((ds1['subject', ], ds0['subject', ]))
             else:
@@ -1765,7 +1802,7 @@ class TRFExperiment(MneExperiment):
 
             if xhemi:
                 lh, rh = eelbrain.xhemi(ds1[y] - ds0[y], parc=self._xhemi_parc())
-                if test is True:
+                if test is None:
                     ds[y] = combine((lh, rh))
                     ds['hemi'] = Factor(('lh', 'rh'), repeat=ds1.n_cases)
                 else:
@@ -1781,7 +1818,7 @@ class TRFExperiment(MneExperiment):
                     mask_lh, mask_rh = eelbrain.xhemi(base_res.p <= 0.05, parc=parc)
                     np.maximum(mask_lh.x, mask_rh.x, mask_lh.x)
                     ds[y] *= mask_lh > .5
-            elif test is True:  # compare two models
+            elif test is None:  # compare two models
                 ds[y] = combine((ds1[y], ds0[y]))
                 ds['model'] = Factor(('test', 'baseline'), repeat=ds1.n_cases)
             else:
@@ -1791,12 +1828,7 @@ class TRFExperiment(MneExperiment):
             if res is None:
                 # test arguments
                 kwargs = self._test_kwargs(10000, pmin, None, None, data, None)
-                if isinstance(test_obj, TwoStageTest):
-                    lms = [test_obj.make_stage_1(y, ds.sub("subject==%r" % subject), subject)
-                           for subject in ds['subject'].cells]
-                    res = test_obj.make_stage_2(lms, kwargs)
-                else:
-                    res = self._make_test(y, ds, test_obj, kwargs)
+                res = self._make_test(y, ds, test_obj, kwargs, to_uv=to_uv)
                 save.pickle(res, dst)
 
             if return_data:
