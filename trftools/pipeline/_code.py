@@ -4,6 +4,7 @@ from typing import List
 
 from eelbrain import Dataset
 from eelbrain._experiment.definitions import CodeBase, CodeError
+from eelbrain._utils import LazyProperty
 import numpy as np
 
 from .._ndvar import SHUFFLE_METHODS as NDVAR_SHUFFLE_METHODS
@@ -147,14 +148,27 @@ class Code(CodeBase):
             code_string = code_string[i:]
         return Code(f'{stim}|{code_string}')
 
-    @property
+    @LazyProperty
     def nuts_method(self):
         if self._items[-1] in NUTS_METHODS:
             return self._items[-1]
 
-    @property
-    def nuts_filename(self):
-        if self._items[-1] in NUTS_METHODS:
+    @LazyProperty
+    def nuts_columns(self):
+        column = self._items[1]
+        n_left = len(self._items) - 2 - bool(self.nuts_method)
+        if n_left == 0:
+            mask = None
+        elif n_left == 1:
+            mask = self._items[2]
+        else:
+            raise self.error("Wrong number of elements")
+        return column, mask
+
+    def nuts_file_name(self, columns: bool):
+        if columns:
+            code = self.from_strings(self.stim, self._items[:1])
+        elif self._items[-1] in NUTS_METHODS:
             code = self.from_strings(self.stim, self._items[:-1])
         else:
             code = self

@@ -76,6 +76,11 @@ class FilePredictor:
         For predictors with non-continuous information, such as impulses,
         binning is more appropriate. Alternatively, the predictor can be saved
         as a list of :class:`NDVar` with all the needed sampling frequencies.
+    columns
+        Only applies to NUTS (:class:`Dataset`) predictors.
+        Use a single file with different columns. The code is interpreted as
+        ``{name}-{value-column}-{mask-column}-{NUTS-method}`` (the last two are
+        optional).
 
     Notes
     -----
@@ -109,9 +114,10 @@ class FilePredictor:
      - ``$shift``: displace the final uniform time-series circularly (i.e.,
        the impulse times themselves change).
     """
-    def __init__(self, resample=None):
+    def __init__(self, resample: str = None, columns: bool = False):
         assert resample in (None, 'bin', 'resample')
         self.resample = resample
+        self.columns = columns
 
     def _load(self, tstep: float, filename: str, directory: Path):
         path = directory / f'{filename}.pickle'
@@ -143,7 +149,8 @@ class FilePredictor:
         return x
 
     def _generate(self, tmin: float, tstep: float, n_samples: int, code: Code, directory: Path):
-        x = self._load(tstep, code.nuts_filename, directory)
+        file_name = code.nuts_file_name(self.columns)
+        x = self._load(tstep, file_name, directory)
         if isinstance(x, Dataset):
             if n_samples is None:
                 raise ValueError(f"n_samples={n_samples!r}")
@@ -160,7 +167,7 @@ class FilePredictor:
         return x
 
     def _generate_continuous(self, uts: UTS, ds: Dataset, stim_var: str, code: Code, directory: Path):
-        cache = {stim: self._load(uts.tstep, code.with_stim(stim).nuts_filename, directory) for stim in ds[stim_var].cells}
+        cache = {stim: self._load(uts.tstep, code.with_stim(stim).nuts_filename(self.columns), directory) for stim in ds[stim_var].cells}
         # determine type
         stim_type = {type(s) for s in cache.values()}
         assert len(stim_type) == 1
@@ -191,10 +198,15 @@ class FilePredictor:
             raise RuntimeError(f"stim_type={stim_type!r}")
         return x
 
-    @staticmethod
-    def _ds_to_ndvar(ds: Dataset, uts: UTS, code: Code):
-        if 'mask' in ds:
-            mask = ds['mask'].x
+    def _ds_to_ndvar(self, ds: Dataset, uts: UTS, code: Code):
+        if self.columns:
+            column_key, mask_key = code.nuts_columns
+        else:
+            column_key = 'value'
+            mask_key = 'mask' if 'mask' in ds else None
+
+        if mask_key:
+            mask = ds[mask_key].x
             assert mask.dtype.kind == 'b', "'mask' must be boolean"
         else:
             mask = None
@@ -223,30 +235,30 @@ class FilePredictor:
             code.register_shuffle(index=True)
 
         if mask is not None:
-            ds['value'] *= mask
+            ds[column_key] *= mask
 
         if code.shuffle == 'permute':
             rng = code._get_rng()
             if shuffle_mask is None:
-                rng.shuffle(ds['value'].x)
+                rng.shuffle(ds[column_key].x)
             else:
-                values = ds['value'].x[shuffle_mask]
+                values = ds[column_key].x[shuffle_mask]
                 rng.shuffle(values)
-                ds['value'].x[shuffle_mask] = values
+                ds[column_key].x[shuffle_mask] = values
             code.register_shuffle(index=True)
 
         x = NDVar(numpy.zeros(len(uts)), uts, name=code.key)
         ds = ds[ds['time'] < x.time.tstop]
         if code.nuts_method is None:
-            for t, v in ds.zip('time', 'value'):
+            for t, v in ds.zip('time', column_key):
                 x[t] = v
         elif code.nuts_method == 'step':
             t_stops = ds[1:, 'time']
-            if ds[-1, 'value'] != 0:
+            if ds[-1, column_key] != 0:
                 if 'tstop' not in ds.info:
                     raise code.error("For step representation, the predictor datasets needs to contain ds.info['tstop'] to determine the end of the last step", -1)
                 t_stops = chain(t_stops, [ds.info['tstop']])
-            for t0, t1, v in zip(ds['time'], t_stops, ds['value']):
+            for t0, t1, v in zip(ds['time'], t_stops, ds[column_key]):
                 x[t0:t1] = v
         else:
             raise code.error(f"NUTS-method={code.nuts_method!r}")
