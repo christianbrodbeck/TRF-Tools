@@ -29,6 +29,8 @@ test_data = [
     # direct
     ('x + a > x + b', True, 'x + a', 'x + b'),
     ('x = x + y', True, 'x', 'x + y'),
+    ('x > 0', True, 'x', '0'),
+    ('x + a > 0', True, 'x + a', '0'),
     # omit
     ('x + y | y', True, 'x + y', 'x'),
     ('x + y | x', True, 'x + y', 'y'),
@@ -54,6 +56,7 @@ test_data = [
     # named add2
     ('x-ab +| x-c > x-d', True, 'x-a + x-b + x-c', 'x-a + x-b + x-d'),
 ]
+# allow name being different than args[0]
 test_data = [(*t, None) if len(t) == 4 else t for t in test_data]
 
 

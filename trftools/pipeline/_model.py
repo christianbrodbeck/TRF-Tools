@@ -629,10 +629,11 @@ term.addParseAction(lambda s,l,t: ModelTerm(*t))
 
 # model
 model = delimitedList(term, '+').addParseAction(lambda s,l,t: Model(tuple(t)))
+null_model = Literal('0').addParseAction(lambda s,l,t: Model(()))
 
 # comparison
 term_comparisons = model.copy().addParseAction(lambda s,l,t: TermComparisons(*t))
-direct_comparison = model + oneOf('= < >') + model
+direct_comparison = model + oneOf('= < >') + (model ^ null_model)
 direct_comparison.addParseAction(lambda s,l,t: DirectComparison(*t))
 omit_comparison = model + Literal('|').suppress() + model
 omit_comparison.addParseAction(lambda s,l,t: OmitComparison(*t))

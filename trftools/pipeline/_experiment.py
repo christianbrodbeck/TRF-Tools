@@ -131,14 +131,6 @@ TRF_TEMPLATES = (
     ('model-test-file', False),
     ('model-report-file', True),
 )
-
-XHEMI_TEST = TTestRelated('hemi', 'lh', 'rh')
-MODEL_TEST = {
-    1: TTestRelated('model', 'test', 'baseline', 1),
-    0: TTestRelated('model', 'test', 'baseline', 0),
-    -1: TTestRelated('model', 'test', 'baseline', -1),
-}
-TRF_TEST = TTestOneSample()
 DSTRF_RE = re.compile(r'(ncrf)(?:-(\w+))?$')
 
 ComparisonArg = Union[str, Comparison, StructuredModel]
@@ -831,6 +823,9 @@ class TRFExperiment(MneExperiment):
         epoch = self.get('epoch', **state)
         assert not isinstance(self._epochs[epoch], EpochCollection)
         x = self._coerce_model(x)
+        if not x:
+            return
+
         if data.source:
             inv = self.get('inv')
             m = DSTRF_RE.match(inv)
@@ -1165,6 +1160,8 @@ class TRFExperiment(MneExperiment):
         "Return ``(path, state, args)`` for ._trf_job() for each missing trf-file"
         data = TestDims.coerce(data)
         x = self._coerce_model(x)
+        if not x:
+            return ()
         if state:
             self.set(**state)
 
@@ -1372,7 +1369,7 @@ class TRFExperiment(MneExperiment):
                 parc = self._xhemi_parc()
                 trf_ds, trf_res = self.load_trf_test(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, test=test, return_data=True)
 
-                test_obj = XHEMI_TEST if test is True else self.tests[test]
+                test_obj = TTestRelated('hemi', 'lh', 'rh') if test is True else self.tests[test]
                 # xhemi data
                 if test is True:
                     ds = Dataset(info=trf_ds.info)
@@ -1399,7 +1396,7 @@ class TRFExperiment(MneExperiment):
                     if return_data:
                         ds[x] = y
             else:
-                test_obj = TRF_TEST if test is True else self.tests[test]
+                test_obj = TTestOneSample() if test is True else self.tests[test]
                 if isinstance(test_obj, TwoStageTest):
                     assert test_obj.model is None, "not implemented"
                     # stage 1
@@ -1783,25 +1780,41 @@ class TRFExperiment(MneExperiment):
             vardef = None if test is None else self._tests[test].vars
             x1_permutations = permutations if comparison.x1.has_randomization else 1
             ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, vardef=vardef, permutations=x1_permutations)
-            ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, vardef=vardef, permutations=permutations)
 
-            # restructure data
-            assert np.all(ds1['subject'] == ds0['subject'])
+            if comparison.x0.terms:
+                ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, vardef=vardef, permutations=permutations)
+                # restructure data
+                assert np.all(ds1['subject'] == ds0['subject'])
+                if test is None:
+                    ds = combine((ds1['subject', ], ds0['subject', ]))
+                else:
+                    keep = tuple(k for k in ds1 if isuv(ds1[k]) and np.all(ds1[k] == ds0[k]))
+                    ds = ds1[keep]
+                dss = [ds1, ds0]
+            else:
+                ds0 = None
+                ds = ds1
+                dss = [ds1]
+
             if test is None:
-                test_obj = XHEMI_TEST if xhemi else MODEL_TEST[comparison.tail]
-                ds = combine((ds1['subject', ], ds0['subject', ]))
+                if xhemi:
+                    test_obj = TTestRelated('hemi', 'lh', 'rh')
+                elif ds0 is None:
+                    test_obj = TTestOneSample(comparison.tail)
+                else:
+                    test_obj = TTestRelated('model', 'test', 'baseline', comparison.tail)
             else:
                 test_obj = self._tests[test]
-                keep = tuple(k for k in ds1 if isuv(ds1[k]) and np.all(ds1[k] == ds0[k]))
-                ds = ds1[keep]
 
             # smooth data (before xhemi morph)
             if smooth:
-                ds0[y] = ds0[y].smooth('source', smooth, 'gaussian')
-                ds1[y] = ds1[y].smooth('source', smooth, 'gaussian')
+                for ds_i in dss:
+                    ds_i[y] = ds_i[y].smooth('source', smooth, 'gaussian')
 
             if xhemi:
-                lh, rh = eelbrain.xhemi(ds1[y] - ds0[y], parc=self._xhemi_parc())
+                if ds0 is not None:
+                    ds1[y] -= ds0[y]
+                lh, rh = eelbrain.xhemi(ds1[y], parc=self._xhemi_parc())
                 if test is None:
                     ds[y] = combine((lh, rh))
                     ds['hemi'] = Factor(('lh', 'rh'), repeat=ds1.n_cases)
@@ -1818,7 +1831,9 @@ class TRFExperiment(MneExperiment):
                     mask_lh, mask_rh = eelbrain.xhemi(base_res.p <= 0.05, parc=parc)
                     np.maximum(mask_lh.x, mask_rh.x, mask_lh.x)
                     ds[y] *= mask_lh > .5
-            elif test is None:  # compare two models
+            elif ds0 is None:
+                pass
+            elif test is None:
                 ds[y] = combine((ds1[y], ds0[y]))
                 ds['model'] = Factor(('test', 'baseline'), repeat=ds1.n_cases)
             else:
@@ -1948,7 +1963,7 @@ class TRFExperiment(MneExperiment):
 
         # Info section
         if test is True:
-            test = MODEL_TEST[comparisons[0].tail]
+            test = TTestRelated('model', 'test', 'baseline', comparisons[0].tail)
         sec = report.add_section("Info")
         info = self._report_test_info(sec, ds, test, res, data, model=False)
         # info:
