@@ -1,5 +1,4 @@
-import io
-import base64
+from typing import Sequence
 
 from eelbrain import fmtxt
 from eelbrain.plot._base import EelFigure
@@ -32,7 +31,7 @@ class Layout:
     -----
     Based on https://stackoverflow.com/a/49566213/166700
     """
-    def __init__(self, plots: list = None, border: int = 0):
+    def __init__(self, items: Sequence = (), border: int = 0):
         # string buffer for the HTML: initially some CSS; images to be appended
         options = [
             "display: inline-block;",
@@ -48,13 +47,15 @@ class Layout:
         }
         </style>
         """ % '\n'.join(options)
-        if plots:
-            for plot in plots:
-                self.add(plot)
+        for item in items:
+            self.add(item)
 
     def add(self, obj):
         """Add a plot to the layout (matplotlib figure or eelbrain plot)"""
         fmtext_obj = fmtxt.asfmtext(obj)
+        if fmtext_obj is fmtxt.linebreak:
+            self.linebreak()
+            return
         html = fmtxt.html(fmtext_obj)
         self.html += f'<div class="floating-box">{html}</div>'
         if isinstance(obj, matplotlib.figure.Figure):
