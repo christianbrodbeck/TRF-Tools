@@ -155,11 +155,16 @@ class Code(CodeBase):
 
     @LazyProperty
     def nuts_columns(self):
-        column = self._items[1]
-        n_left = len(self._items) - 2 - bool(self.nuts_method)
-        if n_left == 0:
+        n = len(self._items) - 1 - bool(self.nuts_method)
+        # column
+        if n > 0:
+            column = self._items[1]
+        else:
+            column = None
+        # mask
+        if n <= 1:
             mask = None
-        elif n_left == 1:
+        elif n == 2:
             mask = self._items[2]
         else:
             raise self.error("Wrong number of elements")

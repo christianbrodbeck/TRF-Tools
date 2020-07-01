@@ -201,6 +201,9 @@ class FilePredictor:
     def _ds_to_ndvar(self, ds: Dataset, uts: UTS, code: Code):
         if self.columns:
             column_key, mask_key = code.nuts_columns
+            if column_key is None:
+                column_key = 'value'
+                ds[:, column_key] = 1
         else:
             column_key = 'value'
             mask_key = 'mask' if 'mask' in ds else None
