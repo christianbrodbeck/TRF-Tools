@@ -1,24 +1,41 @@
+import enum
+
 from eelbrain import fmtxt
 from eelbrain._text import ms
-from eelbrain._utils import LazyProperty
 from eelbrain._stats.test import star
-from eelbrain.testnd import LMGroup, anova
+from eelbrain._stats.testnd import MultiEffectNDTest
+from eelbrain.testnd import LMGroup
+
+
+class TestType(enum.Enum):
+    DIFFERENCE = enum.auto()
+    MULTI_EFFECT = enum.auto()
+    TWO_STAGE = enum.auto()
+
+    @classmethod
+    def for_test(cls, test):
+        if isinstance(test, LMGroup):
+            return cls.TWO_STAGE
+        elif isinstance(test, MultiEffectNDTest):
+            return cls.MULTI_EFFECT
+        else:
+            return cls.DIFFERENCE
 
 
 class ResultCollection(dict):
+    test_type = None
+    _statistic = None
 
     def __reduce__(self):
         return self.__class__, (dict(self),)
 
-    @LazyProperty
-    def test_type(self):
-        for res in self.values():
-            return type(res)
-
     def __setitem__(self, key, test):
+        test_type = TestType.for_test(test)
         if self.test_type is None:
-            self.test_type = type(test)
-        elif type(test) is not self.test_type:
+            self.test_type = test_type
+            if test_type is not TestType.TWO_STAGE:
+                self._statistic = test._statistic
+        elif test_type is not self.test_type:
             raise TypeError(f"{test}: all tests need to be of the same type ({self.test_type})")
         dict.__setitem__(self, key, test)
 
@@ -40,7 +57,7 @@ class ResultCollection(dict):
 
     def clusters(self, p=0.05):
         """Table with significant clusters"""
-        if self.test_type is LMGroup:
+        if self.test_type is TestType.TWO_STAGE:
             raise NotImplementedError
         else:
             table = fmtxt.Table('lrrll')
@@ -51,7 +68,7 @@ class ResultCollection(dict):
                 table.endline()
                 clusters = res.find_clusters(p)
                 clusters.sort('tstart')
-                if self.test_type != anova:
+                if self.test_type is not TestType.MULTI_EFFECT:
                     clusters[:, 'effect'] = ''
                 for effect, tstart, tstop, p_, sig in clusters.zip('effect', 'tstart', 'tstop', 'p', 'sig'):
                     table.cells(f'  {effect}', ms(tstart), ms(tstop), fmtxt.p(p_), sig)
@@ -59,7 +76,7 @@ class ResultCollection(dict):
 
     def table(self, title=None, caption=None):
         """Table with effects and smallest p-value"""
-        if self.test_type is LMGroup:
+        if self.test_type is TestType.TWO_STAGE:
             cols = sorted({col for res in self.values() for col in res.column_names})
             table = fmtxt.Table('l' * (1 + len(cols)), title=title, caption=caption)
             table.cell('')
@@ -70,9 +87,9 @@ class ResultCollection(dict):
                 for res in (lmg.tests[c] for c in cols):
                     pmin = res.p.min()
                     table.cell(fmtxt.FMText([fmtxt.p(pmin), star(pmin)]))
-        elif self.test_type is anova:
+        elif self.test_type is TestType.MULTI_EFFECT:
             table = fmtxt.Table('lllll', title=title, caption=caption)
-            table.cells('Test', 'Effect', fmtxt.symbol(self.test_type._statistic, 'max'), fmtxt.symbol('p'), 'sig')
+            table.cells('Test', 'Effect', fmtxt.symbol(self._statistic, 'max'), fmtxt.symbol('p'), 'sig')
             table.midrule()
             for key, res in self.items():
                 for i, effect in enumerate(res.effects):
@@ -84,7 +101,7 @@ class ResultCollection(dict):
                     key = ''
         else:
             table = fmtxt.Table('llll', title=title, caption=caption)
-            table.cells('Effect', fmtxt.symbol(self.test_type._statistic, 'max'), fmtxt.symbol('p'), 'sig')
+            table.cells('Effect', fmtxt.symbol(self._statistic, 'max'), fmtxt.symbol('p'), 'sig')
             table.midrule()
             for key, res in self.items():
                 table.cell(key)
