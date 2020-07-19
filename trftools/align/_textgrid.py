@@ -10,7 +10,7 @@ from pathlib import Path
 import string
 from typing import Union
 
-from eelbrain import Dataset
+from eelbrain import fmtxt, Dataset
 import numpy as np
 import textgrid
 
@@ -253,29 +253,52 @@ class TextGrid:
         return out
 
 
-def gentle_to_grid(gentle_file, out=None):
+def gentle_to_grid(gentle_file, out_file=None):
     "Convert *.json file from Gentle to Praat TextGrid"
     if '*' in gentle_file:
-        if out is not None:
+        if out_file is not None:
             raise TypeError("out can not be set during batch-conversion")
         for filename in glob(gentle_file):
             gentle_to_grid(filename)
         return
 
-    if out is None:
-        out, _ = os.path.splitext(gentle_file)
-    if not out.lower().endswith('.textgrid'):
-        out += '.TextGrid'
+    gentle_file = Path(gentle_file)
+    if out_file is None:
+        out_file = gentle_file.with_suffix('.TextGrid')
+    else:
+        out_file = Path(out_file)
+        if out_file.suffix.lower() != '.textgrid':
+            out_file = out_file.with_suffix('.TextGrid')
 
-    with open(gentle_file) as fid:
+    with gentle_file.open() as fid:
         g = json.load(fid)
     all_words = g['words']
 
     # check for words that were not successfully aligned
-    words = tuple(w for w in all_words if w['case'] == 'success')
+    words = [w for w in all_words if w['case'] == 'success']
     if len(words) < len(all_words):
-        for word in (w for w in all_words if w['case'] != 'success'):
-            print("%s: %s" % (word['word'], word['case']))
+        log = fmtxt.Table('rll')
+        log.cells('Time', 'Word', 'Issue')
+        log.midrule()
+        for i, word in enumerate(all_words):
+            if word['case'] == 'success':
+                if word['alignedWord'] == '<unk>':
+                    issue = 'OOV'
+                    t_start = word['start']
+                else:
+                    continue
+            else:
+                issue = word['case']
+                while i:
+                    if 'end' in all_words[i-1]:
+                        t_start = all_words[i-1]['end']
+                        break
+                    i -= 1
+                else:
+                    t_start = 0
+            log.cells(f'{t_start:.3f}', word['word'], issue)
+        print(log)
+        log.save_tsv(out_file.with_suffix('.log'))
 
     # round times
     for word in words:
@@ -316,7 +339,7 @@ def gentle_to_grid(gentle_file, out=None):
             t = tstop
     grid = textgrid.TextGrid()
     grid.extend((phone_tier, word_tier))
-    grid.write(out)
+    grid.write(out_file)
 
 
 def _load_tier(grid, tier: str = 'phones'):
