@@ -272,33 +272,38 @@ def gentle_to_grid(gentle_file, out_file=None):
 
     with gentle_file.open() as fid:
         g = json.load(fid)
-    all_words = g['words']
 
-    # check for words that were not successfully aligned
-    words = [w for w in all_words if w['case'] == 'success']
-    if len(words) < len(all_words):
-        log = fmtxt.Table('rll')
-        log.cells('Time', 'Word', 'Issue')
-        log.midrule()
-        for i, word in enumerate(all_words):
-            if word['case'] == 'success':
-                if word['alignedWord'] == '<unk>':
-                    issue = 'OOV'
-                    t_start = word['start']
-                else:
-                    continue
+    # find valid words
+    words = g['words']
+    n_issues = 0
+    for i, word in enumerate(words):
+        if word['case'] == 'success':
+            if word['alignedWord'] == '<unk>':
+                n_issues += 1
+                word['issue'] = 'OOV'
             else:
-                issue = word['case']
-                while i:
-                    if 'end' in all_words[i-1]:
-                        t_start = all_words[i-1]['end']
-                        break
-                    i -= 1
-                else:
-                    t_start = 0
-            log.cells(f'{t_start:.3f}', word['word'], issue)
-        print(log)
-        log.save_tsv(out_file.with_suffix('.log'))
+                word['issue'] = None
+        else:
+            n_issues += 1
+            word['issue'] = word['case']
+
+    # add missing times
+    last_end = 0
+    not_in_audio_words = []  # buffer
+    for word in words:
+        if 'start' in word:
+            if not_in_audio_words:
+                duration = word['start'] - last_end
+                for j, word_ in enumerate(not_in_audio_words):
+                    word_['start'] = last_end + j * duration
+                    word_['end'] = last_end + (j+1) * duration
+                not_in_audio_words = []
+            last_end = word['end']
+        else:
+            not_in_audio_words.append(word)
+    for word in not_in_audio_words:
+        word['start'] = last_end
+        word['end'] = last_end = last_end + 0.100
 
     # round times
     for word in words:
@@ -310,32 +315,40 @@ def gentle_to_grid(gentle_file, out_file=None):
     for word in reversed(words):
         if word['end'] > last_start:
             word['end'] = last_start
-            if word['start'] >= last_start:
-                word['start'] = last_start - .001
+        if word['start'] >= word['end']:
+            word['start'] = word['end'] - .001
         last_start = word['start']
+
+    # log issues
+    if n_issues:
+        log = fmtxt.Table('rrll')
+        log.cells('Time', 'Duration', 'Word', 'Issue')
+        log.midrule()
+        for word in words:
+            if word['issue']:
+                duration = word['end'] - word['start']
+                log.cells(f"{word['start']:.3f}", f"{duration:.3f}", word['word'], word['issue'])
+        print(log)
+        log.save_tsv(out_file.with_suffix('.log'))
 
     # build textgrid
     phone_tier = textgrid.IntervalTier('phones')
     word_tier = textgrid.IntervalTier('words')
-    last_word_i = len(words) - 1
     for i, word in enumerate(words):
-        if not word['case'] == 'success':
-            continue
         t = word['start']
         word_tstop = word['end']
-        # prevent the word from overlapping with the next word
-        if i < last_word_i and words[i + 1]['case'] == 'success':
-            word_tstop = min(word_tstop, words[i + 1]['start'])
-        # only add words with positive duration (Praat can't handle others)
-        if t >= word_tstop:
-            continue
         # add word and phones
         word_tier.add(t, word_tstop, word['word'])
+        if word['case'] != 'success':
+            continue
         for phone in word.get('phones', ()):
             tstop = min(round(t + phone['duration'], 3), word_tstop)
             if t >= tstop:
                 continue
-            phone_tier.add(t, tstop, phone['phone'].split('_')[0].upper())
+            mark = phone['phone'].split('_')[0].upper()
+            if mark == 'OOV':
+                continue
+            phone_tier.add(t, tstop, mark)
             t = tstop
     grid = textgrid.TextGrid()
     grid.extend((phone_tier, word_tier))
