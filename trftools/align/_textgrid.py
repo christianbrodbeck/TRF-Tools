@@ -513,7 +513,7 @@ def textgrid_as_realizations(grid, word_tier='words', phone_tier='phones'):
     phones = _load_tier(grid, phone_tier)
     out = []
     phones = list(phones)
-    for word in words:
+    for word in words._fillInTheGaps(' '):
         word_phones = ()
         word_times = ()
         while phones and phones[0].minTime < word.maxTime:
