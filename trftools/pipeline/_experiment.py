@@ -1085,13 +1085,13 @@ class TRFExperiment(MneExperiment):
 
         if data.source:
             inv = self.get('inv')
-            is_dstrf = bool(DSTRF_RE.match(inv))
-            is_vector_data = is_dstrf or inv.startswith('vec')
+            is_ncrf = bool(DSTRF_RE.match(inv))
+            is_vector_data = is_ncrf or inv.startswith('vec')
         else:
-            is_vector_data = is_dstrf = False
+            is_vector_data = is_ncrf = False
 
         # load result(s)
-        h = r = z = r1 = z1 = residual = det = tstep = x_keys = res_partitions = None
+        h = r = z = r1 = z1 = residual = det = tstep = x_keys = res_partitions = mu = None
         for x_ in xs:
             res = self.load_trf(x_, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make)
             # kernel
@@ -1105,7 +1105,7 @@ class TRFExperiment(MneExperiment):
             if isinstance(res_h, NDVar):
                 res_h = [res_h]
             # morph to average brain
-            if is_dstrf:
+            if is_ncrf:
                 res_h = [morph_source_space(h, 'fsaverage') for h in res_h]
             # for vector results, the average norm is relevant
             if is_vector_data and vector_as_norm:
@@ -1113,8 +1113,9 @@ class TRFExperiment(MneExperiment):
             # combine results
             if h is None:
                 h = res_h
-                if is_dstrf:
+                if is_ncrf:
                     tstep = res.tstep
+                    mu = res.mu
                 else:
                     res_partitions = res.partitions
                     r = res.r
@@ -1129,7 +1130,9 @@ class TRFExperiment(MneExperiment):
             else:
                 for hi, res_hi in zip(h, res_h):
                     hi += res_hi
-                if not is_dstrf:
+                if is_ncrf:
+                    mu = 0  # how to combine multiple mu?
+                else:
                     assert res.partitions == res_partitions
                     r += res.r
                     z += arctanh(res.r)
@@ -1142,7 +1145,7 @@ class TRFExperiment(MneExperiment):
         if permutations > 1:
             for hi in h:
                 hi /= permutations
-            if not is_dstrf:
+            if not is_ncrf:
                 r /= permutations
                 z /= permutations
                 if is_vector_data:
@@ -1154,7 +1157,9 @@ class TRFExperiment(MneExperiment):
         # output Dataset
         ds = Dataset(info={'xs': x_keys, 'x_names': x.term_names, 'samplingrate': 1 / tstep, 'partitions': partitions or res_partitions}, name=self._x_desc(x))
         ds['subject'] = Factor([subject], random=True)
-        if not is_dstrf:
+        if is_ncrf:
+            ds[:, 'mu'] = mu
+        else:
             ds[:, 'r'] = r
             ds[:, 'residual'] = residual
             ds[:, 'det'] = det
