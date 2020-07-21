@@ -83,8 +83,27 @@ class TextGrid:
             args.append("n_samples=%r" % self._n_samples_arg)
         return "TextGrid(%s)" % ', '.join(args)
 
+    def table(self, t_start: float = None, t_stop: float = None):
+        "fmtxt.Table representation"
+        if t_start is None:
+            t_start = self.tmin
+        if t_stop is None:
+            t_stop = self.realizations[-1].tstop
+        table = fmtxt.Table('rrll')
+        table.cells('#', 'Time', 'Word', 'Phone')
+        for i, r in enumerate(self.realizations):
+            if r.phones:
+                word = r.graphs
+                for time, phone in zip(r.times, r.phones):
+                    if t_start <= time <= t_stop:
+                        table.cells(i, f'{time:.3f}', word, phone)
+                    i = word = ''
+            # elif t_start <= r.tstop <= t_stop:
+            #     table.cells(i, f'{time:.3f}', word, phone)
+        return table
+
     def split_by_apostrophe(self):
-        """SUBTLEX respresents "ISN'T" as "INS" + "T"
+        """SUBTLEX respresents "ISN'T" as "ISN" + "T"
 
         This method replace the TextGrid's realization that contain an
         apostrophe accordingly
