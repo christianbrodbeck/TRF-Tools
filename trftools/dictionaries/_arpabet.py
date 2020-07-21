@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Arpabet
 -------
@@ -20,19 +19,19 @@ CONSONANTS = ('B', 'CH', 'D', 'DH', 'F', 'G', 'HH', 'JH', 'K', 'L', 'M', 'N',
 SILENCE = ('sp', 'sil', '', ' ')
 ARPABET = VOWELS + CONSONANTS + (' ',)
 # https://en.wikipedia.org/wiki/ARPABET
-# 'AH': can also be u'ʌ'
+# 'AH': can also be 'ʌ'
 IPA = {
-    'AO': u'ɔ', 'AA': u'ɑ', 'IY': u'i', 'UW': u'u', 'EH': u'ɛ', 'IH': u'ɪ',
-    'UH': u'ʊ', 'AH': u'ə', 'AX': u'ə', 'AE': u'æ',
-    'EY': u'eɪ', 'AY': u'aɪ', 'OW': u'oʊ', 'AW': u'aʊ', 'OY': u'ɔɪ', 'ER': u'ɝ',
-    'P': u'p', 'B': u'b', 'T': u't', 'D': u'd', 'K': u'k', 'G': u'g',
-    'CH': u'tʃ', 'JH': u'dʒ',
-    'F': u'f', 'V': u'v', 'TH': u'θ', 'DH': u'ð', 'S': u's', 'Z': u'z',
-    'SH': u'ʃ', 'ZH': u'ʒ', 'HH': u'h',
-    'M': u'm', 'N': u'n', 'NG': u'ŋ',
-    'L': u'l', 'R': u'ɹ',
-    'Y': u'j', 'W': u'w',
-    ' ': u' ',
+    'AO': 'ɔ', 'AA': 'ɑ', 'IY': 'i', 'UW': '', 'EH': 'ɛ', 'IH': 'ɪ',
+    'UH': 'ʊ', 'AH': 'ə', 'AX': 'ə', 'AE': 'æ',
+    'EY': 'eɪ', 'AY': 'aɪ', 'OW': 'oʊ', 'AW': 'aʊ', 'OY': 'ɔɪ', 'ER': 'ɝ',
+    'P': 'p', 'B': 'b', 'T': 't', 'D': 'd', 'K': 'k', 'G': 'g',
+    'CH': 'tʃ', 'JH': 'dʒ',
+    'F': 'f', 'V': 'v', 'TH': 'θ', 'DH': 'ð', 'S': 's', 'Z': 'z',
+    'SH': 'ʃ', 'ZH': 'ʒ', 'HH': 'h',
+    'M': 'm', 'N': 'n', 'NG': 'ŋ',
+    'L': 'l', 'R': 'ɹ',
+    'Y': 'j', 'W': 'w',
+    ' ': ' ',
 }
 
 #  {vowel_with_stress: vowel}
