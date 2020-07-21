@@ -131,7 +131,7 @@ TRF_TEMPLATES = (
     ('model-test-file', False),
     ('model-report-file', True),
 )
-DSTRF_RE = re.compile(r'(ncrf)(?:-(\w+))?$')
+NCRF_RE = re.compile(r'(ncrf)(?:-([\w\d]+))?$')
 
 ComparisonArg = Union[str, Comparison, StructuredModel]
 ModelArg = Union[str, Model]
@@ -291,19 +291,19 @@ class TRFExperiment(MneExperiment):
 
     @classmethod
     def _eval_inv(cls, inv):
-        if DSTRF_RE.match(inv):
+        if NCRF_RE.match(inv):
             return inv
         else:
             return MneExperiment._eval_inv(inv)
 
     def _post_set_inv(self, _, inv):
-        if DSTRF_RE.match(inv):
+        if NCRF_RE.match(inv):
             inv = '*'
         MneExperiment._post_set_inv(self, _, inv)
 
     @staticmethod
     def _update_inv_cache(fields):
-        if DSTRF_RE.match(fields['inv']):
+        if NCRF_RE.match(fields['inv']):
             return fields['inv']
         return MneExperiment._update_inv_cache(fields)
 
@@ -849,7 +849,7 @@ class TRFExperiment(MneExperiment):
 
         if data.source:
             inv = self.get('inv')
-            m = DSTRF_RE.match(inv)
+            m = NCRF_RE.match(inv)
             if m:
                 data = TestDims('sensor')
             else:
@@ -860,9 +860,18 @@ class TRFExperiment(MneExperiment):
 
         # NCRF: Cross-validations
         ncrf_args = {'mu': 'auto'}
-        if m and m.group(2):
-            # maybe model exists
+        if m:
             ncrf_tag = m.group(2)
+        else:
+            ncrf_tag = ''
+
+        if ncrf_tag.isdigit():
+            ncrf_args['mu'] = float(ncrf_tag) / 10000
+        elif ncrf_tag == '50it':
+            ncrf_args['n_iter'] = 50
+        elif ncrf_tag == 'no_champ':
+            ncrf_args.update(n_iter=1, n_iterf=1000, n_iterc=0)
+        elif ncrf_tag:
             # find best mu from previous cross-validations
             with self._temporary_state:
                 cv = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, inv=m.group(1))
@@ -877,10 +886,6 @@ class TRFExperiment(MneExperiment):
                 best_cv = min(cv_results, key=attrgetter('cross_fit'))
                 i = cv_results.index(best_cv)
                 ncrf_args['mu'] = np.logspace(np.log10(cv_results[i-1].mu), np.log10(cv_results[i+1].mu), grade+2)[1:-1]
-            elif ncrf_tag == '50it':
-                ncrf_args['n_iter'] = 50
-            elif ncrf_tag == 'no_champ':
-                ncrf_args.update(n_iter=1, n_iterf=1000, n_iterc=0)
             else:
                 raise RuntimeError(f'inv={inv!r}')
             # check whether fit with mu exists
@@ -1085,7 +1090,7 @@ class TRFExperiment(MneExperiment):
 
         if data.source:
             inv = self.get('inv')
-            is_ncrf = bool(DSTRF_RE.match(inv))
+            is_ncrf = bool(NCRF_RE.match(inv))
             is_vector_data = is_ncrf or inv.startswith('vec')
         else:
             is_vector_data = is_ncrf = False
