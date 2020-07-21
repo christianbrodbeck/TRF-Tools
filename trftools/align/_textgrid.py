@@ -355,11 +355,14 @@ def gentle_to_grid(gentle_file, out_file=None):
     for i, word in enumerate(words):
         t = word['start']
         word_tstop = word['end']
-        # add word and phones
+        # add word
         word_tier.add(t, word_tstop, word['word'])
-        if word['case'] != 'success':
-            continue
-        for phone in word.get('phones', ()):
+        # make sure we have at least one phone
+        phones = word.get('phones', ())
+        if not phones:
+            phones = ({'phone': '', 'duration': word['end'] - word['start']},)
+        # add phones
+        for phone in phones:
             tstop = min(round(t + phone['duration'], 3), word_tstop)
             if t >= tstop:
                 continue
@@ -554,12 +557,13 @@ def textgrid_as_realizations(grid, word_tier='words', phone_tier='phones'):
 
         if word.mark in SILENCE:
             if not all(p in SILENCE for p in word_phones):
-                raise ValueError("Silence word tag (%r) but non-silent phones "
-                                 "%r" % (word.mark, word_phones))
+                raise IOError(f"Silence word tag {word.mark:r} but non-silent phones {word_phones:r}")
             out.append(Realization((' ',), (word.minTime,), ' ', word.maxTime))
         else:
-            out.append(Realization(word_phones, word_times, word.mark,
-                                   word.maxTime))
+            if not word_phones:
+                word_phones = ('',)
+                word_times = (word.minTime,)
+            out.append(Realization(word_phones, word_times, word.mark, word.maxTime))
     return out
 
 
