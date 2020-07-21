@@ -1,5 +1,6 @@
 """Convert unicode text to label for force aligning."""
 from collections import defaultdict
+from dataclasses import dataclass, field, replace
 import fnmatch
 from glob import glob
 from itertools import chain, zip_longest, repeat
@@ -8,7 +9,7 @@ from math import ceil
 import os
 from pathlib import Path
 import string
-from typing import Union
+from typing import Union, Tuple
 
 from eelbrain import fmtxt, Dataset
 import numpy as np
@@ -24,6 +25,7 @@ from ._text import text_to_words
 PUNC = [s.encode('ascii') for s in string.punctuation + "\n\r"]
 
 
+@dataclass
 class Realization:
     """Pronunciation and corresponding graph sequence for a word in a TextGrid
 
@@ -31,24 +33,21 @@ class Realization:
     -----
     For silence, ``realization.graphs == ' '``.
     """
-    __slots__ = ('graphs', 'phones', 'pronunciation', 'times', 'tstop')
+    # __slots__ = ('graphs', 'phones', 'pronunciation', 'times', 'tstop')
+    phones: Tuple[str, ...]  # arpabet phones
+    times: Tuple[float, ...]  # phone onset times
+    graphs: str
+    tstop: float
+    pronunciation: str = field(init=False)
 
-    def __init__(self, phones, times, graphs, tstop):
-        self.phones = phones  # tuple of str
-        self.pronunciation = ' '.join(phones)
-        self.times = times  # tuple of float, phone onset times
-        self.graphs = graphs
-        self.tstop = tstop
-
-    def __repr__(self):
-        args = (self.phones, self.times, self.graphs, self.tstop)
-        args = ', '.join(map(repr, args))
-        return f"Realization({args})"
+    def __post_init__(self):
+        if len(self.phones) == 0:
+            raise ValueError("Word without phones")
+        self.pronunciation = ' '.join(self.phones)
 
     def strip_stress(self):
         "Strip stress information (numbers 0/1/2 on vowels)"
-        phones = tuple([p.rstrip('012') for p in self.phones])
-        return Realization(phones, self.times, self.graphs, self.tstop)
+        return replace(self, phones=tuple([p.rstrip('012') for p in self.phones]))
 
 
 class TextGrid:
