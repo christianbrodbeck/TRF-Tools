@@ -134,6 +134,7 @@ TRF_TEMPLATES = (
 DSTRF_RE = re.compile(r'(ncrf)(?:-(\w+))?$')
 
 ComparisonArg = Union[str, Comparison, StructuredModel]
+ModelArg = Union[str, Model]
 
 
 class NameTooLong(Exception):
@@ -684,48 +685,68 @@ class TRFExperiment(MneExperiment):
 
     # TRF
     #####
-    def load_trf(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, make=False, path_only=False, **state):
+    def load_trf(
+            self,
+            x: ModelArg,
+            tstart: float = 0,
+            tstop: float = 0.5,
+            basis: float = 0.050,
+            error: str = 'l1',
+            partitions: int = None,
+            samplingrate: int = None,
+            mask: str = None,
+            delta: float = 0.005,
+            mindelta: float = None,
+            filter_x: bool = False,
+            selective_stopping: int = 0,
+            cv: bool = False,
+            data: DataArg = DATA_DEFAULT,
+            backward: bool = False,
+            make: bool = False,
+            path_only: bool = False,
+            **state,
+    ):
         """TRF estimated with boosting
 
         Parameters
         ----------
-        x : Model
+        x
             One or more predictor variables, joined with '+'.
-        tstart : scalar
+        tstart
             Start of the TRF in s (default 0).
-        tstop : scalar
+        tstop
             Stop of the TRF in s (default 0.5).
-        basis : scalar
+        basis
             Response function basis window width in [s] (default 0.050).
         error : 'l1' | 'l2'
             Error function.
-        partitions : int
+        partitions
             Number of partitions used for cross-validation in boosting (default
             is the number of epochs; -1 to concatenate data).
-        samplingrate : int
+        samplingrate
             Samplingrate in Hz for the analysis (default is specified in epoch
             definition).
-        mask : str
+        mask
             Parcellation to mask source space data (only applies when
             ``y='source'``).
-        delta : scalar
+        delta
             Boosting delta.
-        mindelta : scalar < delta
+        mindelta
             Boosting parameter.
-        filter_x : bool
+        filter_x
             Filter ``x`` with the last filter of the pipeline for ``y``.
-        selective_stopping : int
+        selective_stopping
             Stop boosting each predictor separately.
-        cv : bool
+        cv
             Cross-validation.
         data : 'sensor' | 'source'
             Data which to use.
-        backward : bool
+        backward
             Backward model (default is forward model).
-        make : bool
+        make
             If the TRF does not exists, make it (the default is to raise an
             IOError).
-        path_only : bool
+        path_only
             Return the path instead of loading the TRF.
 
         Returns
@@ -1216,66 +1237,95 @@ class TRFExperiment(MneExperiment):
             self.make_src()
         return parc
 
-    def load_trf_test(self, x, tstart=0, tstop=0.5, basis=0.05, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, permutations=1, make=False, make_trfs=False, scale=None, smooth=None, smooth_time=None, pmin='tfce', samples=10000, test=True, return_data=False, xhemi=False, xhemi_smooth=0.005, **state):
+    def load_trf_test(
+            self,
+            x: ComparisonArg,
+            tstart: float = 0,
+            tstop: float = 0.5,
+            basis: float = 0.050,
+            error: str = 'l1',
+            partitions: int = None,
+            samplingrate: int = None,
+            mask: str = None,
+            delta: float = 0.005,
+            mindelta: float = None,
+            filter_x: bool = False,
+            selective_stopping: int = 0,
+            cv: bool = False,
+            data: DataArg = DATA_DEFAULT,
+            permutations: int = 1,
+            make: bool = False,
+            make_trfs: bool = False,
+            scale: str = None,
+            smooth: float = None,
+            smooth_time: float = None,
+            pmin: PMinArg = 'tfce',
+            samples: int = 10000,
+            test: Union[str, bool] = True,
+            return_data: bool = False,
+            xhemi: bool = False,
+            xhemi_smooth: float = 0.005,
+            **state,
+    ):
         """Load TRF test result
 
         Parameters
         ----------
         x : str
             One or more predictor variables, joined with '+'.
-        tstart : scalar
+        tstart
             Start of the TRF in s (default 0).
-        tstop : scalar
+        tstop
             Stop of the TRF in s (default 0.5).
-        basis : scalar
+        basis
             Response function basis window width in [s] (default 0.050).
         error : 'l1' | 'l2'
             Error function.
-        partitions : int
+        partitions
             Number of partitions used for cross-validation in boosting (default
             is the number of epochs; -1 to concatenate data).
-        samplingrate : int
+        samplingrate
             Samplingrate in Hz for the analysis (default is specified in epoch
             definition).
-        mask : str
+        mask
             Parcellation to mask source space data (only applies when
             ``y='source'``).
-        delta : scalar
+        delta
             Boosting delta.
-        mindelta : scalar < delta
+        mindelta
             Boosting parameter.
-        filter_x : bool
+        filter_x
             Filter ``x`` with the last filter of the pipeline for ``y``.
-        selective_stopping : int
+        selective_stopping
             Stop boosting each predictor separately.
         data : 'sensor' | 'source'
             Data which to use.
-        make : bool
+        make
             If the test does not exists, make it (the default is to raise an
             IOError).
-        make_trfs : bool
+        make_trfs
             If a TRF does not exists, make it (the default is to raise an
             IOError).
         scale : 'original'
             Rescale TRFs to the scale of the source data (default is the scale
             based on normalized predictors and responses).
-        smooth : float
+        smooth
             Smooth data in space before test (value in [m] STD of Gaussian).
-        smooth_time : str | float
+        smooth_time
             Smooth TRFs temporally.
         pmin : None | scalar, 1 > pmin > 0 | 'tfce'
             Equivalent p-value for cluster threshold, or 'tfce' for
             threshold-free cluster enhancement.
-        samples : int > 0
+        samples
             Number of samples used to determine cluster p values for spatio-
             temporal clusters (default 10,000).
         test : True | str
             Test to perform (default ``True`` is test against 0).
-        return_data : bool
+        return_data
             Return the data along with the test result (see below).
-        xhemi : bool
+        xhemi
             Test between hemispheres.
-        xhemi_smooth : float
+        xhemi_smooth
             Smooth TRFs before morphing to the other hemisphere (Gaussian std
             in [m]; default 0.005 (5 mm)).
         ...
@@ -1700,12 +1750,10 @@ class TRFExperiment(MneExperiment):
 
         Parameters
         ----------
+        x
+            Comparison.
         ...
-        xhemi
-            Test between hemispheres.
-        xhemi_mask
-            When doing ``xhemi`` test, mask data with region that is significant
-            in at least one hemisphere.
+            TRF parameters (see :meth:`.load_trf`)
         permutations
             When testing against a partially permuted model, average the result
             of ``permutations`` different permutations as baseline model.
@@ -1721,8 +1769,19 @@ class TRFExperiment(MneExperiment):
 
         smooth : float
             Smooth data in space before test (value in [m] STD of Gaussian).
-        ...
-        make : bool
+        test
+            Hypothesis to test (default is ``x`` against ``0``).
+        return_data
+            Return the data the test is performed on alongside the test (if the
+            test is cached this incerases loading times).
+        pmin
+            ``pmin`` value for test.
+        xhemi
+            Test between hemispheres.
+        xhemi_mask
+            When doing ``xhemi`` test, mask data with region that is significant
+            in at least one hemisphere.
+        make
             If the test does not exists, make it (the default is to raise an
             IOError).
         ...

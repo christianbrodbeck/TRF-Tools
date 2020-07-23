@@ -9,8 +9,14 @@ TRF-Tools should be installed with `pip` into a recent [`eelbrain` environment](
 $ pip install https://github.com/christianbrodbeck/TRF-Tools/archive/master.zip
 ```
 
-In order to use the `gammatone_bank` function, also install::
+In order to use the `gammatone_bank` function, also install:
 
 ```bash
 $ pip install https://github.com/christianbrodbeck/gammatone/archive/fmax.zip
+```
+
+To later update TRF-Tools to the latest version of the master branch, use:
+
+```bash
+$ pip update -U https://github.com/christianbrodbeck/TRF-Tools/archive/master.zip
 ```

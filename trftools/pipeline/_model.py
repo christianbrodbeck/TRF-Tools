@@ -149,7 +149,9 @@ class Model:
         return len(self.terms)
 
     def __add__(self, other: 'Model') -> 'Model':
-        assert not self.intersection(other)
+        shared = self.intersection(other)
+        if shared:
+            raise DefinitionError(f"{self.name} + {other.name}: shared terms {shared.name}")
         return Model(self.terms + other.terms)
 
     def __sub__(self, other: 'Model') -> 'Model':
