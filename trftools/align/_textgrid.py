@@ -336,16 +336,22 @@ def gentle_to_grid(gentle_file, out_file=None):
         if word['start'] >= word['end']:
             word['start'] = word['end'] - .001
         last_start = word['start']
+        # gentle seems to work at 10 ms resolution
+        if word['end'] - word['start'] < 0.015 and 'issue' not in word:
+            word['issue'] = 'short'
 
     # log issues
     if n_issues:
-        log = fmtxt.Table('rrll')
-        log.cells('Time', 'Duration', 'Word', 'Issue')
+        log = fmtxt.Table('rrrll')
+        log.cell('Time')
+        log.cell('Duration', width=2)
+        log.cells('Word', 'Issue')
         log.midrule()
         for word in words:
             if word['issue']:
                 duration = word['end'] - word['start']
-                log.cells(f"{word['start']:.3f}", f"{duration:.3f}", word['word'], word['issue'])
+                d_marker = '*' if duration < 0.015 else ''
+                log.cells(f"{word['start']:.3f}", d_marker, f"{duration:.3f}", word['word'], word['issue'])
         print(log)
         log.save_tsv(out_file.with_suffix('.log'))
 
