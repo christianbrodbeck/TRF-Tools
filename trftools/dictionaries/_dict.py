@@ -93,3 +93,19 @@ def split_apostrophe(dic):
                 continue
         out[key].update(values)
     return out
+
+
+def write_dict(dictionary, file_name):
+    """Write a pronunciation dictionary to a text file
+
+    Parameters
+    ----------
+    dictionary : dict {str: list of str}
+        Dictionary mapping words (all caps) to lists of pronunciations.
+    file_name : str
+        Destination file.
+    """
+    with open(file_name, 'w') as fid:
+        for key in sorted(dictionary):
+            for pronunciation in sorted(dictionary[key]):
+                fid.write(f'{key}  {pronunciation}\n')
