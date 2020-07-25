@@ -18,7 +18,6 @@ import textgrid
 from .._utils import LookaheadIter
 from ..dictionaries import read_cmupd, read_dict, combine_dicts
 from ..dictionaries._arpabet import SILENCE
-from ..dictionaries._dict import APOSTROPHE_I
 from ._text import text_to_words
 
 
@@ -103,27 +102,50 @@ class TextGrid:
         return table
 
     def split_by_apostrophe(self):
-        """SUBTLEX respresents "ISN'T" as "ISN" + "T"
+        """Split words with apostrophe (in-place operation)
 
-        This method replace the TextGrid's realization that contain an
-        apostrophe accordingly
+        Language models often represent words containing apostrophe as two
+        words, for example:
+
+         - he's ->  he 's
+         - isn't -> is n't
+
+        This method returns a new TextGrid in which realizations with
+        apostrophe are split accordingly.
         """
+        # e.g. YOU'D -> Y UW / D
+        valid = {'D', 'M', 'S', 'T', 'LL', 'RE', 'VE'}
         new = []
         for realization in self.realizations:
             if "'" in realization.graphs:
-                g1, g2 = realization.graphs.split("'")
-                try:
-                    i_split = APOSTROPHE_I[g2]
-                except KeyError:
-                    raise KeyError(f"{g2!r} ({realization}")
-                ps = realization.phones[:i_split]
-                ts = realization.times[:i_split]
-                tstop = realization.times[i_split]
-                new.append(Realization(ps, ts, g1, tstop))
-                ps = realization.phones[i_split:]
-                ts = realization.times[i_split:]
+                if realization.graphs.upper().endswith("N'T"):
+                    ig = -3
+                    if realization.pronunciation.endswith('AH N T'):
+                        ip = -3
+                    else:
+                        ip = -2
+                else:
+                    ig = realization.graphs.index("'")
+                    if ig == 0:
+                        new.append(replace(realization, graphs=realization.graphs[1:]))
+                        continue
+                    elif ig == len(realization.graphs) - 1:
+                        new.append(replace(realization, graphs=realization.graphs[:-1]))
+                        continue
+                    elif realization.graphs[ig+1:].upper() in valid:
+                        ip = -1
+                    else:
+                        raise ValueError(f"Unknown word: {realization.graphs!r} ({realization})")
+                ps = realization.phones[:ip]
+                ts = realization.times[:ip]
+                graphs = realization.graphs[:ig]
+                tstop = realization.times[ip]
+                new.append(Realization(ps, ts, graphs, tstop))
+                ps = realization.phones[ip:]
+                ts = realization.times[ip:]
+                graphs = realization.graphs[ig:]
                 tstop = realization.tstop
-                new.append(Realization(ps, ts, g1, tstop))
+                new.append(Realization(ps, ts, graphs, tstop))
             else:
                 new.append(realization)
         self.realizations = new
