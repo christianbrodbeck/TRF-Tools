@@ -37,7 +37,7 @@ def iter_dict(file_name=None):
             yield line.split(None, 1)
 
 
-def read_dict(file_name=None, strip_stress=False):
+def read_dict(file_name=None, strip_stress=False, upper=False):
     """Read a forced aligner dictionary file
 
     Parameters
@@ -46,6 +46,8 @@ def read_dict(file_name=None, strip_stress=False):
         Dictionary file name (optional, the default is the internal dictionary).
     strip_stress : bool
         Strip stress information from vowels (e.g., 'AH0' -> 'AH').
+    upper : bool
+        Force keys to uppercase.
 
     Returns
     -------
@@ -54,6 +56,8 @@ def read_dict(file_name=None, strip_stress=False):
     """
     out = defaultdict(set)
     for word, phonemes in iter_dict(file_name):
+        if upper:
+            word = word.upper()
         if strip_stress:
             phonemes = ' '.join(STRIP_STRESS_MAP[p] for p in phonemes.split())
             # e.g., "HH IH0 Z" and "HH IH1 Z" both --> "HH IH Z"
