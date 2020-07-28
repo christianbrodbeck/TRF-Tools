@@ -932,13 +932,13 @@ class TRFExperiment(MneExperiment):
                 partitions = 1
 
         # reshape data
-        if partitions < 0:
+        if partitions is None:
+            if not 3 <= ds.n_cases <= 10:
+                raise TypeError(f"partitions=None: can't infer partitions parameter for {ds.n_cases} cases")
+        elif partitions < 0:
             partitions = None if partitions == -1 else -partitions
             y = concatenate(y)
             xs = [concatenate(x) for x in xs]
-        elif partitions is None:
-            if not 3 <= ds.n_cases <= 10:
-                raise TypeError(f"partitions=None: can't infer partitions parameter for {ds.n_cases} cases")
 
         if len(xs) == 1:
             xs = xs[0]
