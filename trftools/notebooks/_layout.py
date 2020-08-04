@@ -12,6 +12,12 @@ class Layout:
 
     Parameters
     ----------
+    items
+        Content to display (can also be added later through :meth:`.add`.
+    border
+        Border around each content item (width in pixels).
+    rasterize
+        Prefer rasterized over vector grafics (default True).
 
 
     Examples
@@ -31,7 +37,8 @@ class Layout:
     -----
     Based on https://stackoverflow.com/a/49566213/166700
     """
-    def __init__(self, items: Sequence = (), border: int = 0):
+    def __init__(self, items: Sequence = (), border: int = 0, rasterize: bool = True):
+        self.rasterize = rasterize
         # string buffer for the HTML: initially some CSS; images to be appended
         options = [
             "display: inline-block;",
@@ -52,7 +59,7 @@ class Layout:
 
     def add(self, obj):
         """Add a plot to the layout (matplotlib figure or eelbrain plot)"""
-        fmtext_obj = fmtxt.asfmtext(obj)
+        fmtext_obj = fmtxt.asfmtext(obj, rasterize=self.rasterize)
         if fmtext_obj is fmtxt.linebreak:
             self.linebreak()
             return
