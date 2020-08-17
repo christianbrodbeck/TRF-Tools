@@ -37,7 +37,7 @@ class Code(CodeBase):
 
     def __init__(self, string):
         m = re.match(
-            r'(?:([\w+-]+)\|)?'  # stimulus
+            r'(?:([\w+-]+)\~)?'  # stimulus
             r'([\w:-]+)'  # pedictor code
             r'(?:\$'  # begin shuffling
             r'(?:\[(-?\d+-?|\w*)\])?'  # band/index
@@ -89,7 +89,7 @@ class Code(CodeBase):
 
     @classmethod
     def from_strings(cls, stim: str, items: List[str], shuffle_string: str = ''):
-        stim = f'{stim}|' if stim else ''
+        stim = f'{stim}~' if stim else ''
         code = cls._sep.join(items)
         return cls(f"{stim}{code}{shuffle_string}")
 
@@ -135,7 +135,7 @@ class Code(CodeBase):
     @property
     def string_without_rand(self):
         if self.stim:
-            return f'{self.stim}|{self.code}'
+            return f'{self.stim}~{self.code}'
         else:
             return self.code
 
@@ -145,7 +145,7 @@ class Code(CodeBase):
         if self.stim:
             i = len(self.stim) + 1
             code_string = code_string[i:]
-        return Code(f'{stim}|{code_string}')
+        return Code(f'{stim}~{code_string}')
 
     @cached_property
     def nuts_method(self):

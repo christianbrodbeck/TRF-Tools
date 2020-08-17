@@ -14,7 +14,7 @@ Randomization
 Multiple streams
 ----------------
 
-Prefix demarcated by |, indicating variable that names stimulus (defaulting
+Prefix demarcated by ~, indicating variable that names stimulus (defaulting
 to ``e.stim_var``).
 
 
@@ -209,7 +209,7 @@ class TRFExperiment(MneExperiment):
     # mapping {prefix: stim_var}, e.g. {'': 'fg', 'bg': 'bg', 'mix': 'mix'}
     # maps
     #  - 'audspec' -> stimulus from variable called 'fg'
-    #  - 'bg|audspec' -> stimulus from variable called 'bg'
+    #  - 'bg~audspec' -> stimulus from variable called 'bg'
     stim_var = 'stimulus'
     predictors = {}
 
@@ -341,7 +341,7 @@ class TRFExperiment(MneExperiment):
                 model_name_parser.parseString(name, True)
             except ParseException:
                 raise DefinitionError(f"{name!r}: invalid model name")
-            if re.match(r'^[\w\-+|]*-red\d*$', name):
+            if re.match(r'^[\w\-+~]*-red\d*$', name):
                 raise ValueError(f"{name}: invalid model name (-red* pattern is reservered)")
 
         self._structured_models = {k: StructuredModel.coerce(v) for k, v in self.models.items()}
@@ -619,7 +619,7 @@ class TRFExperiment(MneExperiment):
         ----------
         code : str
             Code for the predictor to load (using the pattern
-            ``{stimulus}|{code}${randomization}``)
+            ``{stimulus}~{code}${randomization}``)
         tstep : float
             Time step for the predictor.
         n_samples : int
@@ -679,7 +679,7 @@ class TRFExperiment(MneExperiment):
         model = self._coerce_model(model)
         out = []
         for term in model.terms:
-            y = self.load_predictor(f'{stim}|{term.string}', tstep, n_samples, tmin)
+            y = self.load_predictor(f'{stim}~{term.string}', tstep, n_samples, tmin)
             out.append(y)
         return out
 
@@ -2392,7 +2392,7 @@ class TRFExperiment(MneExperiment):
 
         # cached regressor files (only MakePredictors are cached)
         cache_dir = self.get('predictor-cache-dir', mkdir=True)
-        files.update(glob(join(cache_dir, f'*|{regressor} *.pickle')))
+        files.update(glob(join(cache_dir, f'*~{regressor} *.pickle')))
 
         if not files:
             print("No files affected")
@@ -2818,7 +2818,7 @@ class TRFExperiment(MneExperiment):
         else:
             pattern = fnmatch.translate(term)
             if stim:
-                pattern = r'(\w+\|)?' + pattern
+                pattern = r'(\w+\~)?' + pattern
             if rand:
                 pattern += r'(\$.*)?'
             pattern = re.compile(pattern)
