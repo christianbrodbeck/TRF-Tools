@@ -90,7 +90,7 @@ class FilePredictor:
     The file-predictor expects to find a file for each stimulus containing the
     predictor at::
 
-        {root}/predictors/{stimulus}|{name}[-{options}].pickle
+        {root}/predictors/{stimulus}~{name}[-{options}].pickle
 
     Where ``stimulus`` refers to the name provided by ``stim_var``, ``name``
     refers to the predictor's name, and the optional ``options`` can be used to
