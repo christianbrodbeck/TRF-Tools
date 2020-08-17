@@ -72,7 +72,7 @@ class ModelTerm:
     def string(self) -> str:
         items = [self.code]
         if self.stimulus:
-            items.insert(0, f'{self.stimulus}|')
+            items.insert(0, f'{self.stimulus}~')
         if self.shuffle:
             items.append(self.shuffle_string)
         return ''.join(items)
@@ -715,7 +715,7 @@ shuffle_method = oneOf('shift remask permute')
 shuffle_suffix = Literal('$').suppress() + Optional(shuffle_index, None) + shuffle_method + Optional(integer, 180)
 
 # term
-stimulus_prefix = name + Literal('|').suppress().leaveWhitespace()
+stimulus_prefix = name + Literal('~').suppress().leaveWhitespace()
 term = Optional(stimulus_prefix, '') + name + Optional(shuffle_suffix)
 term.addParseAction(lambda s,l,t: ModelTerm(*t))
 
