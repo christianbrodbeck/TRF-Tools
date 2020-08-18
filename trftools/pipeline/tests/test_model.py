@@ -44,29 +44,29 @@ test_data = [
     ('x > 0', True, 'x', '0'),
     ('x + a > 0', True, 'x + a', '0'),
     # omit
-    ('x + y | y', True, 'x + y', 'x'),
-    ('x + y | x', True, 'x + y', 'y'),
-    ('x | x$shift', False, 'x', 'x$shift'),
-    ('x + y + z | z$shift', False, 'x + y + z', 'x + y + z$shift'),
-    ('x + y + z | y$shift + z$shift', False, 'x + y + z', 'x + y$shift + z$shift'),
+    ('x + y @ y', True, 'x + y', 'x'),
+    ('x + y @ x', True, 'x + y', 'y'),
+    ('x @ x$shift', False, 'x', 'x$shift'),
+    ('x + y + z @ z$shift', False, 'x + y + z', 'x + y + z$shift'),
+    ('x + y + z @ y$shift + z$shift', False, 'x + y + z', 'x + y$shift + z$shift'),
     # add
-    ('x +| y', True, 'x + y', 'x'),
-    ('x + y +| z', True, 'x + y + z', 'x + y'),
-    ('x +| y$permute', False, 'x + y', 'x + y$permute'),
+    ('x +@ y', True, 'x + y', 'x'),
+    ('x + y +@ z', True, 'x + y + z', 'x + y'),
+    ('x +@ y$permute', False, 'x + y', 'x + y$permute'),
     # named direct
     ('x-ab < x-cd', True, 'x-a + x-b', 'x-c + x-d'),
     ('x-ab < x-cd', False, 'x-a + x-b', 'x-c + x-d'),
     # named omit
-    ('x-ab | x-a$shift', False, 'x-a + x-b', 'x-b + x-a$shift'),
-    ('x-ab | x-b$shift', False, 'x-a + x-b', 'x-a + x-b$shift'),
-    ('x-abcd | x-ab$shift', False, 'x-a + x-b + x-c + x-d', 'x-c + x-d + x-a$shift + x-b$shift'),
-    ('x-ab | x-b', True, 'x-a + x-b', 'x-a'),
-    ('x-abcd | x-ab', True, 'x-a + x-b + x-c + x-d', 'x-c + x-d'),
+    ('x-ab @ x-a$shift', False, 'x-a + x-b', 'x-b + x-a$shift'),
+    ('x-ab @ x-b$shift', False, 'x-a + x-b', 'x-a + x-b$shift'),
+    ('x-abcd @ x-ab$shift', False, 'x-a + x-b + x-c + x-d', 'x-c + x-d + x-a$shift + x-b$shift'),
+    ('x-ab @ x-b', True, 'x-a + x-b', 'x-a'),
+    ('x-abcd @ x-ab', True, 'x-a + x-b + x-c + x-d', 'x-c + x-d'),
     # named add
-    ('x-ab +| x-c', True, 'x-a + x-b + x-c', 'x-a + x-b'),
-    ('x-ab +| x-c$shift', False, 'x-a + x-b + x-c', 'x-a + x-b + x-c$shift'),
+    ('x-ab +@ x-c', True, 'x-a + x-b + x-c', 'x-a + x-b'),
+    ('x-ab +@ x-c$shift', False, 'x-a + x-b + x-c', 'x-a + x-b + x-c$shift'),
     # named add2
-    ('x-ab +| x-c > x-d', True, 'x-a + x-b + x-c', 'x-a + x-b + x-d'),
+    ('x-ab +@ x-c > x-d', True, 'x-a + x-b + x-c', 'x-a + x-b + x-d'),
 ]
 # allow name being different than args[0]
 test_data = [(*t, None) if len(t) == 4 else t for t in test_data]
@@ -92,11 +92,11 @@ def test_comparison(string, cv, x1, x0, name):
 
 
 def test_comparison_parser():
-    comp = Comparison.coerce('x-abcd | x-ab', named_models=structured_models)
+    comp = Comparison.coerce('x-abcd @ x-ab', named_models=structured_models)
     assert comp.x1.name == 'x-a + x-b + x-c + x-d'
     assert comp.x0.name == 'x-c + x-d'
 
-    comp = Comparison.coerce('x-abcd | x-ab = x-cd', named_models=structured_models)
+    comp = Comparison.coerce('x-abcd @ x-ab = x-cd', named_models=structured_models)
     # effect of ab: abcd - cd; effect of cd: abcd - ab
     # comparison: (abcd - cd) - (abcd - ab)       | - abcd
     #           =        -cd  -  -ab              | + ab + cd
@@ -105,4 +105,4 @@ def test_comparison_parser():
     assert comp.x0.name == 'x-c + x-d'
 
     with pytest.raises(ValueError):
-        Comparison.coerce('model | whot$shift', False, structured_models)
+        Comparison.coerce('model @ whot$shift', False, structured_models)

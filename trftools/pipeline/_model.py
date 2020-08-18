@@ -440,9 +440,9 @@ class StructuredModel:
     def comparison(self, term: Term, cv: bool = False):
         assert term in self.top_level_terms
         if cv:
-            return Comparison(self.model, self.model.without(term.string), 1, f'{self.public_name} | {term.string}')
+            return Comparison(self.model, self.model.without(term.string), 1, f'{self.public_name} @ {term.string}')
         else:
-            return Comparison(self.model, self.model.with_shuffled(term), 1, f'{self.public_name} | {term.string}${term.shuffle}')
+            return Comparison(self.model, self.model.with_shuffled(term), 1, f'{self.public_name} @ {term.string}${term.shuffle}')
 
     def comparisons(self, cv: bool) -> List['Comparison']:
         return [self.comparison(term, cv) for term in self.top_level_terms]
@@ -540,7 +540,7 @@ class OmitComparison(ComparisonSpec):
             named_models: Dict[str, StructuredModel],
             cv: bool = True,  # cross-validation (ignore shuffle)
     ) -> 'Comparison':
-        public_name = f"{self.x.name} | {self.x_omit.name}"
+        public_name = f"{self.x.name} @ {self.x_omit.name}"
         x = self.x.initialize(named_models)
         x_omit = self.x_omit.initialize(named_models)
         if x_omit.has_randomization:
@@ -563,7 +563,7 @@ class Omit2Comparison(ComparisonSpec):
             named_models: Dict[str, StructuredModel],
             cv: bool = True,  # cross-validation (ignore shuffle)
     ) -> 'Comparison':
-        public_name = f"{self.x.name} +| {self.x1_omit.name} {self.operator} {self.x0_omit.name}"
+        public_name = f"{self.x.name} +@ {self.x1_omit.name} {self.operator} {self.x0_omit.name}"
         x = self.x.initialize(named_models)
         x1_omit = self.x1_omit.initialize(named_models)
         x0_omit = self.x0_omit.initialize(named_models)
@@ -585,7 +585,7 @@ class AddComparison(ComparisonSpec):
             named_models: Dict[str, StructuredModel],
             cv: bool = True,  # cross-validation (ignore shuffle)
     ) -> 'Comparison':
-        public_name = f"{self.x.name} +| {self.x_add.name}"
+        public_name = f"{self.x.name} +@ {self.x_add.name}"
         x = self.x.initialize(named_models)
         x_add = self.x_add.initialize(named_models)
         if x_add.has_randomization:
@@ -610,7 +610,7 @@ class Add2Comparison(ComparisonSpec):
             named_models: Dict[str, StructuredModel],
             cv: bool = True,  # cross-validation (ignore shuffle)
     ) -> 'Comparison':
-        public_name = f"{self.x.name} +| {self.x1_add.name} {self.operator} {self.x0_add.name}"
+        public_name = f"{self.x.name} +@ {self.x1_add.name} {self.operator} {self.x0_add.name}"
         x = self.x.initialize(named_models)
         x1_add = self.x1_add.initialize(named_models)
         x0_add = self.x0_add.initialize(named_models)
@@ -675,7 +675,7 @@ class Comparison:
             if not self.common_base:
                 return f"{name(self.x1)} {op} {name(self.x0)}"
             elif op == '>':
-                return f"{name(self.x1)} | {name(self.x0_only)}"
+                return f"{name(self.x1)} @ {name(self.x0_only)}"
             else:
                 raise NotImplementedError
         if self.x0_only.randomized_component == self.x0_only:
@@ -683,7 +683,7 @@ class Comparison:
         else:
             x0_only = f"{name(self.x0_only.unrandomized_component)} + {name(self.x0_only.randomized_component)}"
         if self.common_base:
-            return f"{name(self.common_base)} | {name(self.x1_only)} {op} {x0_only}"
+            return f"{name(self.common_base)} @ {name(self.x1_only)} {op} {x0_only}"
         return f"{name(self.x1)} {op} {x0_only}"
 
     @classmethod
@@ -730,13 +730,13 @@ null_model = Literal('0').addParseAction(lambda s,l,t: Model(()))
 term_comparisons = model.copy().addParseAction(lambda s,l,t: TermComparisons(*t))
 direct_comparison = model + oneOf('= < >') + (model ^ null_model)
 direct_comparison.addParseAction(lambda s,l,t: DirectComparison(*t))
-omit_comparison = model + Literal('|').suppress() + model
+omit_comparison = model + Literal('@').suppress() + model
 omit_comparison.addParseAction(lambda s,l,t: OmitComparison(*t))
-omit2_comparison = model + Literal('|').suppress() + direct_comparison
+omit2_comparison = model + Literal('@').suppress() + direct_comparison
 omit2_comparison.addParseAction(lambda s,l,t: Omit2Comparison(t[0], t[1].x, t[1].operator, t[1].x0))
-add_comparison = model + Literal('+|').suppress() + model
+add_comparison = model + Literal('+@').suppress() + model
 add_comparison.addParseAction(lambda s,l,t: AddComparison(*t))
-add2_comparison = model + Literal('+|').suppress() + direct_comparison
+add2_comparison = model + Literal('+@').suppress() + direct_comparison
 add2_comparison.addParseAction(lambda s,l,t: Add2Comparison(t[0], t[1].x, t[1].operator, t[1].x0))
 comparison = direct_comparison ^ omit_comparison ^ omit2_comparison ^ term_comparisons ^ add_comparison ^ add2_comparison
 

@@ -52,22 +52,22 @@ Furthermore, shortcuts exist for testing model components. These differ on
 whether model comparison is based on cross-validation or shuffling. With
 cross-validation (``cv=True``):
 
-``x_model | x2``
+``x_model @ x2``
     Test the contribution of ``x2`` to ``x_model``. Compare the complete
     ``x_model`` to ``x_model`` with ``x2`` removed. The right side can contain
-    multiple components, e.g. ``x_model | x2 + x3``.
-``x_model +| y``
+    multiple components, e.g. ``x_model @ x2 + x3``.
+``x_model +@ y``
     Test the effect of adding ``y`` to ``x_model``, i.e., equivalent to
     ``x_model + y > x_model``.
-``x_model | y1 = y2``
+``x_model @ y1 = y2``
     Equivalent tp ``x_model + y1 = x_model + y2``.
 
 With predictor randomization (``cv=False``):
 
-``x_model | x1$rand``
+``x_model @ x1$rand``
     Test the contribution of ``x2`` to ``x_model``. Compare the complete
     ``x_model`` to ``x_model`` with ``x2`` randomized.
-``x_model +| y$rand``
+``x_model +@ y$rand``
     Test the effect of adding ``y`` to ``x_model``, compared to adding a
     randomized version of ``y``. Equivalent to``x_model + y > x_model + y$rand``.
 
