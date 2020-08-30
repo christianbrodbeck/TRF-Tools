@@ -9,9 +9,10 @@ from math import ceil
 import os
 from pathlib import Path
 import string
-from typing import Union, Tuple
+from typing import List, Union, Tuple
 
 from eelbrain import fmtxt, Dataset
+from eelbrain._types import PathArg
 import numpy as np
 import textgrid
 
@@ -51,10 +52,15 @@ class Realization:
 
 class TextGrid:
     "TextGrid representation for regressors"
-    def __init__(self, grid_file, tmin=0., tstep=0.001, n_samples=None, word_tier='words', phone_tier='phones'):
-        realizations = textgrid_as_realizations(grid_file, word_tier, phone_tier)
+    def __init__(
+            self,
+            realizations: List[Realization],
+            tmin: float = 0.,
+            tstep: float = 0.001,
+            n_samples: int = None,
+            name: str = None,
+    ):
         self._n_samples_arg = n_samples
-
         if n_samples is None:
             n_samples = int(ceil((realizations[-1].tstop - tmin) / tstep))
         else:
@@ -62,25 +68,37 @@ class TextGrid:
             r_last = realizations[-1]
             if r_last.tstop < t_stop:
                 realizations.append(Realization((' ',), (r_last.tstop,), ' ', t_stop))
-            elif r_last.times[-1] > t_stop:
-                print("Warning: dropping %.3f s from %s" % (r_last.times[-1] - t_stop, grid_file))
 
         self.tmin = tmin
         self.tstep = tstep
         self.realizations = realizations
         self.n_samples = n_samples
-        self._grid_file = grid_file
+        self._name = name
         self._stop = int(round((realizations[-1].tstop - tmin) / tstep))
 
+    @classmethod
+    def from_file(
+            cls,
+            grid_file: PathArg,
+            tmin: float = 0.,
+            tstep: float = 0.001,
+            n_samples: int = None,
+            word_tier: str = 'words',
+            phone_tier: str = 'phones',
+    ):
+        grid_file = Path(grid_file)
+        realizations = textgrid_as_realizations(grid_file, word_tier, phone_tier)
+        return cls(realizations, tmin, tstep, n_samples, grid_file.name)
+
     def __repr__(self):
-        args = [repr(self._grid_file)]
+        args = [repr(self._name)]
         if self.tmin:
             args.append("tmin=%r" % self.tmin)
         if self.tstep != 0.001:
             args.append("tstep=%r" % self.tstep)
         if self._n_samples_arg:
             args.append("n_samples=%r" % self._n_samples_arg)
-        return "TextGrid(%s)" % ', '.join(args)
+        return "<TextGrid %s>" % ', '.join(args)
 
     def table(self, t_start: float = None, t_stop: float = None):
         "fmtxt.Table representation"
@@ -102,7 +120,7 @@ class TextGrid:
         return table
 
     def split_by_apostrophe(self):
-        """Split words with apostrophe (in-place operation)
+        """Split words with apostrophe
 
         Language models often represent words containing apostrophe as two
         words, for example:
@@ -148,7 +166,7 @@ class TextGrid:
                 new.append(Realization(ps, ts, graphs, tstop))
             else:
                 new.append(realization)
-        self.realizations = new
+        return TextGrid(new, self.tmin, self.tstep, self.n_samples, self._name)
 
     def align(self, words, values, silence=0, unknown=None):
         """Align values to the words in the textgrid"""
@@ -176,7 +194,7 @@ class TextGrid:
                     ds = Dataset()
                     ds['grid_words'] = grid_words[last_match_i_grid: last_match_i_grid + n]
                     ds['words'] = words[last_match_i: last_match_i + n]
-                    raise ValueError(f"Can't align words to {self._grid_file} after word {i_next}:\n{ds}")
+                    raise ValueError(f"Can't align words to {self._name} after word {i_next}:\n{ds}")
                 out.append(values[i])
                 last_match_i = i
                 last_match_i_grid = i_grid
