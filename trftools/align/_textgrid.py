@@ -168,6 +168,11 @@ class TextGrid:
                 new.append(realization)
         return TextGrid(new, self.tmin, self.tstep, self.n_samples, self._name)
 
+    def strip_stress(self):
+        """Remove stress digits from all phones (``K AA1 R`` -> ``K AA R``)"""
+        realizations = [r.strip_stress() for r in self.realizations]
+        return TextGrid(realizations, self.tmin, self.tstep, self.n_samples, self._name)
+
     def align(self, words, values, silence=0, unknown=None):
         """Align values to the words in the textgrid"""
         n_words = len(words)
