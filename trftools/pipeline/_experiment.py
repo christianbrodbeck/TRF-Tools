@@ -76,7 +76,7 @@ from collections import defaultdict
 import fnmatch
 from functools import partial
 from glob import glob
-from itertools import repeat
+from itertools import chain, repeat
 from operator import attrgetter
 import os
 from os.path import exists, getmtime, join, relpath, splitext
@@ -97,7 +97,7 @@ from eelbrain.fmtxt import List, Report, Table
 from eelbrain.pipeline import TTestOneSample, TTestRelated, TwoStageTest, RawFilter, RawSource
 from eelbrain._experiment.definitions import FieldCode
 from eelbrain._experiment.epochs import EpochCollection
-from eelbrain._experiment.mne_experiment import DataArg, PMinArg, DefinitionError, FileMissing, TestDims, guess_y, cache_valid
+from eelbrain._experiment.mne_experiment import DataArg, PMinArg, DefinitionError, FileMissing, TestDims, Variables, guess_y, cache_valid
 from eelbrain._data_obj import legal_dataset_key_re, isuv
 from eelbrain._io.pickle import update_subjects_dir
 from eelbrain._text import ms, n_of
@@ -976,7 +976,32 @@ class TRFExperiment(MneExperiment):
             return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, normalize=True, in_place=True, **ncrf_args)
         return partial(boosting, y, xs, tstart, tstop, 'inplace', delta, mindelta, error, basis, partitions=partitions, test=cv, selective_stopping=selective_stopping)
 
-    def load_trfs(self, subject, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, make=False, scale=None, smooth=None, smooth_time=None, vardef=None, permutations=1, vector_as_norm=False, **state):
+    def load_trfs(
+            self,
+            subject: Union[str, int],
+            x: ModelArg,
+            tstart: float = 0,
+            tstop: float = 0.5,
+            basis: float = 0.050,
+            error: str = 'l1',
+            partitions: int = None,
+            samplingrate: int = None,
+            mask: str = None,
+            delta: float = 0.005,
+            mindelta: float = None,
+            filter_x: bool = False,
+            selective_stopping: int = 0,
+            cv: bool = False,
+            data: DataArg = DATA_DEFAULT,
+            backward: bool = False,
+            make: bool = False,
+            scale: str = None,
+            smooth: float = None,
+            smooth_time: float = None,
+            vardef: Union[None, str, Variables] = None,
+            permutations: int = 1,
+            vector_as_norm: bool = False,
+            **state):
         """Load TRFs for the group in a Dataset (see ``.load_trf()``)
 
         Parameters
@@ -985,53 +1010,53 @@ class TRFExperiment(MneExperiment):
             Subject(s) for which to load data. Can be a single subject
             name or a group name such as ``'all'``. ``1`` to use the current
             subject; ``-1`` for the current group.
-        x : Model
+        x : str
             One or more predictor variables, joined with '+'.
-        tstart : scalar
+        tstart
             Start of the TRF in s (default 0).
-        tstop : scalar
+        tstop
             Stop of the TRF in s (default 0.5).
-        basis : scalar
+        basis
             Response function basis window width in [s] (default 0.050).
         error : 'l1' | 'l2'
             Error function.
-        partitions : int
+        partitions
             Number of partitions used for cross-validation in boosting (default
             is the number of epochs; -1 to concatenate data).
-        samplingrate : int
+        samplingrate
             Samplingrate in Hz for the analysis (default is specified in epoch
             definition).
-        mask : str
+        mask
             Parcellation to mask source space data (only applies when
             ``y='source'``).
-        delta : scalar
+        delta
             Boosting delta.
-        mindelta : scalar < delta
+        mindelta
             Boosting parameter.
-        filter_x : bool
+        filter_x
             Filter ``x`` with the last filter of the pipeline for ``y``.
-        selective_stopping : int
+        selective_stopping
             Stop boosting each predictor separately.
         data : 'sensor' | 'source'
             Data which to use.
-        backward : bool
+        backward
             Backward model (default is forward model).
-        make : bool
+        make
             If a TRF does not exists, make it (the default is to raise an
             IOError).
         scale : 'original'
             Rescale TRFs to the scale of the source data (default is the scale
             based on normalized predictors and responses).
-        smooth : float
+        smooth
             Smooth TRFs (spatial smoothing, in [m] STD of Gaussian).
-        smooth_time : str | float
+        smooth_time
             Smooth TRFs temporally.
         vardef : str
             Add variables for a given test.
-        permutations : int
+        permutations
             When loading a partially permuted model, average the result
             of ``permutations`` different permutations.
-        vector_as_norm : bool
+        vector_as_norm
             For vector data, return the norm at each time point instead of the
             vector.
         ...
@@ -1052,20 +1077,21 @@ class TRFExperiment(MneExperiment):
         if group is not None:
             dss = []
             for _ in self.iter(group=group, progress_bar="Load TRFs"):
-                ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, smooth, smooth_time, vardef, permutations, vector_as_norm)
+                ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, None, None, vardef, permutations, vector_as_norm)
                 dss.append(ds)
 
             try:
-                out = combine(dss)
+                ds = combine(dss)
             except DimensionMismatchError:
                 if not backward:
                     raise
                 # backward model can have incompatible sensor dimensions
                 for ds in dss:
                     del ds[data.y_name]
-                out = combine(dss)
-                out.info['load_trfs'] = f"Dropping {data.y_name} (incompatible dimension)"
-            return out
+                ds = combine(dss)
+                ds.info['load_trfs'] = f"Dropping {data.y_name} (incompatible dimension)"
+            self._smooth_trfs(data, ds, smooth, smooth_time)
+            return ds
 
         # collection epochs
         epoch = self._epochs[self.get('epoch')]
@@ -1073,10 +1099,11 @@ class TRFExperiment(MneExperiment):
             dss = []
             with self._temporary_state:
                 for sub_epoch in epoch.collect:
-                    ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, smooth, smooth_time, None, permutations, vector_as_norm, epoch=sub_epoch)
+                    ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, None, None, None, permutations, vector_as_norm, epoch=sub_epoch)
                     ds[:, 'epoch'] = sub_epoch
                     dss.append(ds)
             ds = combine(dss)
+            self._smooth_trfs(data, ds, smooth, smooth_time)
             self._add_vars(ds, vardef, groupvars=True)
             return ds
 
@@ -1175,17 +1202,24 @@ class TRFExperiment(MneExperiment):
 
         # add kernel to dataset
         for hi in h:
-            if smooth:
-                if data.source is True:
-                    hi = hi.smooth('source', smooth, 'gaussian')
-                else:
-                    raise ValueError(f"smooth={smooth!r} with data={data.string!r}")
-            if smooth_time:
-                hi = hi.smooth('time', smooth_time)
             ds[Dataset.as_key(hi.name)] = hi[newaxis]
 
+        self._smooth_trfs(data, ds, smooth, smooth_time)
         self._add_vars(ds, vardef, groupvars=True)
         return ds
+
+    @staticmethod
+    def _smooth_trfs(data, ds, smooth, smooth_time):
+        # TODO: optimize smoothing (cache smoother Dimension._gaussian_smoother())
+        if smooth:
+            if data.source is not True:
+                raise ValueError(f"smooth={smooth!r} with data={data.string!r}")
+            keys = [key for key in ('residual', 'det', 'r', 'z', 'r1', 'z1') if key in ds]
+            for key in chain(ds.info['xs'], keys):
+                ds[key] = ds[key].smooth('source', smooth, 'gaussian')
+        if smooth_time:
+            for key in ds.info['xs']:
+                ds[key] = ds[key].smooth('time', smooth_time)
 
     def _locate_missing_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, permutations=1, existing=False, **state):
         "Return ``(path, state, args)`` for ._trf_job() for each missing trf-file"
