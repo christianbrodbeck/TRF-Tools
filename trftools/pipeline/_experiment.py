@@ -83,7 +83,7 @@ from os.path import exists, getmtime, join, relpath, splitext
 from pathlib import Path
 from pyparsing import ParseException
 import re
-from typing import Union
+from typing import Any, Union
 
 import eelbrain
 from eelbrain import (
@@ -2220,6 +2220,76 @@ class TRFExperiment(MneExperiment):
         if model in self.models:
             raise ValueError(f"{model!r} is an explicitly defined model; remove it from .models")
         self._remove_model(model)
+
+    def show_model_test(
+            self,
+            x,
+            brain_view = None,
+            axw: float = None,
+            surf: str = 'inflated',
+            cortex: Any = ((1.00,) * 3, (.4,) * 3),
+            sig: bool = True,
+            heading: str = None,
+            vmax: float = None,
+            cmap: str = None,
+            alpha: float = 1.,
+            **test_args,
+    ) -> fmtxt.Section:
+        """Document section for one or several model tests
+
+        Notes
+        -----
+        Surface source space only.
+        """
+        dpi = 144  # good for notebook
+        if isinstance(brain_view, str):
+            brain_view, default_axw = {
+                'temporal': ((-18, -28, 50), 1.5),
+            }[brain_view]
+        else:
+            default_axw = 2.5
+        if axw is None:
+            axw = default_axw
+
+        if isinstance(x, dict):
+            ress = ResultCollection({k: self.load_model_test(m, **test_args) for k, m in x.items()})
+            ress_hemi = ResultCollection({k: self.load_model_test(m, xhemi=True, **test_args) for k, m in x.items()})
+        else:
+            ress = self.load_model_test(x, **test_args)
+            ress_hemi = self.load_model_test(x, xhemi=True, **test_args)
+            if not isinstance(ress, dict):
+                ress = ResultCollection({x: ress})
+                ress_hemi = ResultCollection({x: ress_hemi})
+
+        if heading:
+            doc = fmtxt.Section(heading)
+        else:
+            doc = fmtxt.FMText()
+
+        doc.append(fmtxt.Figure(fmtxt.FloatingLayout([
+            ress.table(title='Model test'),
+            ress_hemi.table(title="Lateralization"),
+        ])))
+
+        if sig and all(res.p.min() > 0.05 for res in ress.values()):
+            return doc
+
+        # plots tests
+        panels = []
+        for ress_i in (ress, ress_hemi):
+            sp = plot.brain.SequencePlotter()
+            if brain_view:
+                sp.set_parallel_view(*brain_view)
+            sp.set_brain_args(surf=surf, cortex=cortex)
+            for x, res in ress_i.items():
+                y = res.masked_difference() if sig else res.difference
+                sp.add_ndvar(y, label=x, cmap=cmap, vmax=vmax, alpha=alpha)
+            panel = sp.plot_table(view='lateral', orientation='vertical', axw=axw, dpi=dpi, show=False)
+            panels.append(panel)
+        doc.append(fmtxt.Figure(panels))
+        for panel in panels:
+            panel.close()
+        return doc
 
     def show_contamination(self, threshold=2e-12, separate=False, absolute=False, samplingrate=None, asds=False, **state):
         """Table of data exceeding threshold in epochs
