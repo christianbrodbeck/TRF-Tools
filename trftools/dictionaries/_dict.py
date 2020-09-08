@@ -4,8 +4,9 @@ from collections import defaultdict
 from ._arpabet import STRIP_STRESS_MAP
 
 
+# Index before which to split phonemes
 APOSTROPHE_I = {
-    'D': -1,
+    'D': -1,  # YOU'D -> Y UW / D
     'M': -1,
     'S': -1,
     'T': -1,

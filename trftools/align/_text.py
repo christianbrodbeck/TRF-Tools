@@ -42,9 +42,7 @@ for neg in ('CAN', 'DON', 'ISN', 'AREN', 'WEREN', 'MUSTN'):
 
 
 def text_to_words(text):
-    """Transform text to all-caps, ASCII word sequence required for aligner
-
-    Requires Python 3
+    """Transform text to word sequence required for aligner
 
     Parameters
     ----------
