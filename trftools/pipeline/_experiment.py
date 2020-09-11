@@ -102,11 +102,11 @@ from eelbrain._data_obj import legal_dataset_key_re, isuv
 from eelbrain._io.pickle import update_subjects_dir
 from eelbrain._text import ms, n_of
 from eelbrain._utils.mne_utils import is_fake_mri
+from eelbrain._utils.notebooks import tqdm
 from eelbrain._utils.numpy_utils import newaxis
 from eelbrain._utils import ask
 from filelock import FileLock
 import numpy as np
-from tqdm import tqdm
 
 from .._ndvar import pad
 from .._numpy_funcs import arctanh
