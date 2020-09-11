@@ -150,7 +150,7 @@ class FilePredictor:
         x = self._load(tstep, file_name, directory)
         if isinstance(x, Dataset):
             if n_samples is None:
-                raise ValueError(f"n_samples={n_samples!r}")
+                n_samples = int((x.info['tstop'] - tmin) // tstep)
             uts = UTS(tmin, tstep, n_samples)
             x = self._ds_to_ndvar(x, uts, code)
         elif isinstance(x, NDVar):
