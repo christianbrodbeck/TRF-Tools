@@ -11,11 +11,11 @@ from .._ndvar import SHUFFLE_METHODS as NDVAR_SHUFFLE_METHODS
 
 VALUE_SHUFFLE_METHODS = ('permute', 'remask', 'relocate')
 SHUFFLE_METHODS = NDVAR_SHUFFLE_METHODS + VALUE_SHUFFLE_METHODS
-NUTS_METHODS = ('step',)
+NUTS_METHODS = ('step', 'is')
 
 
 class Code(CodeBase):
-    """Create variable with '-' delimited instructions
+    """Predictor specification with '-' delimited instructions
 
     Attributes
     ----------

@@ -2,11 +2,7 @@
 from itertools import chain
 from pathlib import Path
 
-from eelbrain import load, Dataset, NDVar, UTS, combine, epoch_impulse_predictor, resample
-try:
-    from eelbrain import Var, Factor, event_impulse_predictor
-except ImportError:
-    from .._utils import requires_eelbrain_dev as event_impulse_predictor
+from eelbrain import load, Categorial, Dataset, Factor, NDVar, UTS, Var, combine, epoch_impulse_predictor, event_impulse_predictor, resample
 from eelbrain._experiment.definitions import typed_arg
 import numpy
 
@@ -149,6 +145,7 @@ class FilePredictor:
         return x
 
     def _generate(self, tmin: float, tstep: float, n_samples: int, code: Code, directory: Path):
+        # predictor for one input file
         file_name = code.nuts_file_name(self.columns)
         x = self._load(tstep, file_name, directory)
         if isinstance(x, Dataset):
@@ -167,6 +164,7 @@ class FilePredictor:
         return x
 
     def _generate_continuous(self, uts: UTS, ds: Dataset, stim_var: str, code: Code, directory: Path):
+        # place multiple input files into a continuous predictor
         cache = {stim: self._load(uts.tstep, code.with_stim(stim).nuts_filename(self.columns), directory) for stim in ds[stim_var].cells}
         # determine type
         stim_type = {type(s) for s in cache.values()}
@@ -179,7 +177,7 @@ class FilePredictor:
                 x = cache[stim].copy()
                 x['time'] += t
                 dss.append(x)
-                if code.nuts_method == 'step':
+                if code.nuts_method:
                     x_stop_ds = t_stop_ds(x, t)
                     dss.append(x_stop_ds)
             x = self._ds_to_ndvar(combine(dss), uts, code)
@@ -250,21 +248,33 @@ class FilePredictor:
                 ds[column_key].x[shuffle_mask] = values
             code.register_shuffle(index=True)
 
-        x = NDVar(numpy.zeros(len(uts)), uts, name=code.key)
-        ds = ds[ds['time'] < x.time.tstop]
-        if code.nuts_method is None:
+        # prepare output NDVar
+        if code.nuts_method == 'is':
+            dim = Categorial('representation', ('step', 'impulse'))
+            x = NDVar(numpy.zeros((2, len(uts))), (dim, uts), name=code.key)
+            x_step, x_impulse = x
+        else:
+            x = NDVar(numpy.zeros(len(uts)), uts, name=code.key)
+            if code.nuts_method == 'step':
+                x_step, x_impulse = x, None
+            elif not code.nuts_method:
+                x_step, x_impulse = None, x
+            else:
+                raise code.error(f"NUTS-method={code.nuts_method!r}")
+
+        # fill in values
+        ds = ds[ds['time'] < uts.tstop]
+        if x_impulse is not None:
             for t, v in ds.zip('time', column_key):
-                x[t] = v
-        elif code.nuts_method == 'step':
+                x_impulse[t] = v
+        if x_step is not None:
             t_stops = ds[1:, 'time']
             if ds[-1, column_key] != 0:
                 if 'tstop' not in ds.info:
                     raise code.error("For step representation, the predictor datasets needs to contain ds.info['tstop'] to determine the end of the last step", -1)
                 t_stops = chain(t_stops, [ds.info['tstop']])
             for t0, t1, v in zip(ds['time'], t_stops, ds[column_key]):
-                x[t0:t1] = v
-        else:
-            raise code.error(f"NUTS-method={code.nuts_method!r}")
+                x_step[t0:t1] = v
         return x
 
 
