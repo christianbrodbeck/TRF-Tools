@@ -274,6 +274,36 @@ class Model:
         return Model(tuple(terms))
 
 
+@dataclass
+class ModelExpression:
+    "Model specification using abbreviations"
+    base: Model
+    subtract: ModelTerm = None
+
+    @classmethod
+    def from_string(
+            cls,
+            string: str,
+    ) -> 'ModelExpression':
+        try:
+            return model_expr.parseString(string, True)[0]
+        except ParseException:
+            raise DefinitionError(f"{string!r}: invalid Model")
+
+    def initialize(
+            self,
+            named_models: Dict[str, 'StructuredModel'],
+    ) -> 'Model':
+        "Expand into full model"
+        base = self.base.initialize(named_models)
+        if not self.subtract:
+            return base
+        # remove subtraction
+        terms = list(base.terms)
+        terms.remove(self.subtract)
+        return Model(tuple(terms))
+
+
 def model_comparison_table(x1: Model, x0: Model, x1_name: str = 'x1', x0_name: str = 'x0'):
     "Generate a table comparing the terms in two models"
     # find corresponding terms
@@ -631,6 +661,9 @@ term.addParseAction(lambda s,l,t: ModelTerm(*t))
 
 # model
 model = delimitedList(term, '+').addParseAction(lambda s,l,t: Model(tuple(t)))
+subtract_term = Literal('-').suppress() + term
+model_expr = model + Optional(subtract_term)
+model_expr.addParseAction(lambda s,l,t: ModelExpression(*t))
 null_model = Literal('0').addParseAction(lambda s,l,t: Model(()))
 
 # comparison

@@ -1,10 +1,18 @@
 import pytest
 
-from trftools.pipeline._model import DefinitionError, Model, StructuredModel, Comparison
+from trftools.pipeline._model import DefinitionError, Model, ModelExpression, StructuredModel, Comparison
 
 
 EXPRESSION = 1
 X1_V_X0 = 2
+
+models = {
+    'x-abcd': 'x-a + x-b + x-c + x-d',
+    'x-ab': 'x-a + x-b',
+    'x-cd': 'x-c + x-d',
+    'xyz': 'x + y + z',
+}
+structured_models = {k: StructuredModel.coerce(v) for k, v in models.items()}
 
 
 def test_model():
@@ -16,14 +24,9 @@ def test_model():
     assert xy + z == xyz
     assert xyz - z == xy
     assert xy.intersection(yz) == y
+    xy2 = ModelExpression.from_string("xyz - z").initialize(structured_models)
+    assert xy2 == xy
 
-
-models = {
-    'x-abcd': 'x-a + x-b + x-c + x-d',
-    'x-ab': 'x-a + x-b',
-    'x-cd': 'x-c + x-d',
-}
-structured_models = {k: StructuredModel.coerce(v) for k, v in models.items()}
 
 test_data = [
     # direct

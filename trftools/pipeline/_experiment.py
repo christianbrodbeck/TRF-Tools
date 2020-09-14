@@ -112,7 +112,7 @@ from .._ndvar import pad
 from .._numpy_funcs import arctanh
 from ._code import Code
 from ._jobs import TRFsJob, ModelJob
-from ._model import Comparison, Model, StructuredModel, load_models, model_comparison_table, model_name_parser, save_models
+from ._model import Comparison, Model, ModelExpression, StructuredModel, load_models, model_comparison_table, model_name_parser, save_models
 from ._predictor import EventPredictor, FilePredictor, MakePredictor
 from ._results import ResultCollection
 from . import _trf_report as trf_report
@@ -1711,7 +1711,7 @@ class TRFExperiment(MneExperiment):
             return x
         elif x in self._structured_models:
             return self._structured_models[x].model
-        return Model.from_string(x).initialize(self._structured_models)
+        return ModelExpression.from_string(x).initialize(self._structured_models)
 
     def _coerce_comparison(
             self,
