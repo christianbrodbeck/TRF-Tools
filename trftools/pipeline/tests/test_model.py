@@ -26,6 +26,9 @@ def test_model():
     assert xy.intersection(yz) == y
     xy2 = ModelExpression.from_string("xyz - z").initialize(structured_models)
     assert xy2 == xy
+    # duplicate term
+    with pytest.raises(DefinitionError):
+        Model.coerce("term-1 + term-2 + term-2")
 
 
 test_data = [

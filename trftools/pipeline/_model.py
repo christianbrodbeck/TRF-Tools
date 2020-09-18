@@ -42,7 +42,7 @@ a + b$rnd > b + a$rnd
 
 
 """
-from collections import abc
+from collections import abc, Counter
 from dataclasses import dataclass
 from pathlib import Path
 import pickle
@@ -111,6 +111,12 @@ class ModelTerm:
 class Model:
     """Model that can be fit to data"""
     terms: Tuple[ModelTerm, ...]
+
+    def __post_init__(self):
+        counts = Counter([term.string for term in self.terms])
+        duplicates = [term for term, count in counts.items() if count > 1]
+        if duplicates:
+            raise DefinitionError(f"Duplicate terms: {', '.join(duplicates)}")
 
     @LazyProperty
     def name(self):
