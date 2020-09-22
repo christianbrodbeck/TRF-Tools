@@ -399,6 +399,8 @@ class Dispatcher(object):
             raise ValueError(f"{pattern!r}: no job with this model name")
         n_removed = 0
         for job in jobs:
+            if job.trf_jobs is None:
+                continue  # (peviously canceled)
             for trf_job in job.trf_jobs:
                 if trf_job.path in self._trf_jobs:
                     del self._trf_jobs[trf_job.path]
