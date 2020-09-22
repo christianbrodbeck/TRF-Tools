@@ -165,7 +165,7 @@ class FilePredictor:
 
     def _generate_continuous(self, uts: UTS, ds: Dataset, stim_var: str, code: Code, directory: Path):
         # place multiple input files into a continuous predictor
-        cache = {stim: self._load(uts.tstep, code.with_stim(stim).nuts_filename(self.columns), directory) for stim in ds[stim_var].cells}
+        cache = {stim: self._load(uts.tstep, code.with_stim(stim).nuts_file_name(self.columns), directory) for stim in ds[stim_var].cells}
         # determine type
         stim_type = {type(s) for s in cache.values()}
         assert len(stim_type) == 1
