@@ -43,7 +43,7 @@ a + b$rnd > b + a$rnd
 
 """
 from collections import abc, Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 import pickle
 from typing import Dict, Callable, List, Tuple, Sequence, Union
@@ -217,16 +217,26 @@ class Model:
         return Model(tuple(terms))
 
     def initialize(self, named_models: Dict[str, 'StructuredModel']) -> 'Model':
-        terms = []
+        terms1 = []
+        # named models
         for term in self.terms:
             if term.without_shuffle.string in named_models:
                 model = named_models[term.without_shuffle.string].model
                 if term.shuffle:
                     model = model.with_shuffle(term.shuffle_index, term.shuffle, term.shuffle_angle)
-                terms.extend(model.terms)
+                terms1.extend(model.terms)
             else:
-                terms.append(term)
-        return Model(tuple(terms))
+                terms1.append(term)
+        # impulse + step
+        terms2 = []
+        for term in terms1:
+            if term.code.endswith('-i+s'):
+                base_code = term.code[:-4]
+                terms2.append(replace(term, code=base_code))
+                terms2.append(replace(term, code=f'{base_code}-step'))
+            else:
+                terms2.append(term)
+        return Model(tuple(terms2))
 
     def multiple_permutations(self, n: int) -> List['Model']:
         """Generate multiple models with different shuffle angles"""
