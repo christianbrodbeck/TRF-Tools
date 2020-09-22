@@ -533,6 +533,30 @@ class OmitComparison(ComparisonSpec):
 
 
 @dataclass
+class Omit2Comparison(ComparisonSpec):
+    x1_omit: Model
+    operator: str
+    x0_omit: Model
+
+    def initialize(
+            self,
+            named_models: Dict[str, StructuredModel],
+            cv: bool = True,  # cross-validation (ignore shuffle)
+    ) -> 'Comparison':
+        public_name = f"{self.x.name} +| {self.x1_omit.name} {self.operator} {self.x0_omit.name}"
+        x = self.x.initialize(named_models)
+        x1_omit = self.x1_omit.initialize(named_models)
+        x0_omit = self.x0_omit.initialize(named_models)
+        assert not x1_omit.has_randomization
+        assert not x0_omit.has_randomization
+        # x - x1_reduced > x - x0_reduced
+        #     x0_reduced > x1_reduced
+        x1 = x - x0_omit
+        x0 = x - x1_omit
+        return Comparison(x1, x0, TAIL[self.operator], public_name)
+
+
+@dataclass
 class AddComparison(ComparisonSpec):
     x_add: Model
 
@@ -688,11 +712,13 @@ direct_comparison = model + oneOf('= < >') + (model ^ null_model)
 direct_comparison.addParseAction(lambda s,l,t: DirectComparison(*t))
 omit_comparison = model + Literal('|').suppress() + model
 omit_comparison.addParseAction(lambda s,l,t: OmitComparison(*t))
+omit2_comparison = model + Literal('|').suppress() + direct_comparison
+omit2_comparison.addParseAction(lambda s,l,t: Omit2Comparison(t[0], t[1].x, t[1].operator, t[1].x0))
 add_comparison = model + Literal('+|').suppress() + model
 add_comparison.addParseAction(lambda s,l,t: AddComparison(*t))
 add2_comparison = model + Literal('+|').suppress() + direct_comparison
 add2_comparison.addParseAction(lambda s,l,t: Add2Comparison(t[0], t[1].x, t[1].operator, t[1].x0))
-comparison = direct_comparison ^ omit_comparison ^ term_comparisons ^ add_comparison ^ add2_comparison
+comparison = direct_comparison ^ omit_comparison ^ omit2_comparison ^ term_comparisons ^ add_comparison ^ add2_comparison
 
 # for name checking
 model_name_parser = Optional(stimulus_prefix) + name

@@ -86,5 +86,9 @@ def test_comparison(string, cv, x1, x0, name):
 
 
 def test_comparison_parser():
+    comp = Comparison.coerce('x-abcd | x-ab = x-cd', named_models=structured_models)
+    assert comp.x1.name == 'x-c + x-d'
+    assert comp.x0.name == 'x-a + x-b'
+
     with pytest.raises(ValueError):
         Comparison.coerce('model | whot$shift', False, structured_models)
