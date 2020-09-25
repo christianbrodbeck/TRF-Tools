@@ -26,10 +26,12 @@ class ResultCollection(dict):
     test_type = None
     _statistic = None
 
-    def __reduce__(self):
-        return self.__class__, (dict(self),)
+    def __init__(self, tests: dict = ()):
+        dict.__init__(self, tests)
+        for key, test in self.items():
+            self._validate_test(test)
 
-    def __setitem__(self, key, test):
+    def _validate_test(self, test):
         test_type = TestType.for_test(test)
         if self.test_type is None:
             self.test_type = test_type
@@ -37,6 +39,12 @@ class ResultCollection(dict):
                 self._statistic = test._statistic
         elif test_type is not self.test_type:
             raise TypeError(f"{test}: all tests need to be of the same type ({self.test_type})")
+
+    def __reduce__(self):
+        return self.__class__, (dict(self),)
+
+    def __setitem__(self, key, test):
+        self._validate_test(test)
         dict.__setitem__(self, key, test)
 
     def __repr__(self):
