@@ -117,7 +117,6 @@ class Dispatcher(object):
             self._notifier = Notifier(notify, 'Dispatcher')
         else:
             self._notifier = None
-        self._suspend_notification = False
         atexit.register(self.shutdown, True)
         # make client methods available
         self.show_workers = self.server.show_workers
@@ -365,16 +364,14 @@ class Dispatcher(object):
                     with self.e_lock:
                         for new_job in job.get_followup_jobs(self.logger):
                             self._request_queue.put(new_job)
-
-            # act on new results
-            if new_results:
-                # notify if finished
-                if not self._trf_jobs and not self._request_queue:
-                    self.logger.info("All requested TRFs have been received")
-                    if self._notifier and not self._suspend_notification:
-                        self._notifier.send(
-                            "All requested TRFs have been received",
-                            "%i reports queued." % self._report_queue.qsize())
+                elif self._notifier:
+                    message = fmtxt.FMText([f"All TRFs received for {job.name}.", fmtxt.linebreak])
+                    message.append(self.show_jobs())
+                    if self._request_queue:
+                        message.append(fmtxt.linebreak)
+                        message.append(fmtxt.linebreak)
+                        message.append("Processing new requests...")
+                    self._notifier.send(f'Job done: {job.name}', message)
 
             if self.server.terminated:
                 return
@@ -447,12 +444,9 @@ class Dispatcher(object):
     def make_reports(self, block=False, notify=False):
         "Make reports with calling thread"
         if notify and not self._notifier:
-            raise ValueError("Can't notify because no notifier is available. "
-                             "Set the notify parameter when initializing the "
-                             "Dispatcher.")
+            raise ValueError("Can't notify because no notifier is available. Set the notify parameter when initializing the Dispatcher.")
         if block:
             print("Make all incoming reports; ctrl-c to stop...")
-            self._suspend_notification = True
 
         n_made = 0
         while True:
@@ -462,8 +456,7 @@ class Dispatcher(object):
                 if not block:
                     print("Report queue empty")
                     if notify and n_made:
-                        self._notifier.send("All queued reports are done.",
-                                            f"{n_made} reports created.")
+                        self._notifier.send("All queued reports are done.", f"{n_made} reports created.")
                     return
             except KeyboardInterrupt:
                 break
@@ -472,7 +465,6 @@ class Dispatcher(object):
                     job.make_test_report()
                 n_made += 1
                 sleep(2)  # make lock available
-        self._suspend_notification = False
 
     def prioritize(self, model=None, priority=True):
         """Set the priority of jobs named fnmatching ``model``
