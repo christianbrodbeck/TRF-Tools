@@ -9,7 +9,7 @@ from math import ceil
 import os
 from pathlib import Path
 import string
-from typing import List, Union, Tuple
+from typing import Any, List, Sequence, Union, Tuple
 
 from eelbrain import fmtxt, Dataset
 from eelbrain._types import PathArg
@@ -173,8 +173,34 @@ class TextGrid:
         realizations = [r.strip_stress() for r in self.realizations]
         return TextGrid(realizations, self.tmin, self.tstep, self.n_samples, self._name)
 
-    def align(self, words, values, silence=0, unknown=None):
-        """Align values to the words in the textgrid"""
+    def align(
+            self,
+            words: Sequence[str],
+            values: Sequence[Any],
+            silence: Any = 0,
+            unknown: str = None,
+    ) -> List[Any]:
+        """Align ``words`` to the textgrid and sort ``values`` accordingly
+
+        Parameters
+        ----------
+        words
+            The words to align (not case-sensitive). Individual words in
+            ``words`` can be skipped, but all words in the TextGrid need to
+            occur exactly in ```words``.
+        values
+            Values corresponding to ``words``.
+        silence
+            Value to append to the output for silence in the TextGrid.
+        unknown
+            String to signify unknown words in ``words`` (able to pair with any
+            word in the TextGrid).
+
+        Returns
+        -------
+        aligned_values
+            Values from ``values`` aligned with the TextGrid's ``realizations``.
+        """
         n_words = len(words)
         assert len(values) == n_words
         grid_words = [r.graphs for r in self.realizations]

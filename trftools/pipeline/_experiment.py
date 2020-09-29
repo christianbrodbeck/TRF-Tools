@@ -827,7 +827,24 @@ class TRFExperiment(MneExperiment):
         save.pickle(res, dst)
         return res
 
-    def _locate_trf(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, **state):
+    def _locate_trf(
+            self,
+            x: ModelArg,
+            tstart: float = 0,
+            tstop: float = 0.5,
+            basis: float = 0.050,
+            error: str = 'l1',
+            partitions: int = None,
+            samplingrate: int = None,
+            mask: str = None,
+            delta: float = 0.005,
+            mindelta: float = None,
+            filter_x: bool = False,
+            selective_stopping: int = 0,
+            cv: bool = False,
+            data: DataArg = DATA_DEFAULT,
+            backward: bool = False,
+            **state):
         "Return path of the corresponding trf-file"
         self._set_trf_options(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, state=state)
 
@@ -838,7 +855,24 @@ class TRFExperiment(MneExperiment):
             os.remove(path)
         return path
 
-    def _trf_job(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, **state):
+    def _trf_job(
+            self,
+            x: ModelArg,
+            tstart: float = 0,
+            tstop: float = 0.5,
+            basis: float = 0.050,
+            error: str = 'l1',
+            partitions: int = None,
+            samplingrate: int = None,
+            mask: str = None,
+            delta: float = 0.005,
+            mindelta: float = None,
+            filter_x: bool = False,
+            selective_stopping: int = 0,
+            cv: bool = False,
+            data: DataArg = DATA_DEFAULT,
+            backward: bool = False,
+            **state):
         "Return ``func`` to create TRF result"
         data = TestDims.coerce(data)
         epoch = self.get('epoch', **state)
@@ -1037,6 +1071,8 @@ class TRFExperiment(MneExperiment):
             Filter ``x`` with the last filter of the pipeline for ``y``.
         selective_stopping
             Stop boosting each predictor separately.
+        cv
+            Use cross-validation.
         data : 'sensor' | 'source'
             Data which to use.
         backward

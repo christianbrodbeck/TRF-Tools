@@ -116,7 +116,7 @@ class Model:
         counts = Counter([term.string for term in self.terms])
         duplicates = [term for term, count in counts.items() if count > 1]
         if duplicates:
-            raise DefinitionError(f"Duplicate terms: {', '.join(duplicates)}")
+            raise DefinitionError(f"{self.name}: duplicate terms {', '.join(duplicates)}")
 
     @LazyProperty
     def name(self):
