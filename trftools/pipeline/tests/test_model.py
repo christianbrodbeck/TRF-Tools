@@ -29,6 +29,12 @@ def test_model():
     # duplicate term
     with pytest.raises(DefinitionError):
         Model.coerce("term-1 + term-2 + term-2")
+    # i+s
+    a = ModelExpression.from_string("xyz-i+s").initialize(structured_models)
+    b = ModelExpression.from_string("x-i+s + y-i+s + z-i+s").initialize(structured_models)
+    assert a.sorted_key == b.sorted_key
+    c = ModelExpression.from_string("x + x-step + y + y-step + z + z-step").initialize(structured_models)
+    assert a.sorted_key == c.sorted_key
 
 
 test_data = [
