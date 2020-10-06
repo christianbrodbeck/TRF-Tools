@@ -3,7 +3,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field, replace
 import fnmatch
 from glob import glob
-from itertools import chain, zip_longest, repeat
+from itertools import chain, product, repeat, zip_longest
 import json
 from math import ceil
 import os
@@ -11,7 +11,8 @@ from pathlib import Path
 import string
 from typing import Any, List, Sequence, Union, Tuple
 
-from eelbrain import fmtxt, Dataset
+from eelbrain import fmtxt, Dataset, Factor, Var
+from eelbrain._data_obj import FactorArg, asfactor
 from eelbrain._types import PathArg
 import numpy as np
 import textgrid
@@ -173,6 +174,43 @@ class TextGrid:
         realizations = [r.strip_stress() for r in self.realizations]
         return TextGrid(realizations, self.tmin, self.tstep, self.n_samples, self._name)
 
+    def align_word_dataset(
+            self,
+            ds: Dataset,
+            words: FactorArg = 'word',
+    ) -> Dataset:
+        """Align ``ds`` to the TextGrid
+
+        Parameters
+        ----------
+        ds
+            Dataset with data to align.
+        words
+            Words in ``ds`` to use to align to the TextGrid words.
+
+        Returns
+        -------
+        aligned_ds
+            Dataset with the variables in ``ds`` aligned to the TextGrid,
+            including time stamps and TextGrid words.
+        """
+        words_ = asfactor(words, ds=ds)
+        index = self._align_index(words_, silence=-1, missing=-2)
+        out = Dataset({
+            'time': Var([r.times[0] for r in self.realizations]),
+            'grid_word': Factor([r.graphs for r in self.realizations]),
+        }, info={'tstop': self.realizations[-1].tstop})
+        for key, variable in ds.items():
+            if isinstance(variable, (Var, Factor)):
+                values = dict(enumerate(variable))
+                if isinstance(variable, Var):
+                    values[-1] = values[-2] = 0
+                    out[key] = Var([values[i] for i in index])
+                else:
+                    values[-1] = values[-2] = ''
+                    out[key] = Factor([values[i] for i in index], random=variable.random)
+        return out
+
     def align(
             self,
             words: Sequence[str],
@@ -230,6 +268,66 @@ class TextGrid:
                 last_match_i = i
                 last_match_i_grid = i_grid
                 i_next = i + 1
+        return out
+
+    def _align_index(
+            self,
+            words: Sequence[str],
+            silence: Any = None,
+            missing: Any = None,
+            search_distance: int = 6,
+    ) -> Sequence:
+        """Index into ``words``"""
+        # search_order
+        j_pairs = list(product(range(search_distance), repeat=2))
+        j_pairs.pop(0)
+        j_pairs.sort(key=lambda x: x[0]**2 + x[1]**2)
+        # input sequences
+        words_ = [word.upper() for word in words]
+        n_words = len(words_)
+        grid_words = [r.graphs.upper() for r in self.realizations]
+        n_grid = len(grid_words)
+        # counters
+        i_grid = i_word = 0  # i_next: start of unused words in ``words``
+        out = []
+        while i_grid < n_grid:
+            # silence
+            if grid_words[i_grid] == ' ':
+                out.append(silence)
+                i_grid += 1
+                continue
+            # direct match
+            if grid_words[i_grid] == words_[i_word]:
+                out.append(i_word)
+                i_grid += 1
+                i_word += 1
+                continue
+            # grid search for closest match
+            for j_grid, j_word in j_pairs:
+                if grid_words[i_grid + j_grid] == words_[i_word + j_word]:
+                    break
+            else:
+                # informative error message
+                start = min([i_grid, i_word, 2])
+                stop = min([10, n_grid - i_grid, n_words - i_word])
+                ds = Dataset()
+                ds['grid_words'] = grid_words[i_grid - start: i_grid + stop]
+                ds['words'] = words[i_word - start: i_word + stop]
+                raise ValueError(f"No match within search_distance {search_distance}:\n{ds}")
+            # need to fill in one value for each skipped grid
+            ii_word = 0
+            for ii_grid in range(j_grid):
+                if grid_words[i_grid + ii_grid] == ' ':
+                    out.append(silence)
+                elif ii_word < j_word:
+                    out.append(i_word + ii_word)
+                    ii_word += 1
+                else:
+                    out.append(missing)
+            # append the next match
+            out.append(i_word + j_word)
+            i_grid += j_grid + 1
+            i_word += j_word + 1
         return out
 
     def get_indexes(self, feature='phone', stop=True):
