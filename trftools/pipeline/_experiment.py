@@ -1513,7 +1513,7 @@ class TRFExperiment(MneExperiment):
                 else:
                     ds = trf_ds
 
-                for x in tqdm(y_keys, f"X-Hemi TRF-Tests for {comparison.name}"):
+                for x in tqdm(y_keys, f"X-Hemi TRF-Tests for {comparison.name}", leave=False):
                     y = trf_ds[x].abs()
                     if xhemi_smooth:
                         y = y.smooth('source', xhemi_smooth, 'gaussian')
@@ -1555,7 +1555,7 @@ class TRFExperiment(MneExperiment):
                 else:
                     ds = self.load_trfs(-1, comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations, vector_as_norm=True)
                     if res_modified:
-                        for x in tqdm(y_keys, f"TRF-Tests for {comparison.name}"):
+                        for x in tqdm(y_keys, f"TRF-Tests for {comparison.name}", leave=False):
                             test_kwargs['parc'] = trf_test_parc_arg(ds[x])
                             res[x] = self._make_test(x, ds, test_obj, test_kwargs)
 
