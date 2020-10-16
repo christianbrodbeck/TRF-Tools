@@ -9,7 +9,7 @@ from math import ceil
 import os
 from pathlib import Path
 import string
-from typing import Any, List, Sequence, Union, Tuple
+from typing import Any, Iterator, List, Sequence, Union, Tuple
 
 from eelbrain import fmtxt, Dataset, Factor, Var
 from eelbrain._data_obj import FactorArg, asfactor
@@ -100,6 +100,16 @@ class TextGrid:
         if self._n_samples_arg:
             args.append("n_samples=%r" % self._n_samples_arg)
         return "<TextGrid %s>" % ', '.join(args)
+
+    @property
+    def times(self) -> Iterator[float]:
+        "All time-stamps in the TextGrid"
+        return chain.from_iterable(r.times for r in self.realizations)
+
+    @property
+    def phones(self) -> Iterator[str]:
+        "All phones in the TextGrid"
+        return chain.from_iterable(r.phones for r in self.realizations)
 
     def table(self, t_start: float = None, t_stop: float = None):
         "fmtxt.Table representation"
