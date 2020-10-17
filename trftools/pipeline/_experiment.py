@@ -872,6 +872,7 @@ class TRFExperiment(MneExperiment):
             cv: bool = False,
             data: DataArg = DATA_DEFAULT,
             backward: bool = False,
+            partition_results: bool = False,
             **state):
         "Return ``func`` to create TRF result"
         data = TestDims.coerce(data)
@@ -1008,7 +1009,7 @@ class TRFExperiment(MneExperiment):
                 assert np.all(y0.sensor.names == chs)
             from ncrf import fit_ncrf
             return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, normalize=True, in_place=True, **ncrf_args)
-        return partial(boosting, y, xs, tstart, tstop, 'inplace', delta, mindelta, error, basis, partitions=partitions, test=cv, selective_stopping=selective_stopping)
+        return partial(boosting, y, xs, tstart, tstop, 'inplace', delta, mindelta, error, basis, partitions=partitions, test=cv, selective_stopping=selective_stopping, partition_results=partition_results)
 
     def load_trfs(
             self,
@@ -1257,7 +1258,7 @@ class TRFExperiment(MneExperiment):
             for key in ds.info['xs']:
                 ds[key] = ds[key].smooth('time', smooth_time)
 
-    def _locate_missing_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, permutations=1, existing=False, **state):
+    def _locate_missing_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, partition_results=False, permutations=1, existing=False, **state):
         "Return ``(path, state, args)`` for ._trf_job() for each missing trf-file"
         data = TestDims.coerce(data)
         x = self._coerce_model(x)
@@ -1267,7 +1268,7 @@ class TRFExperiment(MneExperiment):
             self.set(**state)
 
         out = []
-        args = (x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward)
+        args = (x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, partition_results)
 
         # multiple permutations
         if permutations > 1 and x.has_randomization:
@@ -1286,7 +1287,7 @@ class TRFExperiment(MneExperiment):
 
         # one model, one epoch
         for _ in self:
-            path = self._locate_trf(*args)
+            path = self._locate_trf(*args[:-1])
             if not existing:
                 if os.path.exists(path):
                     continue  # TRF exists for requested mask
@@ -1995,7 +1996,7 @@ class TRFExperiment(MneExperiment):
                 return ds, res
         return res
 
-    def _locate_model_test_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, permutations=1, existing=False, **state):
+    def _locate_model_test_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, partition_results=False, data=DATA_DEFAULT, permutations=1, existing=False, **state):
         """Find required jobs for a report
 
         Returns
@@ -2014,7 +2015,7 @@ class TRFExperiment(MneExperiment):
         missing = []
         for model in models:
             missing.extend(
-                self._locate_missing_trfs(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, False, permutations, existing))
+                self._locate_missing_trfs(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, False, partition_results, permutations, existing))
         return missing
 
     def make_model_test_report(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, surf=None, views=None, make=False, path_only=False, public_name=None, test=True, by_subject=False, **state):
