@@ -26,6 +26,12 @@ from ._text import text_to_words
 PUNC = [s.encode('ascii') for s in string.punctuation + "\n\r"]
 
 
+class TextGridError(Exception):
+
+    def __init__(self, issue):
+        self.issue = issue
+
+
 @dataclass
 class Realization:
     """Pronunciation and corresponding graph sequence for a word in a TextGrid
@@ -561,13 +567,23 @@ def gentle_to_grid(gentle_file, out_file=None):
     grid.write(out_file)
 
 
-def _load_tier(grid, tier: str = 'phones'):
+def _load_tier(
+        grid: textgrid.TextGrid,
+        tier: str = 'phones',
+        clean: bool = True,
+):
     """Load one or more tiers as textgrid Tier object"""
     names = [name for name in grid.getNames() if fnmatch.fnmatch(name.lower(), tier.lower())]
     if len(names) != 1:
         available = ', '.join(grid.getNames())
         raise IOError(f"{len(names)} tiers match {tier!r} in {grid.name or grid}. Availabe tiers: {available}")
-    return grid.getFirst(names[0])
+    tier = grid.getFirst(names[0])
+    if clean:
+        for item in tier:
+            item.mark = item.mark.strip()
+            if item.mark in SILENCE:
+                item.mark = ' '
+    return tier
 
 
 def dict_lookup(pronunciations, word):
@@ -722,14 +738,17 @@ def fix_word_tier(
     grid.write(out)
 
 
-def textgrid_as_realizations(grid, word_tier='words', phone_tier='phones'):
+def textgrid_as_realizations(grid, word_tier='words', phone_tier='phones', strict=True):
     """Load a TextGrid as a list of Realizations"""
     if isinstance(grid, (str, Path)):
-        if isinstance(grid, str) and not grid.lower().endswith('.textgrid'):
-            grid += '.TextGrid'
-        grid = textgrid.TextGrid.fromFile(grid, grid)
+        path = grid
+        if isinstance(path, str) and not path.lower().endswith('.textgrid'):
+            path += '.TextGrid'
+        grid = textgrid.TextGrid(path, strict=strict)
+        grid.read(path)
     words = _load_tier(grid, word_tier)
     phones = _load_tier(grid, phone_tier)
+    errors = []
     out = []
     phones = list(phones)
     for word in words._fillInTheGaps(' '):
@@ -742,13 +761,16 @@ def textgrid_as_realizations(grid, word_tier='words', phone_tier='phones'):
 
         if word.mark in SILENCE:
             if not all(p in SILENCE for p in word_phones):
-                raise IOError(f"Silence word tag {word.mark:r} but non-silent phones {word_phones:r}")
+                errors.append(f"{word.minTime:.3f}: Silence word tag {word.mark!r} but non-silent phones {word_phones!r}")
             out.append(Realization((' ',), (word.minTime,), ' ', word.maxTime))
         else:
             if not word_phones:
                 word_phones = ('',)
                 word_times = (word.minTime,)
             out.append(Realization(word_phones, word_times, word.mark, word.maxTime))
+    if errors:
+        raise TextGridError('\n'.join(errors))
+
     return out
 
 
