@@ -751,23 +751,34 @@ def textgrid_as_realizations(grid, word_tier='words', phone_tier='phones', stric
     errors = []
     out = []
     phones = list(phones)
+    max_time = phones[0].minTime
     for word in words._fillInTheGaps(' '):
-        word_phones = ()
-        word_times = ()
-        while phones and phones[0].minTime < word.maxTime:
-            phone = phones.pop(0)
-            word_phones += (phone.mark,)
-            word_times += (phone.minTime,)
+        word_phones = []
+        while phones and phones[0].maxTime <= word.maxTime:
+            word_phones.append(phones.pop(0))
+        # update max_time
+        if word_phones:
+            max_time = word_phones[-1].maxTime
+        # resolve misaligned phones
+        if max_time < word.maxTime and phones:
+            start_dist = abs(phones[0].minTime - word.maxTime)
+            stop_dist = abs(phones[0].maxTime - word.maxTime)
+            if stop_dist < start_dist:
+                word_phones.append(phones.pop(0))
+                max_time = word_phones[-1].maxTime
 
+        if not word_phones:
+            continue
+        word_pronunciation = tuple([phone.mark for phone in word_phones])
+        word_times = tuple([phone.minTime for phone in word_phones])
         if word.mark in SILENCE:
-            if not all(p in SILENCE for p in word_phones):
-                errors.append(f"{word.minTime:.3f}: Silence word tag {word.mark!r} but non-silent phones {word_phones!r}")
-            out.append(Realization((' ',), (word.minTime,), ' ', word.maxTime))
+            if not all(p in SILENCE for p in word_pronunciation):
+                errors.append(f"{word.minTime:.3f}: Silence word tag {word.mark!r} but non-silent phones {word_pronunciation!r}")
+            out.append(Realization((' ',), word_times[:1], ' ', max_time))
         else:
-            if not word_phones:
-                word_phones = ('',)
-                word_times = (word.minTime,)
-            out.append(Realization(word_phones, word_times, word.mark, word.maxTime))
+            if any(p in SILENCE for p in word_pronunciation):
+                errors.append(f"{word.minTime:.3f}: Non-silence word tag {word.mark!r} includes silence phones {word_pronunciation!r}")
+            out.append(Realization(word_pronunciation, word_times, word.mark, max_time))
     if errors:
         raise TextGridError('\n'.join(errors))
 
