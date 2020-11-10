@@ -21,7 +21,7 @@ ARPABET = VOWELS + CONSONANTS + (' ',)
 # https://en.wikipedia.org/wiki/ARPABET
 # 'AH': can also be 'ʌ'
 IPA = {
-    'AO': 'ɔ', 'AA': 'ɑ', 'IY': 'i', 'UW': '', 'EH': 'ɛ', 'IH': 'ɪ',
+    'AO': 'ɔ', 'AA': 'ɑ', 'IY': 'i', 'UW': 'u', 'EH': 'ɛ', 'IH': 'ɪ',
     'UH': 'ʊ', 'AH': 'ə', 'AX': 'ə', 'AE': 'æ',
     'EY': 'eɪ', 'AY': 'aɪ', 'OW': 'oʊ', 'AW': 'aʊ', 'OY': 'ɔɪ', 'ER': 'ɝ',
     'P': 'p', 'B': 'b', 'T': 't', 'D': 'd', 'K': 'k', 'G': 'g',
