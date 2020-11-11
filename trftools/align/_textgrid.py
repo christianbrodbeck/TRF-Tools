@@ -220,7 +220,7 @@ class TextGrid:
             if isinstance(variable, (Var, Factor)):
                 values = dict(enumerate(variable))
                 if isinstance(variable, Var):
-                    values[-1] = values[-2] = 0
+                    values[-1] = values[-2] = False  # coerced to 0 unless all values are boolean
                     out[key] = Var([values[i] for i in index])
                 else:
                     values[-1] = values[-2] = ''
