@@ -2169,11 +2169,15 @@ class TRFExperiment(MneExperiment):
         reg_re_term = re.compile(rf"^{reg_re}$")
 
         # find all named models that contain term
-        models = []  # single-term model
+        terms = set()
+        models = set()
         for name, model in self._named_models.items():
-            if any(reg_re_term.match(term.code) for term in model.terms_without_randomization):
-                models.append(name)
-                files.update(self._find_model_files(name, trfs=True, tests=True))
+            for term in model.terms_without_randomization:
+                if reg_re_term.match(term.code):
+                    terms.add(term.code)
+                    models.add(name)
+        for name in models:
+            files.update(self._find_model_files(name, trfs=True, tests=True))
 
         # cached regressor files
         cache_dir = self.get('predictor-cache-dir', mkdir=True)
@@ -2184,12 +2188,13 @@ class TRFExperiment(MneExperiment):
             return
 
         while True:
-            command = ask(f"Invalidate {regressor} regressor, deleting {len(files)} files?", {'yes': 'delete files', 'show': 'list files to be deleted'}, allow_empty=True)
+            command = ask(f"Invalidate {regressor} regressor, deleting {len(files)} files?", {'yes': 'delete files', 'show': 'list terms, models and files to be deleted'}, allow_empty=True)
             if command == 'yes':
                 for path in files:
                     os.remove(path)
             elif command == 'show':
-                print(f"Models: {', '.join(models)}")
+                print(f"Terms: {', '.join(sorted(terms))}")
+                print(f"Models: {', '.join(sorted(models))}")
                 paths = sorted(files)
                 prefix = os.path.commonprefix(paths)
                 print(f"Files in {prefix}:")
