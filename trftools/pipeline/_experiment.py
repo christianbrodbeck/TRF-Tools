@@ -740,7 +740,7 @@ class TRFExperiment(MneExperiment):
         cv
             Cross-validation.
         data : 'sensor' | 'source'
-            Data which to use.
+            Analyze source- or sensor space data.
         backward
             Backward model (default is forward model).
         make
@@ -1075,7 +1075,7 @@ class TRFExperiment(MneExperiment):
         cv
             Use cross-validation.
         data : 'sensor' | 'source'
-            Data which to use.
+            Analyze source- or sensor space data.
         backward
             Backward model (default is forward model).
         make
@@ -1380,7 +1380,7 @@ class TRFExperiment(MneExperiment):
         selective_stopping
             Stop boosting each predictor separately.
         data : 'sensor' | 'source'
-            Data which to use.
+            Analyze source- or sensor space data.
         make
             If the test does not exists, make it (the default is to raise an
             IOError).
@@ -1833,7 +1833,35 @@ class TRFExperiment(MneExperiment):
         ----------
         x
             Comparison.
-        ...
+        tstart
+            Start of the TRF in s (default 0).
+        tstop
+            Stop of the TRF in s (default 0.5).
+        basis
+            Response function basis window width in [s] (default 0.050).
+        error : 'l1' | 'l2'
+            Error function.
+        partitions
+            Number of partitions used for cross-validation in boosting (default
+            is the number of epochs; -1 to concatenate data).
+        samplingrate
+            Samplingrate in Hz for the analysis (default is specified in epoch
+            definition).
+        mask
+            Parcellation to mask source space data (only applies when
+            ``y='source'``).
+        delta
+            Boosting delta.
+        mindelta
+            Boosting parameter.
+        filter_x
+            Filter ``x`` with the last filter of the pipeline for ``y``.
+        selective_stopping
+            Stop boosting each predictor separately.
+        cv
+            Use cross-validation.
+        data : 'sensor' | 'source'
+            Analyze source- or sensor space data.
             TRF parameters (see :meth:`.load_trf`)
         permutations
             When testing against a partially permuted model, average the result

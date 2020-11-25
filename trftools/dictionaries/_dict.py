@@ -1,5 +1,9 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
+from __future__ import annotations
+
 from collections import defaultdict
+from pathlib import Path
+from typing import Dict, Union
 
 from ._arpabet import STRIP_STRESS_MAP
 
@@ -100,7 +104,7 @@ def split_apostrophe(dic):
     return out
 
 
-def write_dict(dictionary, file_name):
+def write_dict(dictionary: Dict[str, str], file_name: PathArg):
     """Write a pronunciation dictionary to a text file
 
     Parameters
@@ -114,3 +118,6 @@ def write_dict(dictionary, file_name):
         for key in sorted(dictionary):
             for pronunciation in sorted(dictionary[key]):
                 fid.write(f'{key}  {pronunciation}\n')
+
+
+PathArg = Union[Path, str]
