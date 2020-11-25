@@ -896,7 +896,7 @@ class TRFExperiment(MneExperiment):
         # NCRF: Cross-validations
         ncrf_args = {'mu': 'auto'}
         if m:
-            ncrf_tag = m.group(2)
+            ncrf_tag = m.group(2) or ''  # group 2 is None when not present
         else:
             ncrf_tag = ''
 
