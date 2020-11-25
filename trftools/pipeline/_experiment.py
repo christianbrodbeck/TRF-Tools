@@ -1825,6 +1825,9 @@ class TRFExperiment(MneExperiment):
             xhemi: bool = False,
             xhemi_mask: bool = True,
             make: bool = False,
+            parameter: str = None,
+            compare_to: Any = None,
+            tail: int = None,
             **state,
     ):
         """Test comparing model fit between two models
@@ -1893,6 +1896,19 @@ class TRFExperiment(MneExperiment):
         make
             If the test does not exists, make it (the default is to raise an
             IOError).
+        parameter
+            Instead of comparing two models, use ``parameter`` and
+            ``compare_to`` to compare the fit of the same model when using
+            different parameters. Set ``parameter`` to the name of the parameter
+            which differs between models and ``compare_to`` to the baseline
+            value. Example:
+            ``tstop=1.000, parameter='tstop', compare_to=0.500, tail=1``
+            Will test whether a TRF length of 1000 ms is better than 500 ms.
+        compare_to
+            The value of ``parameter`` in the test condition (the control
+            condition will use the standard argument value).
+        tail
+            Tailedness for ``parameter`` test (default 0, i.e. two-tailed).
         ...
             State parameters.
 
@@ -1905,7 +1921,17 @@ class TRFExperiment(MneExperiment):
             Test result.
         """
         data = TestDims.coerce(data, time=False)
-        comparison = self._coerce_comparison(x, cv)
+        if parameter is not None:
+            x1 = self._coerce_model(x)
+            comparison = Comparison(x1, Model(()), tail=tail or 0)
+            if test is not None:
+                raise TypeError(f"test={test!r} for parameter={parameter!r}")
+            test_desc = f'{parameter}={compare_to}'
+        elif tail is not None:
+            raise TypeError(f"tail={tail!r}: argument only applies to parameter-tests")
+        else:
+            comparison = self._coerce_comparison(x, cv)
+            test_desc = True if test is None else test
 
         # Load multiple tests for a comparison group
         if isinstance(comparison, StructuredModel):
@@ -1930,7 +1956,6 @@ class TRFExperiment(MneExperiment):
         else:
             test_options = None
 
-        test_desc = True if test is None else test
         self._set_trf_options(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, pmin=pmin, test=test_desc, smooth_source=smooth, metric=metric, is_group_result=True, test_options=test_options, permutations=permutations, state=state)
         dst = self.get('model-test-file', mkdir=True)
         dst = self._cache_path(dst)
@@ -1955,8 +1980,15 @@ class TRFExperiment(MneExperiment):
             x1_permutations = permutations if comparison.x1.has_randomization else 1
             ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, vardef=vardef, permutations=x1_permutations)
 
-            if comparison.x0.terms:
-                ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, vardef=vardef, permutations=permutations)
+            if comparison.x0.terms or parameter is not None:
+                if parameter is not None:
+                    kwargs = dict(zip(('tstart', 'tstop', 'basis', 'error', 'partitions', 'samplingrate', 'mask', 'delta', 'mindelta', 'filter_x', 'selective_stopping'), (tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping)))
+                    if parameter not in kwargs:
+                        raise ValueError(f'parameter={parameter!r}: must be one of {set(kwargs)}')
+                    kwargs[parameter] = compare_to
+                    ds0 = self.load_trfs(group, comparison.x1, **kwargs, make=make, vardef=vardef, permutations=permutations)
+                else:
+                    ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, vardef=vardef, permutations=permutations)
                 # restructure data
                 assert np.all(ds1['subject'] == ds0['subject'])
                 if test is None:
