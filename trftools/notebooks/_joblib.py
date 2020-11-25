@@ -66,6 +66,9 @@ class MemoryBackend(StoreBackendBase):
     def create_location(self, location):
         self.get_dir(Path(location))
 
+    def clear(self):
+        self.__store.clear()
+
     def clear_location(self, location):
         path = Path(location)
         parent = self.get_dir(path.parent)

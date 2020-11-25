@@ -1586,6 +1586,7 @@ class TRFExperiment(MneExperiment):
                 state['test'] = ''
             elif isinstance(test, str):
                 state['test'] = test
+                state['match'] = False
             else:
                 raise TypeError(f"test={test!r}")
 
@@ -1982,11 +1983,11 @@ class TRFExperiment(MneExperiment):
 
             if comparison.x0.terms or parameter is not None:
                 if parameter is not None:
-                    kwargs = dict(zip(('tstart', 'tstop', 'basis', 'error', 'partitions', 'samplingrate', 'mask', 'delta', 'mindelta', 'filter_x', 'selective_stopping'), (tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping)))
+                    kwargs = dict(zip(('tstart', 'tstop', 'basis', 'error', 'partitions', 'samplingrate', 'mask', 'delta', 'mindelta', 'filter_x', 'selective_stopping', 'cv'), (tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv)))
                     if parameter not in kwargs:
                         raise ValueError(f'parameter={parameter!r}: must be one of {set(kwargs)}')
                     kwargs[parameter] = compare_to
-                    ds0 = self.load_trfs(group, comparison.x1, **kwargs, make=make, vardef=vardef, permutations=permutations)
+                    ds0 = self.load_trfs(group, comparison.x1, **kwargs, data=data, make=make, vardef=vardef, permutations=permutations)
                 else:
                     ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, vardef=vardef, permutations=permutations)
                 # restructure data
