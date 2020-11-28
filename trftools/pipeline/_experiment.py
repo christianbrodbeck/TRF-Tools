@@ -98,6 +98,7 @@ from eelbrain.pipeline import TTestOneSample, TTestRelated, TwoStageTest, RawFil
 from eelbrain._experiment.definitions import FieldCode
 from eelbrain._experiment.epochs import EpochCollection
 from eelbrain._experiment.mne_experiment import DataArg, PMinArg, DefinitionError, FileMissing, TestDims, Variables, guess_y, cache_valid
+from eelbrain._experiment.parc import SubParc
 from eelbrain._data_obj import legal_dataset_key_re, isuv
 from eelbrain._io.pickle import update_subjects_dir
 from eelbrain._text import ms, n_of
@@ -338,6 +339,13 @@ class TRFExperiment(MneExperiment):
         self._model_names_file_lock = FileLock(self._model_names_file + '.lock')
         with self._model_names_file_lock:
             self._load_model_names()
+        # Parcellations: find parcellations with subset relationship
+        self._parc_supersets = defaultdict(set, {k: set(v) for k, v in self._parc_supersets.items()})
+        sub_parcs = {k: v for k, v in self._parcs.items() if isinstance(v, SubParc)}
+        for key, parc in sub_parcs.items():
+            for src_key, src_parc in sub_parcs.items():
+                if parc.base == src_parc.base and all(l in src_parc.labels for l in parc.labels):
+                    self._parc_supersets[key].add(src_key)
 
     def _load_model_names(self):
         if exists(self._model_names_file):
