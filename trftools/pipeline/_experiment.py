@@ -750,7 +750,10 @@ class TRFExperiment(MneExperiment):
         data : 'sensor' | 'source'
             Analyze source- or sensor space data.
         backward
-            Backward model (default is forward model).
+            Fit a backward model (reconstruct the stimulus from the brain response).
+            Note that in this case latencies are relative to the brain response time:
+            to reconstruct ``x`` using the 500 ms response following it,
+            set ``backward=True, tstart=-0.500, tstop=0``.
         make
             If the TRF does not exists, make it (the default is to raise an
             IOError).
@@ -1085,7 +1088,10 @@ class TRFExperiment(MneExperiment):
         data : 'sensor' | 'source'
             Analyze source- or sensor space data.
         backward
-            Backward model (default is forward model).
+            Fit a backward model (reconstruct the stimulus from the brain response).
+            Note that in this case latencies are relative to the brain response time:
+            to reconstruct ``x`` using the 500 ms response following it,
+            set ``backward=True, tstart=-0.500, tstop=0``.
         make
             If a TRF does not exists, make it (the default is to raise an
             IOError).
