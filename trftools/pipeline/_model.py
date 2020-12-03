@@ -768,6 +768,8 @@ def save_models(models, path):
     out = [(k, v.name) for k, v in models.items()]
     if path.exists():
         backup_path = path.with_suffix('.backup')
+        if backup_path.exists():
+            backup_path.unlink()
         path.rename(backup_path)
     with open(path, 'wb') as fid:
         pickle.dump(out, fid, pickle.HIGHEST_PROTOCOL)
