@@ -82,6 +82,7 @@ class TextGrid:
         self.n_samples = n_samples
         self._name = name
         self._stop = int(round((realizations[-1].tstop - tmin) / tstep))
+        self.tstop = self.realizations[-1].tstop
 
     @classmethod
     def from_file(
