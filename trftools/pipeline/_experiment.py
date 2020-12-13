@@ -2228,6 +2228,70 @@ class TRFExperiment(MneExperiment):
         report.save_html(dst)
         return dst
 
+    def _merge_parcs(
+            self,
+            src_1: str,  # parcellation to merge
+            src_2: str,  # parcellation to merge
+            dst: str,  # name of the parcellation forming the union of src_1 and src_2
+    ):
+        """Merge results from two complementary parcellations
+
+        Notes
+        -----
+        After merging, the source TRFs will be renamed to ``*.backup.pickle``.
+        In order to delete the backup files, use::
+
+            e.rm('trf-file', True, test_options='*.backup')
+        """
+        # make sure parcellations are compatible
+        parc_1 = self._parcs[src_1]
+        parc_2 = self._parcs[src_2]
+        parc_dst = self._parcs[dst]
+        assert isinstance(parc_1, SubParc)
+        assert isinstance(parc_2, SubParc)
+        assert isinstance(parc_dst, SubParc)
+        assert parc_1.base == parc_2.base == parc_dst.base
+        labels_1 = set(parc_1.labels)
+        labels_2 = set(parc_2.labels)
+        labels_dst = set(parc_dst.labels)
+        assert not labels_1.intersection(labels_2)
+        assert labels_1.union(labels_2) == labels_dst
+        # find files
+        # '{trf-dir}/{analysis}/{epoch_visit} {test_options}.pickle'
+        # mask is in test_options
+        combine = {}
+        trf_dir = Path(self.get('trf-sdir'))
+        for path_1 in trf_dir.glob(f'*/*/* {src_1} *.pickle'):
+            if path_1.stem.endswith('.backup'):
+                continue
+            path_2 = path_1.parent / path_1.name.replace(f' {src_1} ', f' {src_2} ')
+            assert path_2 != path_1
+            path_dst = path_1.parent / path_1.name.replace(f' {src_1} ', f' {dst} ')
+            if path_2.exists():
+                assert not path_dst.exists()
+                combine[path_dst] = (path_1, path_2)
+        # display
+        if not combine:
+            print("No files found for merging")
+            return
+        while True:
+            command = ask(f"Merge {len(combine)} file pairs?", {'yes': 'merge files', 'show': 'list the files that would be merged'}, allow_empty=True)
+            if command == 'yes':
+                break
+            elif command == 'show':
+                for path_dst, (path_1, path_2) in combine.items():
+                    print(path_dst.relative_to(trf_dir))
+                    print(f'├ {path_1.relative_to(trf_dir)}')
+                    print(f'⎿ {path_2.relative_to(trf_dir)}')
+                continue
+            return
+        # merge
+        for path_dst, paths_src in combine.items():
+            res = concatenate([load.unpickle(path) for path in paths_src], 'source')
+            save.pickle(res, path_dst)
+            for path in paths_src:
+                path.rename(path.with_suffix(f'.backup{path.suffix}'))
+
     def invalidate(self, regressor):
         """Remove cache and result files when input data becomes invalid
 
