@@ -339,12 +339,16 @@ class TRFExperiment(MneExperiment):
         self._model_names_file_lock = FileLock(self._model_names_file + '.lock')
         with self._model_names_file_lock:
             self._load_model_names()
+
         # Parcellations: find parcellations with subset relationship
         self._parc_supersets = defaultdict(set, {k: set(v) for k, v in self._parc_supersets.items()})
+        # automatic
         sub_parcs = {k: v for k, v in self._parcs.items() if isinstance(v, SubParc)}
         for key, parc in sub_parcs.items():
             for src_key, src_parc in sub_parcs.items():
-                if parc.base == src_parc.base and all(l in src_parc.labels for l in parc.labels):
+                if src_key == key:
+                    continue
+                elif parc.base == src_parc.base and all(l in src_parc.labels for l in parc.labels):
                     self._parc_supersets[key].add(src_key)
 
     def _load_model_names(self):
