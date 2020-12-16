@@ -3,11 +3,13 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Generator, Union
 
 from ._arpabet import STRIP_STRESS_MAP
+from ._utils import download
 
 
+PathArg = Union[Path, str]
 # Index before which to split phonemes
 APOSTROPHE_I = {
     'D': -1,  # YOU'D -> Y UW / D
@@ -19,48 +21,65 @@ APOSTROPHE_I = {
     'RE': -1,
     'VE': -1,
 }
+DICTS = {
+    'english': 'https://github.com/MontrealCorpusTools/mfa-models/blob/master/dictionary/english.dict?raw=true',  # https://montreal-forced-aligner.readthedocs.io/en/latest/pretrained_models.html#available-pronunciation-dictionaries
+}
 
 
-def iter_dict(file_name=None):
+def iter_dict(path: Path) -> Generator[str, str]:
     """Iterate through forced aligner dictionary
 
     Parameters
     ----------
-    file_name : str
-        Dictionary file name (optional, the default is the internal dictionary).
+    path
+        Dictionary file name.
 
     Yields
     ------
-    word : str
+    word
         The word.
-    phonemes : str
+    phonemes
         Phonemes, space-delimited
     """
-    for line in open(file_name):
+    for line in open(path):
         line = line.strip()
         if line:
             yield line.split(None, 1)
 
 
-def read_dict(file_name=None, strip_stress=False, upper=False):
+def read_dict(
+        dictionary: PathArg = 'english',
+        strip_stress: bool = False,
+        upper: bool = False,
+) -> defaultdict:
     """Read a forced aligner dictionary file
 
     Parameters
     ----------
-    file_name : str
-        Dictionary file name (optional, the default is the internal dictionary).
-    strip_stress : bool
+    dictionary
+        Dictionary file name, or name of a built-in dictionary:
+
+        - ``english``: Montreal Forced Aligner `English dictionary <https://montreal-forced-aligner.readthedocs.io/en/latest/pretrained_models.html#available-pronunciation-dictionaries>`_
+
+    strip_stress
         Strip stress information from vowels (e.g., 'AH0' -> 'AH').
-    upper : bool
+    upper
         Force keys to uppercase.
 
     Returns
     -------
-    dictionary : dict {str: list of str}
-        Dictionary mapping words (all caps) to lists of pronunciations.
+    dictionary
+        Dictionary mapping words to sets of pronunciations
+        ``{str: {str, ...}}``.
     """
+    if dictionary in DICTS:
+        path = Path(__file__).parent / 'data' / f'{dictionary}.dict'
+        if not path.exists():
+            download(DICTS[dictionary], path)
+    else:
+        path = Path(dictionary)
     out = defaultdict(set)
-    for word, phonemes in iter_dict(file_name):
+    for word, phonemes in iter_dict(path):
         if upper:
             word = word.upper()
         if strip_stress:
@@ -118,6 +137,3 @@ def write_dict(dictionary: Dict[str, str], file_name: PathArg):
         for key in sorted(dictionary):
             for pronunciation in sorted(dictionary[key]):
                 fid.write(f'{key}  {pronunciation}\n')
-
-
-PathArg = Union[Path, str]
