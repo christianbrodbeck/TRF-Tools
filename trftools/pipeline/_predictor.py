@@ -52,10 +52,18 @@ class EventPredictor:
 
 
 class FilePredictor:
-    """Predictor stored in file(s)
+    """Predictor stored in files
+
+    There are two basic ways to represent predictors in files (see the Notes
+    section below for  details):
+
+        1. Uniform time series (UTS). A :class:`NDVar` with time dimension
+           matching the data.
+        2. Nun-uniform time series (NUTS). A :class:`Dataset` with columns
+           representing time stamps, event values and optionally even masks.
 
     .. warning::
-        When changing the file in which the predictor is stored, cached results
+        When changing a file in which a predictor is stored, cached results
         using that predictor will not automatically be deleted. Use
         :meth:`TRFExperiment.invalidate` whenever replacing a predictors.
 
@@ -75,8 +83,7 @@ class FilePredictor:
     columns
         Only applies to NUTS (:class:`Dataset`) predictors.
         Use a single file with different columns. The code is interpreted as
-        ``{name}-{value-column}-{mask-column}-{NUTS-method}`` (the last two are
-        optional).
+        ``{name}-{value-column}-{mask-column}`` (the last one is optional).
 
     Notes
     -----
@@ -89,16 +96,34 @@ class FilePredictor:
     refers to the predictor's name, and the optional ``options`` can be used to
     distinguish different sub-varieties of the same predictor.
 
-    Predictors can be :class:`NDVar` (uniform time series) or :class:`Dataset`
-    (non-uniform time series). When loading a predictor, :class:`Dataset`
+    UTS
+    ^^^
+    UTS predictors are stored as :class:`NDVar` objects with time dimension
+    matching the data. The ``-{options}`` part of the filename can be used
+    freely to store different predictors that are managed by the same
+    :class:`FilePredictor` instance. Use the ``resample`` parameter to
+    determine how the predictor is resampled to match the samplingrate of the
+    data.
+
+    NUTS
+    ^^^^
+    NUTS predictors are specified as :class:`Dataset` objects.
+    When loading a predictor, :class:`Dataset`
     predictors are converted to :class:`NDVar` by placing impulses at
-    time-stamps specified in the datasets. These datasets can contain the
+    time-stamps specified in the datasets.
+
+    Without the ``columns`` option, the dataset is expected to contain the
     following columns:
 
      - ``time``: Time stamp of the event (impulse) in seconds.
      - ``value``: Value of the impulse (magnitude).
-     - ``mask``: If present, the (boolean) mask will be applied to ``value``
-       (``value`` will be set to zero wherever ``mask`` is ``False``).
+     - ``mask`` (optional): If present, the (boolean) mask will be applied to
+       ``value`` (i.e., ``value`` will be set to zero wherever ``mask`` is
+       ``False``).
+
+    With the ``columns=True`` option, the columns containing the ``value`` and
+    ``mask`` values can be specified dynamically in the variable name, as
+    ``{name}-{value-column}`` or ``{name}-{value-column}-{mask-column}``.
 
     The variables supports the following randomization protocols:
 
