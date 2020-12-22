@@ -83,7 +83,7 @@ from os.path import exists, getmtime, join, relpath, splitext
 from pathlib import Path
 from pyparsing import ParseException
 import re
-from typing import Any, Union
+from typing import Any, Sequence, Union
 
 import eelbrain
 from eelbrain import (
@@ -1733,6 +1733,8 @@ class TRFExperiment(MneExperiment):
         # mask
         if code.lookahead_1 in self._parcs:
             out['mask'] = code.next()
+        elif code.lookahead(2).startswith('model'):
+            out['mask'] = f"*{code.next()}*"
         # model
         model = code.next()
         if code.lookahead_1.startswith('('):
@@ -2540,15 +2542,23 @@ class TRFExperiment(MneExperiment):
             table.cells(*line)
         return table
 
-    def show_cached_trfs(self, model=None, keys=('analysis', 'epoch', 'time_window', 'samplingrate', 'model', 'mask')):
+    def show_cached_trfs(
+            self,
+            model: str = None,
+            keys: Sequence[str] = ('analysis', 'epoch', 'time_window', 'samplingrate', 'model', 'mask'),
+            mask: str = None,
+    ):
         """List cached TRFs and how much space they take
 
         Parameters
         ----------
-        model : str
+        model
             String to fnmatch the model.
-        keys : tuple of str
+        keys
             Keys which to use to group TRFs in the table.
+        mask
+            Only show TRFs matching this mask. Empty string (``''``) to match
+            TRFs without mask.
 
         See Also
         --------
@@ -2570,10 +2580,13 @@ class TRFExperiment(MneExperiment):
         sizes = defaultdict(lambda: 0.)  # in bytes
         for path in self.glob('trf-file', True):
             properties = self._parse_trf_path(path)
-            if not model or fnmatch.fnmatch(properties['model'], model):
-                key = tuple(properties.get(k, '') for k in keys)
-                ns[key] += 1
-                sizes[key] += os.stat(path).st_size
+            if model and not fnmatch.fnmatch(properties['model'], model):
+                continue
+            elif mask and not fnmatch.fnmatch(properties.get('mask', ''), mask):
+                continue
+            key = tuple([properties.get(k, '') for k in keys])
+            ns[key] += 1
+            sizes[key] += os.stat(path).st_size
         sorted_keys = sorted(ns)
         t = fmtxt.Table('l' * len(keys) + 'rr')
         t.cells(*keys, 'n', 'size (MB)')
