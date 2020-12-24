@@ -2411,7 +2411,7 @@ class TRFExperiment(MneExperiment):
     def show_model_test(
             self,
             x,
-            brain_view = None,
+            brain_view: Union[str, Sequence[float]] = None,
             axw: float = None,
             surf: str = 'inflated',
             cortex: Any = ((1.00,) * 3, (.4,) * 3),
@@ -2420,6 +2420,7 @@ class TRFExperiment(MneExperiment):
             vmax: float = None,
             cmap: str = None,
             alpha: float = 1.,
+            xhemi: bool = True,
             **test_args,
     ) -> fmtxt.Section:
         """Document section for one or several model tests
@@ -2438,32 +2439,37 @@ class TRFExperiment(MneExperiment):
         if axw is None:
             axw = default_axw
 
+        ress_hemi = None
         if isinstance(x, dict):
             ress = ResultCollection({k: self.load_model_test(m, **test_args) for k, m in x.items()})
-            ress_hemi = ResultCollection({k: self.load_model_test(m, xhemi=True, **test_args) for k, m in x.items()})
+            if xhemi:
+                ress_hemi = ResultCollection({k: self.load_model_test(m, xhemi=True, **test_args) for k, m in x.items()})
         else:
             ress = self.load_model_test(x, **test_args)
-            ress_hemi = self.load_model_test(x, xhemi=True, **test_args)
             if not isinstance(ress, dict):
                 ress = ResultCollection({x: ress})
-                ress_hemi = ResultCollection({x: ress_hemi})
+            if xhemi:
+                ress_hemi = self.load_model_test(x, xhemi=True, **test_args)
+                if not isinstance(ress_hemi, dict):
+                    ress_hemi = ResultCollection({x: ress_hemi})
 
         if heading:
             doc = fmtxt.Section(heading)
         else:
             doc = fmtxt.FMText()
 
-        doc.append(fmtxt.Figure(fmtxt.FloatingLayout([
-            ress.table(title='Model test'),
-            ress_hemi.table(title="Lateralization"),
-        ])))
+        tables = [ress.table(title='Model test')]
+        if ress_hemi is not None:
+            tables.append(ress_hemi.table(title="Lateralization"))
+        doc.append(fmtxt.Figure(fmtxt.FloatingLayout(tables)))
 
         if sig and all(res.p.min() > 0.05 for res in ress.values()):
             return doc
 
         # plots tests
         panels = []
-        for ress_i in (ress, ress_hemi):
+        all_ress = (ress,) if ress_hemi is None else (ress, ress_hemi)
+        for ress_i in all_ress:
             sp = plot.brain.SequencePlotter()
             if brain_view:
                 sp.set_parallel_view(*brain_view)
