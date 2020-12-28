@@ -38,7 +38,8 @@ class Realization:
 
     Notes
     -----
-    For silence, ``realization.graphs == ' '``.
+    Silence is represented as ``' '`` (single space) for ``realization.graphs``
+    and ``realization.pronunciation``.
     """
     # __slots__ = ('graphs', 'phones', 'pronunciation', 'times', 'tstop')
     phones: Tuple[str, ...]  # arpabet phones
@@ -94,6 +95,16 @@ class TextGrid:
             word_tier: str = 'words',
             phone_tier: str = 'phones',
     ):
+        """Load ``*.TextGrid`` file
+
+        Silence tags are normalized to ``' '`` (single space) for phones and
+        words. Tags interpreted as silence: ``'sp', 'sil', 'brth', '', ' '``.
+
+        Errors are raised when:
+
+        - a silence word contains non-silence phones
+        - a non-silence word contains silence phones
+        """
         grid_file = Path(grid_file)
         realizations = textgrid_as_realizations(grid_file, word_tier, phone_tier)
         return cls(realizations, tmin, tstep, n_samples, grid_file.name)

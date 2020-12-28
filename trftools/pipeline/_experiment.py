@@ -83,7 +83,7 @@ from os.path import exists, getmtime, join, relpath, splitext
 from pathlib import Path
 from pyparsing import ParseException
 import re
-from typing import Any, Sequence, Union
+from typing import Any, Dict, List, Sequence, Union
 
 import eelbrain
 from eelbrain import (
@@ -93,7 +93,6 @@ from eelbrain import (
     morph_source_space, rename_dim, boosting, combine, concatenate,
 )
 from eelbrain._exceptions import DimensionMismatchError
-from eelbrain.fmtxt import List, Report, Table
 from eelbrain.pipeline import TTestOneSample, TTestRelated, TwoStageTest, RawFilter, RawSource
 from eelbrain._experiment.definitions import FieldCode
 from eelbrain._experiment.epochs import EpochCollection
@@ -382,7 +381,7 @@ class TRFExperiment(MneExperiment):
                 return name
         raise RuntimeError("Ran out of model names...")
 
-    def _find_model_files(self, name, trfs: bool = False, tests: bool = False):
+    def _find_model_files(self, name: str, trfs: bool = False, tests: bool = False) -> List[str]:
         """Find all files associated with a model
 
         Will not find ``model (name$shift)``
@@ -2147,7 +2146,7 @@ class TRFExperiment(MneExperiment):
         # Report
         if public_name is None:
             public_name = self._x_desc(x, is_public=True)
-        report = Report(public_name)
+        report = fmtxt.Report(public_name)
         report.add_paragraph(self._report_methods_brief(dst))
 
         if is_vector_data:
@@ -2196,7 +2195,7 @@ class TRFExperiment(MneExperiment):
         # info:
         info.add_item(f"Mask: {mask}")
         # Info: model
-        model_info = List("Predictor model")
+        model_info = fmtxt.List("Predictor model")
         if isinstance(x, StructuredModel):
             model_info.add_item("Incremental model improvement for each term")
             model_info.add_item(x.public_name)
@@ -2212,7 +2211,7 @@ class TRFExperiment(MneExperiment):
             model_info.add_item(f"Tests against {permutations} permutations.")
         info.add_item(model_info)
         # Info: reverse correlation method
-        trf_info = List("TRF estimation using boosting")
+        trf_info = fmtxt.List("TRF estimation using boosting")
         trf_info.add_item(f"TRF {ms(tstart)} - {ms(tstop)} ms at {ds.info['samplingrate']:g} Hz")
         if basis:
             trf_info.add_item(f"Basis of {ms(basis)} ms Hamming windows")
@@ -2410,7 +2409,7 @@ class TRFExperiment(MneExperiment):
 
     def show_model_test(
             self,
-            x,
+            x: Union[str, Dict[str, str]],
             brain_view: Union[str, Sequence[float]] = None,
             axw: float = None,
             surf: str = 'inflated',
@@ -2424,6 +2423,24 @@ class TRFExperiment(MneExperiment):
             **test_args,
     ) -> fmtxt.Section:
         """Document section for one or several model tests
+
+        Parameters
+        ----------
+        x
+            Test contrast, or dictionary with labeled contrasts
+            ``{label: contrast}``.
+        brain_view
+            Crop brain view; valid values: ``temporal``
+        axw
+            Brain axes width.
+        surf
+            FreeSurfer brain surface to plot.
+        cortex
+            Brain color scheme.
+        sig
+            Mask by significance (default ``True``)
+        heading
+            Heading for report section.
 
         Notes
         -----
@@ -2541,7 +2558,7 @@ class TRFExperiment(MneExperiment):
         if asds:
             return Dataset.from_caselist(headings, lines)
 
-        table = Table('lr' + 'r' * n_epochs)
+        table = fmtxt.Table('lr' + 'r' * n_epochs)
         table.cells(*headings)
         table.midrule()
         for line in lines:
