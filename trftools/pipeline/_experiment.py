@@ -2626,23 +2626,34 @@ class TRFExperiment(MneExperiment):
         comp = self._coerce_comparison(comparison, cv)
         return comp.term_table()
 
-    def show_models(self, term=None, stim=True, rand=True, model=None, sort=False, files=False):
+    def show_models(
+            self,
+            term: str = None,
+            stim: bool = True,
+            rand: bool = True,
+            model: str = None,
+            sort: bool = False,
+            files: bool = False,
+            abbreviate: bool = True,
+    ):
         """List models that contain a term that matches ``term``
 
         Parameters
         ----------
-        term : str
+        term
             Fnmatch pattern for a terms.
-        stim : bool
+        stim
             Also include terms with a stimulus prefix.
-        rand : bool
+        rand
             Also show models that contain ``term`` randomized.
-        model : str
+        model
             Pattern to display only certain models.
-        sort : bool
+        sort
             Sort terms (default False).
-        files : bool
+        files
             List the number of files associated with the model.
+        abbreviate
+            Abbreviate models with names from :attr:`.models`.
 
         See Also
         --------
@@ -2665,6 +2676,15 @@ class TRFExperiment(MneExperiment):
             pattern = re.compile(pattern)
         model_pattern = model
 
+        # Find possible model abbreviations
+        ns = set()
+        abbreviations = {}
+        if abbreviate:
+            for key, model in self._structured_models.items():
+                model_key = tuple(sorted(term.string for term in model.terms))
+                abbreviations[model_key] = key
+                ns.add(len(model_key))
+
         columns = 'lll'
         if files:
             columns += 'rr'
@@ -2682,10 +2702,28 @@ class TRFExperiment(MneExperiment):
                     continue
             t.cell('*' if name in self.models else '')
             t.cell(name)
-            if sort:
+
+            if abbreviate:
+                terms = []
+                n_terms = len(model.terms)
+                start = 0
+                while start < n_terms:
+                    for stop in range(n_terms, start + 1, -1):
+                        if stop - start in ns:
+                            key = tuple(sorted([term.code for term in model.terms[start:stop]]))
+                            if key in abbreviations:
+                                terms.append(abbreviations[key])
+                                start = stop
+                                break
+                    else:
+                        terms.append(model.terms[start].string)
+                        start += 1
+                t.cell(' + '.join(terms))
+            elif sort:
                 t.cell(model.sorted_key)
             else:
                 t.cell(model.name)
+
             if files:
                 n = len(self._find_model_files(name, trfs=True))
                 t.cell(n or '')
