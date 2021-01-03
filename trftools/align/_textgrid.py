@@ -51,7 +51,7 @@ class Realization:
     def __post_init__(self):
         if len(self.phones) == 0:
             raise ValueError("Word without phones")
-        self.pronunciation = ' '.join([p for p in self.phones if p not in SILENCE])
+        self.pronunciation = ' '.join(self.phones)
 
     def strip_stress(self):
         "Strip stress information (numbers 0/1/2 on vowels)"
