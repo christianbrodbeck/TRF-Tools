@@ -83,11 +83,11 @@ from os.path import exists, getmtime, join, relpath, splitext
 from pathlib import Path
 from pyparsing import ParseException
 import re
-from typing import Any, Dict, List, Sequence, Union
+from typing import Any, Dict, List, Sequence, Tuple, Union
 
 import eelbrain
 from eelbrain import (
-    fmtxt, load, save, table, plot, testnd,
+    fmtxt, load, save, table, plot, testnd, report,
     MultiEffectNDTest, BoostingResult,
     MneExperiment, Dataset, Datalist, Factor, NDVar, Categorial, UTS,
     morph_source_space, rename_dim, boosting, combine, concatenate,
@@ -2451,16 +2451,6 @@ class TRFExperiment(MneExperiment):
         -----
         Surface source space only.
         """
-        dpi = 144  # good for notebook
-        if isinstance(brain_view, str):
-            brain_view, default_axw = {
-                'temporal': ((-18, -28, 50), 1.5),
-            }[brain_view]
-        else:
-            default_axw = 2.5
-        if axw is None:
-            axw = default_axw
-
         ress_hemi = None
         if isinstance(x, dict):
             ress = ResultCollection({k: self.load_model_test(m, **test_args) for k, m in x.items()})
@@ -2474,37 +2464,51 @@ class TRFExperiment(MneExperiment):
                 ress_hemi = self.load_model_test(x, xhemi=True, **test_args)
                 if not isinstance(ress_hemi, dict):
                     ress_hemi = ResultCollection({x: ress_hemi})
+        return trf_report.source_results(ress, ress_hemi, heading, brain_view, axw, surf, cortex, sig, vmax, cmap, alpha)
 
-        if heading:
-            doc = fmtxt.Section(heading)
-        else:
-            doc = fmtxt.FMText()
-
-        tables = [ress.table(title='Model test')]
-        if ress_hemi is not None:
-            tables.append(ress_hemi.table(title="Lateralization"))
-        doc.append(fmtxt.Figure(fmtxt.FloatingLayout(tables)))
-
-        if sig and all(res.p.min() > 0.05 for res in ress.values()):
-            return doc
-
-        # plots tests
-        panels = []
-        all_ress = (ress,) if ress_hemi is None else (ress, ress_hemi)
-        for ress_i in all_ress:
-            sp = plot.brain.SequencePlotter()
-            if brain_view:
-                sp.set_parallel_view(*brain_view)
-            sp.set_brain_args(surf=surf, cortex=cortex)
-            for x, res in ress_i.items():
-                y = res.masked_difference() if sig else res.difference
-                sp.add_ndvar(y, label=x, cmap=cmap, vmax=vmax, alpha=alpha)
-            panel = sp.plot_table(view='lateral', orientation='vertical', axw=axw, dpi=dpi, show=False)
-            panels.append(panel)
-        doc.append(fmtxt.Figure(panels))
-        for panel in panels:
-            panel.close()
-        return doc
+    def show_trf_test(
+            self,
+            x: ModelArg,
+            # report plot parameters
+            xlim: Tuple[float, float] = None,
+            times: Sequence[float] = None,
+            brain_view: Union[str, Sequence[float]] = None,
+            axw: float = None,
+            surf: str = 'inflated',
+            cortex: Any = ((1.00,) * 3, (.4,) * 3),
+            heading: str = None,
+            vmax: float = None,
+            cmap: str = None,
+            labels: Dict[str, str] = None,
+            rasterize: bool = None,
+            # TRF model parameters
+            tstart: float = 0,
+            tstop: float = 0.5,
+            basis: float = 0.050,
+            error: str = 'l1',
+            partitions: int = None,
+            samplingrate: int = None,
+            mask: str = None,
+            delta: float = 0.005,
+            mindelta: float = None,
+            filter_x: bool = False,
+            selective_stopping: int = 0,
+            cv: bool = False,
+            data: DataArg = DATA_DEFAULT,
+            terms: Union[str, Sequence[str]] = None,
+            permutations: int = 1,
+            make: bool = False,
+            make_trfs: bool = False,
+            scale: str = None,
+            smooth: float = None,
+            smooth_time: float = None,
+            pmin: PMinArg = 'tfce',
+            samples: int = 10000,
+            test: Union[str, bool] = True,
+            **state,
+    ) -> fmtxt.Section:
+        ress = self.load_trf_test(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, None, terms, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, samples, test, **state)
+        return trf_report.source_trfs(ress, heading, brain_view, axw, surf, cortex, vmax, xlim, times, cmap, labels, rasterize)
 
     def show_contamination(self, threshold=2e-12, separate=False, absolute=False, samplingrate=None, asds=False, **state):
         """Table of data exceeding threshold in epochs

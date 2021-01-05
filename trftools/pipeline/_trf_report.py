@@ -1,9 +1,34 @@
 from math import ceil
+from typing import Any, Dict, Sequence, Tuple, Union
 
-from eelbrain import plot, fmtxt
+from eelbrain import plot, fmtxt, find_peaks, Dataset, resample
 from eelbrain._stats.testnd import MultiEffectNDTest
 from eelbrain._stats.spm import LMGroup
-from eelbrain.fmtxt import Figure, Section, FMText
+from eelbrain.fmtxt import FMTextArg, Figure, Section, FMText
+
+from ._results import ResultCollection
+
+
+class BrainLayout:
+    _views = {
+        'temporal': ((-18, -28, 50), 1.5),
+    }
+
+    def __init__(
+            self,
+            brain_view: Union[str, Tuple[float, ...]],
+            axw: float = None,
+    ):
+        if isinstance(brain_view, str):
+            brain_view, default_axw = self._views[brain_view]
+        else:
+            default_axw = 2.5
+        if axw is None:
+            axw = default_axw
+        self.brain_view = brain_view
+        self.axw = axw
+        self.dpi = 144  # good for notebook
+        self.table_args = {'dpi': self.dpi, 'axw': self.axw, 'show': False}
 
 
 def ceil_vlim(ndvar):
@@ -49,6 +74,54 @@ def vsource_tfce_map(effect, stat_map, p, statistic, max_statistic):
 
     caption = FMText([f"{effect}; ", fmtxt.eq(statistic, max_statistic, 'max'), ', ', fmtxt.peq(p)])
     return Figure(content, caption)
+
+
+def source_results(
+        ress: ResultCollection,
+        ress_hemi: dict = None,
+        heading: FMTextArg = None,
+        brain_view: Union[str, Sequence[float]] = None,
+        axw: float = None,
+        surf: str = 'inflated',
+        cortex: Any = ((1.00,) * 3, (.4,) * 3),
+        sig: bool = True,
+        vmax: float = None,
+        cmap: str = None,
+        alpha: float = 1.,
+):
+    "Only used for TRFExperiment model-test"
+    layout = BrainLayout(brain_view, axw)
+
+    if heading is not None:
+        doc = fmtxt.Section(heading)
+    else:
+        doc = fmtxt.FMText()
+
+    tables = [ress.table(title='Model test')]
+    if ress_hemi is not None:
+        tables.append(ress_hemi.table(title="Lateralization"))
+    doc.append(fmtxt.Figure(fmtxt.FloatingLayout(tables)))
+
+    if sig and all(res.p.min() > 0.05 for res in ress.values()):
+        return doc
+
+    # plots tests
+    panels = []
+    all_ress = (ress,) if ress_hemi is None else (ress, ress_hemi)
+    for ress_i in all_ress:
+        sp = plot.brain.SequencePlotter()
+        if layout.brain_view:
+            sp.set_parallel_view(*layout.brain_view)
+        sp.set_brain_args(surf=surf, cortex=cortex)
+        for x, res in ress_i.items():
+            y = res.masked_difference() if sig else res.difference
+            sp.add_ndvar(y, label=x, cmap=cmap, vmax=vmax, alpha=alpha)
+        panel = sp.plot_table(view='lateral', orientation='vertical', **layout.table_args)
+        panels.append(panel)
+    doc.append(fmtxt.Figure(panels))
+    for panel in panels:
+        panel.close()
+    return doc
 
 
 def source_tfce_result(res, surfer_kwargs, title, desc, brain=None):
@@ -104,6 +177,85 @@ def source_tfce_pmap(effect, pmap, statmap, max_statistic, surfer_kwargs, brain,
     caption = FMText([f"{effect}; ", fmtxt.eq(statistic, max_statistic, 'max'), ', ', fmtxt.peq(p)])
     fig = Figure(content, caption)
     return fig, brain
+
+
+def find_peak_times(y, y_mask):
+    y = y.smooth('time', 0.15)
+    peak_t = find_peaks(y).nonzero()[0]
+    peak_v = [y[t] for t in peak_t]
+    baseline_v = y[0]
+    return [t for i, t in enumerate(peak_t) if peak_v[i] > baseline_v and y_mask.sub(time=t)]
+
+
+def source_trfs(
+        ress: ResultCollection,
+        heading: FMTextArg = None,
+        brain_view: Union[str, Sequence[float]] = None,
+        axw: float = None,
+        surf: str = 'inflated',
+        cortex: Any = ((1.00,) * 3, (.4,) * 3),
+        vmax: float = None,
+        xlim: Tuple[float, float] = None,
+        times: Sequence[float] = None,
+        cmap: str = None,
+        labels: Dict[str, str] = None,
+        rasterize: bool = None,
+        brain_timewindow: float = 0.050
+):
+    "Only used for TRFExperiment model-test"
+    layout = BrainLayout(brain_view, axw)
+    dt = brain_timewindow / 2
+
+    if heading is not None:
+        doc = fmtxt.Section(heading)
+    else:
+        doc = fmtxt.FMText()
+
+    if cmap is None:
+        cmap = 'lux-a'
+
+    if labels is None:
+        labels = {}
+
+    trf_table = fmtxt.Table('ll')
+    for key, res in ress.items():
+        trf_resampled = resample(res.masked_difference(), 1000)
+        label = labels.get(key, key)
+        if rasterize is None:
+            rasterize = len(trf_resampled.source) > 500
+        # times for anatomical plots
+        if times is None:
+            trf_tc = abs(trf_resampled).sum('source')
+            trf_tc_mask = (~trf_resampled.get_mask()).sum('source') >= 10
+            times_ = find_peak_times(trf_tc, trf_tc_mask)
+        else:
+            times_ = times
+        # butterfly-plot
+        p = plot.Butterfly(trf_resampled, h=3, w=4, ylabel=False, title=label, vmax=vmax, xlim=xlim, show=False)
+        for t in times_:
+            p.add_vline(t, color='k')
+        trf_table.cell(fmtxt.asfmtext(p, rasterize=rasterize))
+        p.close()
+        # peak sources
+        if not times_:
+            trf_table.cell()
+        sp = plot.brain.SequencePlotter()
+        if layout.brain_view:
+            sp.set_parallel_view(*layout.brain_view)
+        sp.set_brain_args(surf=surf, cortex=cortex)
+        for t in times_:
+            yt = trf_resampled.mean(time=(t - dt, t + dt + 0.001))
+            if isinstance(cmap, str):
+                vmax_ = vmax or max(-yt.min(), yt.max())
+                cmap_ = plot.soft_threshold_colormap(cmap, vmax_ / 10, vmax_)
+            else:
+                cmap_ = cmap
+            sp.add_ndvar(yt, cmap=cmap_, label=f'{t * 1000:.0f} ms', smoothing_steps=10)
+        p = sp.plot_table(view='lateral', orientation='vertical', **layout.table_args)
+        trf_table.cell(p)
+        p.close()
+    doc.append(fmtxt.Figure(trf_table))
+    return doc
 
 
 def source_trfs_in_timebins(report, ds, surfer_kwargs, tstep=0.05):
