@@ -159,18 +159,6 @@ def split_model(x):
     return [v.strip() for v in x.split('+')]
 
 
-def trf_test_parc_arg(y):
-    if y.ndim == 4:
-        for ydim in ['sensor', 'source']:
-            if y.has_dim(ydim):
-                break
-        else:
-            raise RuntimeError(f"{y} does not have sensor or source dimension")
-        dim = y.get_dims((None, 'case', ydim, 'time'))[0]
-        if isinstance(dim, Categorial):
-            return dim.name
-
-
 def difference_maps(dss):
     """Difference maps for model comparison"""
     diffs = {}
@@ -1350,7 +1338,7 @@ class TRFExperiment(MneExperiment):
 
     def load_trf_test(
             self,
-            x: ComparisonArg,
+            x: ModelArg,
             tstart: float = 0,
             tstop: float = 0.5,
             basis: float = 0.050,
@@ -1364,6 +1352,8 @@ class TRFExperiment(MneExperiment):
             selective_stopping: int = 0,
             cv: bool = False,
             data: DataArg = DATA_DEFAULT,
+            term: str = None,
+            terms: Union[str, Sequence[str]] = None,
             permutations: int = 1,
             make: bool = False,
             make_trfs: bool = False,
@@ -1383,7 +1373,8 @@ class TRFExperiment(MneExperiment):
         Parameters
         ----------
         x : str
-            One or more predictor variables, joined with '+'.
+            Model for which to load TRFs. By default, all TRFs in the model are
+            tested; use ``term`` to test only TRFs of specific predictors.
         tstart
             Start of the TRF in s (default 0).
         tstop
@@ -1409,8 +1400,21 @@ class TRFExperiment(MneExperiment):
             Filter ``x`` with the last filter of the pipeline for ``y``.
         selective_stopping
             Stop boosting each predictor separately.
+        cv
+            Use cross-validation.
         data : 'sensor' | 'source'
             Analyze source- or sensor space data.
+        term
+            TRF to test (by default all TRFs in the model).
+            Mutually exclusive with the ``terms`` parameter.
+        terms
+            TRFs to test (by default all TRFs in the model).
+            Multiple TRFs can be specified as list or with a :mod:`fnmatch`
+            pattern.
+            Mutually exclusive with the ``term`` parameter.
+        permutations
+            When testing against a partially permuted model, average the result
+            of ``permutations`` different permutations as baseline model.
         make
             If the test does not exists, make it (the default is to raise an
             IOError).
@@ -1455,6 +1459,8 @@ class TRFExperiment(MneExperiment):
         if data.source:
             inv = self.get('inv')
             is_vector_data = inv.startswith('vec')
+        elif xhemi:
+            raise ValueError(f"xhemi={xhemi!r} for data={data.string!r}")
         else:
             is_vector_data = False
         # determine whether baseline model is needed:
@@ -1466,141 +1472,127 @@ class TRFExperiment(MneExperiment):
             compare_with_baseline_model = False
         # vector data can not be tested against 0
         if compare_with_baseline_model:
-            comparison = self._coerce_comparison(x, cv)
-            if isinstance(comparison, StructuredModel):
-                if return_data:
-                    raise NotImplementedError("return_data=True for multiple comparisons")
-                return ResultCollection({
-                    cmp.test_term_name: self.load_trf_test(cmp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, samples, test, return_data, xhemi, xhemi_smooth) for cmp in comparison.comparisons(cv)
-                })
-            if comparison.baseline_term_name is None:
-                raise ValueError(f"x={x!r}: no unique baseline term")
-            y_key = Dataset.as_key(comparison.test_term_name)
-            y_keys = None
+            raise NotImplementedError
+
+        # which terms to test
+        model = self._coerce_model(x)
+        if terms is None and term is None:
+            terms = [term_i.string for term_i in model.terms]
+        elif term is None:
+            if isinstance(terms, str):
+                term_names = [term_i.code for term_i in model.terms]
+                term_list = [term_i for term_i in term_names if fnmatch.fnmatch(term_i, terms)]
+                if not term_list:
+                    raise ValueError(f"terms={terms!r}: not matching TRF among {', '.join(term_names)}")
+                terms = term_list
+            else:
+                terms = list(terms)
+        elif terms is None:
+            terms = [term]
         else:
-            comparison = self._coerce_model(x)
-            y_key = None
-            y_keys = [Dataset.as_key(term) for term in comparison.term_names]
+            raise TypeError(f"term={term!r}, terms={terms!r}")
+        return_one = term is not None
 
         if xhemi:
             if xhemi_smooth % 0.001:
                 raise ValueError(f'xhemi_smooth={xhemi_smooth!r}; parameter in [m] needs to be integer number of [mm]')
-            test_options = f'xhemi-abs-{int(xhemi_smooth * 1000)}'
+            test_options = (f'xhemi-abs-{xhemi_smooth * 1000:.0f}',)
         else:
-            test_options = None
-        self._set_trf_options(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, pmin=pmin, is_group_result=True, scale=scale, smooth_source=smooth, smooth_time=smooth_time, test=test, test_options=test_options, permutations=permutations)
+            test_options = ()
 
-        # check if cached
-        dst = self.get('trf-test-file', mkdir=True)
-        if self._result_file_mtime(dst, data):
-            res = load.unpickle(dst)
-            if compare_with_baseline_model:
-                res0 = res
-            else:
-                res0 = res[y_keys[0]]
-
-            if res0.samples >= samples:
-                if data.source:
-                    update_subjects_dir(res, self.get('mri-sdir'), 2)
-            elif not make:
-                raise IOError(f"Test has {res[x].samples} samples, {samples} samples requested; set make=True to make with {samples} samples.")
-            else:
-                res = {}
-        elif not make:
-            raise IOError(f"TRF-test {relpath(dst, self.get('root'))} does not exist; set make=True to compute it.")
+        if xhemi:
+            test_obj = TTestRelated('hemi', 'lh', 'rh') if test is True else self.tests[test]
+            parc = self._xhemi_parc()
         else:
-            res = {}
-        res_modified = not res
-        test_kwargs = self._test_kwargs(samples, pmin, None, None, data, None) if res_modified else None
+            test_obj = TTestOneSample() if test is True else self.tests[test]
+            parc =  None
+        if isinstance(test_obj, TwoStageTest):
+            raise NotImplementedError
 
-        if compare_with_baseline_model:
-            # returns single test
-            if return_data or res_modified:
-                ds = self.load_trfs(-1, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vector_as_norm=True)
-                ds0 = self.load_trfs(-1, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, permutations=permutations, vector_as_norm=True)
-                y0_key = Dataset.as_key(comparison.baseline_term_name)
-                assert np.all(ds['subject'] == ds0['subject'])
-                if res_modified:
-                    y = ds[y_key]
-                    y0 = ds0[y0_key]
-                    res = testnd.ttest_rel(y, y0, tail=1, **test_kwargs)
-                    save.pickle(res, dst)
-                if return_data:
-                    ds = ds['subject', y_key]
-                    ds[y0_key] = ds0[y0_key]
-                    return ds, res
-            return res
-        elif res_modified or return_data:
-            if xhemi:
-                parc = self._xhemi_parc()
-                trf_ds, trf_res = self.load_trf_test(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, test=test, return_data=True)
+        out = ResultCollection()
+        ds_out = trf_ds = trf_res = lms = None
+        desc = 'X-Hemi ' if xhemi else ''
+        for term_i in tqdm(terms, f"{desc}TRF-Tests for {model.name}", leave=False):
+            self._set_trf_options(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, pmin=pmin, is_group_result=True, scale=scale, smooth_source=smooth, smooth_time=smooth_time, test=test, test_options=[term_i, *test_options], permutations=permutations)
 
-                test_obj = TTestRelated('hemi', 'lh', 'rh') if test is True else self.tests[test]
-                # xhemi data
-                if test is True:
-                    ds = Dataset(info=trf_ds.info)
-                    ds['subject'] = trf_ds['subject'].tile(2)
-                    ds['hemi'] = Factor(('lh', 'rh'), repeat=trf_ds.n_cases)
+            # check if cached
+            dst = self.get('trf-test-file', mkdir=True)
+            if self._result_file_mtime(dst, data):
+                res = load.unpickle(dst)
+                if res.samples >= samples or res.samples == -1:
+                    if data.source:
+                        update_subjects_dir(res, self.get('mri-sdir'), 2)
+                elif not make:
+                    raise IOError(f"Test has {res[x].samples} samples, {samples} samples requested; set make=True to make with {samples} samples.")
                 else:
-                    ds = trf_ds
+                    res = None
+            elif not make:
+                raise IOError(f"TRF-test {relpath(dst, self.get('root'))} does not exist; set make=True to compute it.")
+            else:
+                res = None
 
-                for x in tqdm(y_keys, f"X-Hemi TRF-Tests for {comparison.name}", leave=False):
-                    y = trf_ds[x].abs()
+            # load data
+            if trf_ds is None and (res is None or return_data):
+                if xhemi:
+                    trf_ds, trf_res = self.load_trf_test(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, term_i, None, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, test=test, return_data=True)
+                    if test is True:
+                        ds_out = Dataset(info=trf_ds.info)
+                        ds_out['subject'] = trf_ds['subject'].tile(2)
+                        ds_out['hemi'] = Factor(('lh', 'rh'), repeat=trf_ds.n_cases)
+                    else:
+                        ds_out = trf_ds.copy()
+                elif isinstance(test_obj, TwoStageTest):
+                    # stage 1
+                    lms = {y: [] for y in terms}
+                    ds_out = []
+                    for subject in self.iter():
+                        ds = self.load_trfs(1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations)
+                        for term_j in terms:
+                            key = Dataset.as_key(term_j)
+                            lms[term_j].append(test_obj.make_stage_1(key, ds, subject))
+                        if return_data:
+                            ds_out.append(ds)
+                    if return_data:
+                        ds_out = combine(ds_out)
+                else:
+                    trf_ds = ds_out = self.load_trfs(-1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations, vector_as_norm=True)
+            # do test
+            if res is None:
+                key = Dataset.as_key(term_i)
+                test_kwargs = self._test_kwargs(samples, pmin, None, None, data, None)
+                if xhemi:
+                    # data
+                    y = trf_ds[key].abs()
                     if xhemi_smooth:
                         y = y.smooth('source', xhemi_smooth, 'gaussian')
                     lh, rh = eelbrain.xhemi(y, parc=parc)
-                    y = combine((lh, rh)) if test is True else lh - rh
+                    if test is True:
+                        y = combine((lh, rh))
+                    else:
+                        y = lh - rh
                     # mask
-                    mask_lh, mask_rh = eelbrain.xhemi(trf_res[x].p <= 0.05, parc=parc)
+                    mask_lh, mask_rh = eelbrain.xhemi(trf_res[key].p <= 0.05, parc=parc)
                     np.maximum(mask_lh.x, mask_rh.x, mask_lh.x)
                     mask = mask_lh > .5
                     y *= mask
                     # test
-                    if res_modified:
-                        test_kwargs['parc'] = trf_test_parc_arg(y)
-                        res[x] = self._make_test(y, ds, test_obj, test_kwargs)
+                    res = self._make_test(y, ds_out, test_obj, test_kwargs)
                     if return_data:
-                        ds[x] = y
-            else:
-                test_obj = TTestOneSample() if test is True else self.tests[test]
-                if isinstance(test_obj, TwoStageTest):
-                    assert test_obj.model is None, "not implemented"
-                    # stage 1
-                    lms = {y: [] for y in y_keys}
-                    dss = []
-                    for subject in self:
-                        ds = self.load_trfs(1, comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations)
-                        if res_modified:
-                            for y in y_keys:
-                                lms[y].append(test_obj.make_stage_1(y, ds, subject))
-                        if return_data:
-                            dss.append(ds)
+                        ds_out[key] = y
+                elif isinstance(test_obj, TwoStageTest):
                     # stage 2
-                    if res_modified:
-                        for y in y_keys:
-                            test_kwargs['parc'] = trf_test_parc_arg(ds[y])
-                            res[y] = test_obj.make_stage_2(lms[y], test_kwargs)
-                    # data to return
-                    if return_data:
-                        ds = combine(dss)
+                    res = test_obj.make_stage_2(lms[term_i], test_kwargs)
                 else:
-                    ds = self.load_trfs(-1, comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations, vector_as_norm=True)
-                    if res_modified:
-                        for x in tqdm(y_keys, f"TRF-Tests for {comparison.name}", leave=False):
-                            test_kwargs['parc'] = trf_test_parc_arg(ds[x])
-                            res[x] = self._make_test(x, ds, test_obj, test_kwargs)
-
-            if res_modified:
+                    res = self._make_test(key, trf_ds, test_obj, test_kwargs)
                 save.pickle(res, dst)
-        else:
-            ds = None
+            out[term_i] = res
 
-        res = ResultCollection({term.string: res[Dataset.as_key(term.string)] for term in comparison.terms})
-
+        if return_one:
+            out = out[term]
         if return_data:
-            return ds, res
+            return ds_out, out
         else:
-            return res
+            return out
 
     def _set_trf_options(self, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward=False, pmin=None, is_group_result=False, metric=None, scale=None, smooth_source=None, smooth_time=None, is_public=False, test=None, test_options=None, permutations=1, by_subject=False, public_name=None, state=None):
         # avoid _set_trf_options(**state) because _set_trf_options could catch invalid state
