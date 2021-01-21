@@ -2621,8 +2621,13 @@ class TRFExperiment(MneExperiment):
             t.cell(size_mb)
         return t
 
-    def show_comparison_terms(self, comparison: str, cv: bool = False):
-        """Generate a table comparing the terms in the two models"""
+    def show_model_terms(self, model: ModelArg) -> fmtxt.Table:
+        "Table showing terms in a model"
+        model_obj = self._coerce_model(model)
+        return model_obj.term_table()
+
+    def show_comparison_terms(self, comparison: str, cv: bool = False) -> fmtxt.Table:
+        "Table comparing the terms in the two models"
         comp = self._coerce_comparison(comparison, cv)
         return comp.term_table()
 

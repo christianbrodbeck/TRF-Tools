@@ -256,6 +256,24 @@ class Model:
             cycle *= 2
         return [self.with_angle(angle) for angle in angles]
 
+    def term_table(self) -> fmtxt.Table:
+        show_stimulus = any(term.stimulus for term in self.terms)
+        show_shuffle = any(term.shuffle_string for term in self.terms)
+        t = fmtxt.Table('l' * (1 + show_stimulus + show_shuffle))
+        if show_stimulus:
+            t.cell('Stimulus')
+        t.cell('Code')
+        t.midrule()
+        if show_shuffle:
+            t.cell('Shuffle')
+        for term in self.terms:
+            if show_stimulus:
+                t.cell(term.stimulus)
+            t.cell(term.code)
+            if show_shuffle:
+                t.cell(term.shuffle_string)
+        return t
+
     def with_shuffle(self, index, shuffle, angle) -> 'Model':
         """Apply shuffle settings to all terms"""
         if self.has_randomization:
