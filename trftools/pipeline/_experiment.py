@@ -715,6 +715,7 @@ class TRFExperiment(MneExperiment):
             backward: bool = False,
             make: bool = False,
             path_only: bool = False,
+            partition_results: bool = False,
             **state,
     ):
         """TRF estimated with boosting
@@ -762,6 +763,8 @@ class TRFExperiment(MneExperiment):
             IOError).
         path_only
             Return the path instead of loading the TRF.
+        partition_results
+            Keep results for each test-partition (TRFs and model evaluation).
 
         Returns
         -------
@@ -810,7 +813,11 @@ class TRFExperiment(MneExperiment):
                     else:
                         table.caption("Model not recognized")
                     raise RuntimeError(f"Result x mismatch:\n{dst}\n{table}")
-            return res
+
+            if partition_results and res.partition_results is None:
+                self._log.info("Refitting TRF (cached TRF exists, but without partition_results; interrupt process to cancel)...")
+            else:
+                return res
 
         # try to load from superset parcellation
         if not data.source:
@@ -820,7 +827,7 @@ class TRFExperiment(MneExperiment):
         elif mask in self._parc_supersets:
             for super_parc in self._parc_supersets[mask]:
                 try:
-                    res = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, cv, data, backward)
+                    res = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, cv, data, backward, partition_results=partition_results)
                 except IOError:
                     pass
                 else:
@@ -834,7 +841,7 @@ class TRFExperiment(MneExperiment):
             raise IOError(f"TRF {relpath(dst, self.get('root'))} does not exist; set make=True to compute it.")
 
         self._log.info("Computing TRF:  %s %s %s %s", self.get('subject'), data.string, '->' if backward else '<-', x.name)
-        func = self._trf_job(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward)
+        func = self._trf_job(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, partition_results)
         if func is None:
             return load.unpickle(dst)
         res = func()
