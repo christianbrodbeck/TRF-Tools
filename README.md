@@ -18,5 +18,5 @@ $ pip install https://github.com/christianbrodbeck/gammatone/archive/fmax.zip
 To later update TRF-Tools to the latest version of the master branch, use:
 
 ```bash
-$ pip update -U https://github.com/christianbrodbeck/TRF-Tools/archive/master.zip
+$ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/master.zip
 ```
