@@ -31,6 +31,7 @@ setup(
     install_requires=[
         "textgrid >=1.5",
         "filelock",
+        "appdirs",
     ],
     packages=find_packages(),
     entry_points={
