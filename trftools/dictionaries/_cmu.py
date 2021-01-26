@@ -105,9 +105,7 @@ def read_cmupd(strip_stress=False, apostrophe="'"):
     cmu : dict {str: list of str}
         Dictionary mapping words (all caps) to lists of pronunciations.
     """
-    path = Path(__file__).parent / 'data' / 'cmudict-0.7b.txt'
-    if not path.exists():
-        download('http://svn.code.sf.net/p/cmusphinx/code/trunk/cmudict/cmudict-0.7b', path)
+    path = download('http://svn.code.sf.net/p/cmusphinx/code/trunk/cmudict/cmudict-0.7b', 'cmudict-0.7b.txt')
     out = defaultdict(set)
     for line in path.open('rb'):
         m = re.match(rb"^([\w']+)(?:\(\d\))?  ([\w ]+)$", line)

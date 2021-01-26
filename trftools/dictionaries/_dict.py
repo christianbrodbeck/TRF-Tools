@@ -73,9 +73,7 @@ def read_dict(
         ``{str: {str, ...}}``.
     """
     if dictionary in DICTS:
-        path = Path(__file__).parent / 'data' / f'{dictionary}.dict'
-        if not path.exists():
-            download(DICTS[dictionary], path)
+        path = download(DICTS[dictionary], f'{dictionary}.dict')
     else:
         path = Path(dictionary)
     out = defaultdict(set)
