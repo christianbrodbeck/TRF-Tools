@@ -566,7 +566,7 @@ class Dispatcher:
 
     def show_jobs(self, trfs=False, width=None):
         if width is None:
-            width = shutil.get_terminal_size((150, 20))[0] - 55
+            width = shutil.get_terminal_size((150, 20))[0] - 60
         pending_jobs = {job.path: job for job in self.server.pending_jobs()}
         priority = len({job.priority for job in self._user_jobs}) > 1
         t = fmtxt.Table('lllrrl' + 'l' * priority)
