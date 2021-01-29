@@ -91,7 +91,7 @@ def print_traceback(exc_info):
     print_traceback.TRACEBACK_PRINTER(*exc_info)
 
 
-class Dispatcher(object):
+class Dispatcher:
     """Dispatch jobs to Eelfarm server"""
 
     def __init__(self, host=None, job_queue_length=5, notify=False):
