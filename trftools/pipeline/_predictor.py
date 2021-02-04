@@ -154,6 +154,8 @@ class FilePredictor:
         elif isinstance(x, NDVar):
             if x.time.tstep == tstep:
                 pass
+            elif x.time.tstep > tstep:
+                raise ValueError(f"Requested samplingrate rate is higher than in file ({1/tstep:g} > {1/x.time.tstep:g})")
             elif self.resample == 'bin':
                 x = x.bin(tstep, label='start')
             elif self.resample == 'resample':
@@ -188,7 +190,14 @@ class FilePredictor:
             code.register_shuffle(index=True)
         return x
 
-    def _generate_continuous(self, uts: UTS, ds: Dataset, stim_var: str, code: Code, directory: Path):
+    def _generate_continuous(
+            self,
+            uts: UTS,  # time axis for the output
+            ds: Dataset,  # events
+            stim_var: str,
+            code: Code,
+            directory: Path,
+    ):
         # place multiple input files into a continuous predictor
         cache = {stim: self._load(uts.tstep, code.with_stim(stim).nuts_file_name(self.columns), directory) for stim in ds[stim_var].cells}
         # determine type
@@ -210,12 +219,13 @@ class FilePredictor:
             v = cache[ds[0, stim_var]]
             dimnames = v.get_dimnames(first='time')
             dims = (uts, *v.get_dims(dimnames[1:]))
-            shape = [len(dim) for dim in dims]
-            x = NDVar(numpy.zeros(shape), dims, code.key)
+            x = NDVar.zeros(dims, code.key)
             for t, stim in ds.zip('T_relative', stim_var):
                 x_stim = cache[stim]
                 i_start = uts._array_index(t + x_stim.time.tmin)
                 i_stop = i_start + len(x_stim.time)
+                if i_stop > len(uts):
+                    raise ValueError(f"{code.string_without_rand} for {stim} is longer than the data")
                 x.x[i_start:i_stop] = x_stim.get_data(dimnames)
         else:
             raise RuntimeError(f"stim_type={stim_type!r}")

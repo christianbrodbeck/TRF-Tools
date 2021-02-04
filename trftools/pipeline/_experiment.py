@@ -98,7 +98,7 @@ from eelbrain._experiment.definitions import FieldCode
 from eelbrain._experiment.epochs import EpochCollection
 from eelbrain._experiment.mne_experiment import DataArg, PMinArg, DefinitionError, FileMissing, TestDims, Variables, guess_y, cache_valid
 from eelbrain._experiment.parc import SubParc
-from eelbrain._data_obj import legal_dataset_key_re, isuv
+from eelbrain._data_obj import NDVarArg, legal_dataset_key_re, isuv
 from eelbrain._io.pickle import update_subjects_dir
 from eelbrain._text import ms, n_of
 from eelbrain._utils.mne_utils import is_fake_mri
@@ -461,19 +461,24 @@ class TRFExperiment(MneExperiment):
             code = Code.coerce(term.string)  # TODO: use parse result
             self.add_predictor(ds, code, filter, y)
 
-    def add_predictor(self, ds, code, filter=False, y=None):
+    def add_predictor(
+            self, ds: Dataset,
+            code: str,
+            filter: Union[str, bool] = False,
+            y: Union[UTS, NDVarArg] = None,
+    ):
         """Add predictor variable to a :class:`Dataset`
 
         Parameters
         ----------
-        ds : Dataset
+        ds
             Dataset with the dependent measure.
-        code : str
+        code
             Predictor to add. Suffix demarcated by ``$`` for shuffling.
-        filter : bool | str
+        filter
             Filter predictors. Name of a raw pipe, or ``True`` to use current
             raw setting; default ``False``).
-        y : str | NDVar | UTS
+        y
             :class:`NDVar` to match time axis to.
         """
         if isinstance(y, UTS):
