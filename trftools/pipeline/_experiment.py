@@ -688,6 +688,28 @@ class TRFExperiment(MneExperiment):
     def make_predictor(self, code, tstep=0.01, n_samples=None, tmin=0., seed=False):
         raise NotImplementedError
 
+    def _post_process_trf(
+            self,
+            trf: BoostingResult,
+            data: TestDims,
+            parc: str = None,  # current trf parcellation
+            to_parc: str = None,  # change trf parcellation to this
+    ):
+        "Apply post-processing to a TRF"
+        if not data.source:
+            return trf
+        if data.morph:
+            common_brain = self.get('common_brain')
+            with self._temporary_state:
+                self.make_src(mrisubject=common_brain)
+                if parc:
+                    self.make_annot(parc=parc, mrisubject=common_brain)
+            trf._morph(common_brain)
+        if to_parc:
+            self.make_annot(parc=to_parc)
+            trf._set_parc(to_parc)
+        return trf
+
     # TRF
     #####
     def load_trf(
@@ -710,6 +732,7 @@ class TRFExperiment(MneExperiment):
             make: bool = False,
             path_only: bool = False,
             partition_results: bool = False,
+            morph: bool = False,
             **state,
     ):
         """TRF estimated with boosting
@@ -759,13 +782,15 @@ class TRFExperiment(MneExperiment):
             Return the path instead of loading the TRF.
         partition_results
             Keep results for each test-partition (TRFs and model evaluation).
+        morph
+            Morph source space data to the FSAverage brain.
 
         Returns
         -------
         res : BoostingResult
             Estimated model.
         """
-        data = TestDims.coerce(data)
+        data = TestDims.coerce(data, morph=morph)
         x = self._coerce_model(x)
         # check epoch
         epoch = self._epochs[self.get('epoch')]
@@ -811,7 +836,7 @@ class TRFExperiment(MneExperiment):
             if partition_results and res.partition_results is None:
                 self._log.info("Refitting TRF (cached TRF exists, but without partition_results; interrupt process to cancel)...")
             else:
-                return res
+                return self._post_process_trf(res, data, mask)
 
         # try to load from superset parcellation
         if not data.source:
@@ -825,10 +850,7 @@ class TRFExperiment(MneExperiment):
                 except IOError:
                     pass
                 else:
-                    # make sure parc exists
-                    self.make_annot(parc=mask)
-                    res._set_parc(mask)
-                    return res
+                    return self._post_process_trf(res, data, super_parc, mask)
 
         # make it if make=True
         if not make:
@@ -837,10 +859,11 @@ class TRFExperiment(MneExperiment):
         self._log.info("Computing TRF:  %s %s %s %s", self.get('subject'), data.string, '->' if backward else '<-', x.name)
         func = self._trf_job(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, partition_results)
         if func is None:
-            return load.unpickle(dst)
-        res = func()
-        save.pickle(res, dst)
-        return res
+            res = load.unpickle(dst)  # _trf_job() created a link from an equivalent result (NCRF)
+        else:
+            res = func()
+            save.pickle(res, dst)
+        return self._post_process_trf(res, data, mask)
 
     def _locate_trf(
             self,
@@ -1180,7 +1203,7 @@ class TRFExperiment(MneExperiment):
         # load result(s)
         h = r = z = r1 = z1 = residual = det = tstep = x_keys = res_partitions = mu = None
         for x_ in xs:
-            res = self.load_trf(x_, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make)
+            res = self.load_trf(x_, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, morph=True)
             # kernel
             if scale is None:
                 res_h = res.h
