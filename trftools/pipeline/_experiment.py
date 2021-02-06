@@ -255,11 +255,12 @@ class TRFExperiment(MneExperiment):
 
         # raw
         for raw in invalid_cache['raw']:
-            state = {'analysis': f'{raw} *'}
-            rm['trf-file'].add(state)
-            rm['trf-test-file'].add(state)
-            rm['model-test-file'].add(state)
-            rm['model-report-file'].add(state)
+            for analysis in (raw, f'{raw} *'):
+                state = {'analysis': analysis}
+                rm['trf-file'].add(state)
+                rm['trf-test-file'].add(state)
+                rm['model-test-file'].add(state)
+                rm['model-report-file'].add(state)
 
         # epochs
         for epoch in invalid_cache['epochs']:
