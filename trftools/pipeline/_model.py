@@ -663,18 +663,25 @@ class Comparison:
             return self.public_name
         return self.compose_name()
 
-    def compose_name(self, name: Callable[[Model], str] = lambda m: m.name) -> str:
+    def compose_name(
+            self,
+            name: Callable[[Model], str] = lambda m: m.name,
+            path: bool = False,  # return valid path component (avoiding problematic characters)
+    ) -> str:
         # implement only parsable comparisons
-        op = self.operator
         assert not self.common_base.has_randomization
         assert not self.x1_only.has_randomization
+        if path:
+            op = {'>': '=g', '=': '=', '<': '=l'}[self.operator]
+        else:
+            op = self.operator
         if not self.x0.has_randomization:
             return f"{name(self.x1)} {op} {name(self.x0)}"
         assert self.x1_only
         if self.x0_only.without_randomization.sorted_key == self.x1_only.sorted_key:
             if not self.common_base:
                 return f"{name(self.x1)} {op} {name(self.x0)}"
-            elif op == '>':
+            elif self.operator == '>':
                 return f"{name(self.x1)} @ {name(self.x0_only)}"
             else:
                 raise NotImplementedError

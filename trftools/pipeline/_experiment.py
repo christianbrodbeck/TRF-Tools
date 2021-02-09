@@ -1869,7 +1869,7 @@ class TRFExperiment(MneExperiment):
             if is_public:
                 return x.name
             else:
-                return x.compose_name(self._x_desc)
+                return x.compose_name(self._x_desc, path=True)
         elif isinstance(x, StructuredModel):
             assert is_public  # all internal names should be Model-based
             if x in self._structured_model_names:
