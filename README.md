@@ -20,3 +20,11 @@ To later update TRF-Tools to the latest version of the master branch, use:
 ```bash
 $ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/master.zip
 ```
+
+### Windows
+
+The TRF-Tools `master` branch is currently incompatible with the Windows operating system due to certain restrictions on filenames under Windows. If you are using Windows, use the `win` branch instead:
+
+```Bash
+$ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/win.zip
+```
