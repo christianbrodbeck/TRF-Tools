@@ -1037,14 +1037,12 @@ class TRFExperiment(MneExperiment):
             y0 = y[0] if is_variable_time else y
             fwd = self.load_fwd(ndvar=True)
             cov = self.load_cov()
-            chs = sorted(set(cov.ch_names).intersection(y0.sensor.names))
-            if len(chs) < len(y0.sensor):
+            # NCRF assumes data has subset of sensors in covariance
+            if set(y0.sensor.names).difference(cov.ch_names):
                 if is_variable_time:
-                    y = [yi.sub(sensor=chs) for yi in y]
+                    y = [yi.sub(sensor=cov.ch_names) for yi in y]
                 else:
-                    y = y.sub(sensor=chs)
-            else:
-                assert np.all(y0.sensor.names == chs)
+                    y = y.sub(sensor=cov.ch_names)
             from ncrf import fit_ncrf
             return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, normalize=True, in_place=True, **ncrf_args)
         return partial(boosting, y, xs, tstart, tstop, 'inplace', delta, mindelta, error, basis, partitions=partitions, test=cv, selective_stopping=selective_stopping, partition_results=partition_results)
