@@ -113,6 +113,9 @@ def _expand_term(term: ModelTerm, named_models: Dict[str, 'StructuredModel']) ->
         base_code = term.code[:-4]
         terms = _expand_term(replace(term, code=base_code), named_models)
         return (*terms, *[replace(term, code=f'{term.code}-step') for term in terms])
+    elif term.code.endswith('-step') and term.code[:-5] in named_models:
+        terms = _expand_term(replace(term, code=term.code[:-5]), named_models)
+        return tuple([replace(term, code=f'{term.code}-step') for term in terms])
     elif term.without_shuffle.string in named_models:
         model = named_models[term.without_shuffle.string].model
         if term.shuffle:
