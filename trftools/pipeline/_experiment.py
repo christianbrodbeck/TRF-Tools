@@ -1794,6 +1794,8 @@ class TRFExperiment(MneExperiment):
             return x
         elif x in self._structured_models:
             return self._structured_models[x].model
+        elif x in self._named_models:
+            return self._named_models[x]
         return ModelExpression.from_string(x).initialize(self._structured_models)
 
     def _coerce_comparison(
