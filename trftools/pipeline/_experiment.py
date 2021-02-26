@@ -175,6 +175,34 @@ def difference_maps(dss):
     return subjects, diffs
 
 
+class ModelDescriber:
+
+    def __init__(self, structured_models: Dict[str, StructuredModel]):
+        self.abbreviations = {}
+        for key, model in structured_models.items():
+            model_key = tuple(sorted([term.string for term in model.terms]))
+            self.abbreviations[model_key] = key
+        self.ns = {len(model_key) for model_key in self.abbreviations}
+
+    def describe(self, model: Union[Model, str]) -> str:
+        model = Model.coerce(model)
+        terms = []
+        n_terms = len(model.terms)
+        start = 0
+        while start < n_terms:
+            for stop in range(n_terms, start + 1, -1):
+                if stop - start in self.ns:
+                    key = tuple(sorted([term.code for term in model.terms[start:stop]]))
+                    if key in self.abbreviations:
+                        terms.append(self.abbreviations[key])
+                        start = stop
+                        break
+            else:
+                terms.append(model.terms[start].string)
+                start += 1
+        return ' + '.join(terms)
+
+
 class TRFExperiment(MneExperiment):
     # Event variable that identifies stimulus files. To specify multiple
     # stimuli per event (e.g., foreground and background) use a dictionary
@@ -2600,6 +2628,7 @@ class TRFExperiment(MneExperiment):
     def show_cached_trfs(
             self,
             model: str = None,
+            raw_names: bool = False,
             keys: Sequence[str] = ('analysis', 'epoch', 'time_window', 'samplingrate', 'model', 'mask'),
             mask: str = None,
             rm: bool = False,
@@ -2610,6 +2639,8 @@ class TRFExperiment(MneExperiment):
         ----------
         model
             String to fnmatch the model.
+        raw_names
+            Show model names as they are used in paths, instead of descriptive names.
         keys
             Keys which to use to group TRFs in the table.
         mask
@@ -2627,19 +2658,25 @@ class TRFExperiment(MneExperiment):
         -----
         To delete TRFs corresponding to a specific model, use, for example::
 
-            e.rm('trf-file', True, test_options='* model *')
+            e.rm('trf-file', True, test_options='* model111 *')
 
-        Note that some fields are embedded, e.g. ``raw`` in ``analysis``, so to
-        delete files with ``raw='1-8'``, use::
+        Note that to show model names as they occur in paths, use ``raw_names=True``.
+        Some fields are embedded, e.g. ``raw`` in ``analysis``, so to delete files with ``raw='1-8'``, use::
 
             e.rm('trf-file', True, test_options='* model *', analysis='1-8 *')
 
         """
+        if not raw_names:
+            describer = ModelDescriber(self._structured_models)
+        else:
+            describer = None
         ns = defaultdict(lambda: 0)
         sizes = defaultdict(lambda: 0.)  # in bytes
         paths = []
         for path in self.glob('trf-file', True):
             properties = self._parse_trf_path(path)
+            if describer:
+                properties['model'] = describer.describe(self._named_models[properties['model']])
             if model and not fnmatch.fnmatch(properties['model'], model):
                 continue
             elif mask and not fnmatch.fnmatch(properties.get('mask', ''), mask):
@@ -2669,7 +2706,6 @@ class TRFExperiment(MneExperiment):
             return
         for path in paths:
             os.remove(path)
-        self.
 
     def show_model_terms(self, model: ModelArg) -> fmtxt.Table:
         "Table showing terms in a model"
@@ -2732,13 +2768,10 @@ class TRFExperiment(MneExperiment):
         model_pattern = model
 
         # Find possible model abbreviations
-        ns = set()
-        abbreviations = {}
         if abbreviate:
-            for key, model in self._structured_models.items():
-                model_key = tuple(sorted(term.string for term in model.terms))
-                abbreviations[model_key] = key
-                ns.add(len(model_key))
+            describer = ModelDescriber(self._structured_models)
+        else:
+            describer = None
 
         columns = 'lll'
         if files:
@@ -2759,21 +2792,7 @@ class TRFExperiment(MneExperiment):
             t.cell(name)
 
             if abbreviate:
-                terms = []
-                n_terms = len(model.terms)
-                start = 0
-                while start < n_terms:
-                    for stop in range(n_terms, start + 1, -1):
-                        if stop - start in ns:
-                            key = tuple(sorted([term.code for term in model.terms[start:stop]]))
-                            if key in abbreviations:
-                                terms.append(abbreviations[key])
-                                start = stop
-                                break
-                    else:
-                        terms.append(model.terms[start].string)
-                        start += 1
-                t.cell(' + '.join(terms))
+                t.cell(describer.describe(model))
             elif sort:
                 t.cell(model.sorted_key)
             else:
