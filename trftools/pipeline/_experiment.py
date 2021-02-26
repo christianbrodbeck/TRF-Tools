@@ -2602,6 +2602,7 @@ class TRFExperiment(MneExperiment):
             model: str = None,
             keys: Sequence[str] = ('analysis', 'epoch', 'time_window', 'samplingrate', 'model', 'mask'),
             mask: str = None,
+            rm: bool = False,
     ):
         """List cached TRFs and how much space they take
 
@@ -2614,6 +2615,9 @@ class TRFExperiment(MneExperiment):
         mask
             Only show TRFs matching this mask. Empty string (``''``) to match
             TRFs without mask.
+        rm
+            After listing TRFs, prompt to delete them (nothing will be deleted
+            before user confirmation).
 
         See Also
         --------
@@ -2633,6 +2637,7 @@ class TRFExperiment(MneExperiment):
         """
         ns = defaultdict(lambda: 0)
         sizes = defaultdict(lambda: 0.)  # in bytes
+        paths = []
         for path in self.glob('trf-file', True):
             properties = self._parse_trf_path(path)
             if model and not fnmatch.fnmatch(properties['model'], model):
@@ -2642,6 +2647,10 @@ class TRFExperiment(MneExperiment):
             key = tuple([properties.get(k, '') for k in keys])
             ns[key] += 1
             sizes[key] += os.stat(path).st_size
+            paths.append(path)
+        if not paths:
+            print("No cached TRFs found")
+            return
         sorted_keys = sorted(ns)
         t = fmtxt.Table('l' * len(keys) + 'rr')
         t.cells(*keys, 'n', 'size (MB)')
@@ -2651,7 +2660,16 @@ class TRFExperiment(MneExperiment):
             t.cell(ns[key])
             size_mb = round(sizes[key] / 1e6, 1)
             t.cell(size_mb)
-        return t
+        if not rm:
+            return t
+        # prompt to delete files
+        print(t)
+        command = ask(f"Delete {len(paths)} TRFs?", {'yes': 'delete files', 'no': "don't delete files (default)"}, allow_empty=True)
+        if command != 'yes':
+            return
+        for path in paths:
+            os.remove(path)
+        self.
 
     def show_model_terms(self, model: ModelArg) -> fmtxt.Table:
         "Table showing terms in a model"
