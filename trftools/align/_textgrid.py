@@ -57,6 +57,15 @@ class Realization:
         "Strip stress information (numbers 0/1/2 on vowels)"
         return replace(self, phones=tuple([p.rstrip('012') for p in self.phones]))
 
+    def is_silence(self):
+        return self.pronunciation == ' '
+
+    def phone_intervals(self):
+        "Iterate through ``phone, t_start, t_stop``"
+        tstart = self.times
+        tstop = chain(self.times[1:], (self.tstop,))
+        return zip(self.phones, tstart, tstop)
+
 
 class TextGrid:
     "TextGrid representation for regressors"
@@ -97,8 +106,8 @@ class TextGrid:
     ):
         """Load ``*.TextGrid`` file
 
-        Silence tags are normalized to ``' '`` (single space) for phones and
-        words. Tags interpreted as silence: ``'sp', 'sil', 'brth', '', ' '``.
+        Silence tags are normalized to ``' '`` (single space) for phones as well as words.
+        These tags are interpreted as silence: ``'sp', 'sil', 'brth', '', ' '``.
 
         Errors are raised when:
 
