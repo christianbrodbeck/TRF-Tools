@@ -325,6 +325,9 @@ class ModelJob(ExperimentJob):
         return self.experiment._locate_model_test_trfs(self.model, existing=existing, **self.options)
 
     def _execute(self):
+        self.init_sub_jobs()
+        for job in self.trf_jobs:
+            job._execute()
         job = self.reduced_model_job()
         if job:
             job.execute()
