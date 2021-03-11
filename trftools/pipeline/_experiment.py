@@ -1100,6 +1100,7 @@ class TRFExperiment(MneExperiment):
             vardef: Union[None, str, Variables] = None,
             permutations: int = 1,
             vector_as_norm: bool = False,
+            trfs: bool = True,
             **state):
         """Load TRFs for the group in a Dataset (see ``.load_trf()``)
 
@@ -1163,6 +1164,9 @@ class TRFExperiment(MneExperiment):
         vector_as_norm
             For vector data, return the norm at each time point instead of the
             vector.
+        trfs
+            Load TRFs. If TRFs are not needed, setting ``trfs=False`` can speed
+            up loading for complex model.
         ...
             Experiment state parameters.
 
@@ -1181,7 +1185,7 @@ class TRFExperiment(MneExperiment):
         if group is not None:
             dss = []
             for _ in self.iter(group=group, progress_bar="Load TRFs"):
-                ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, None, None, vardef, permutations, vector_as_norm)
+                ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, None, None, vardef, permutations, vector_as_norm, trfs)
                 dss.append(ds)
 
             try:
@@ -1203,7 +1207,7 @@ class TRFExperiment(MneExperiment):
             dss = []
             with self._temporary_state:
                 for sub_epoch in epoch.collect:
-                    ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, None, None, None, permutations, vector_as_norm, epoch=sub_epoch)
+                    ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, None, None, None, permutations, vector_as_norm, trfs, epoch=sub_epoch)
                     ds[:, 'epoch'] = sub_epoch
                     dss.append(ds)
             ds = combine(dss)
@@ -1227,28 +1231,11 @@ class TRFExperiment(MneExperiment):
             is_vector_data = is_ncrf = False
 
         # load result(s)
-        h = r = z = r1 = z1 = residual = det = tstep = x_keys = res_partitions = mu = None
+        h = r = z = r1 = z1 = residual = det = tstep = res_partitions = mu = None
         for x_ in xs:
             res = self.load_trf(x_, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, morph=True)
-            # kernel
-            if scale is None:
-                res_h = res.h
-            elif scale == 'original':
-                res_h = res.h_scaled
-            else:
-                raise ValueError(f"scale={scale!r}")
-            # make sure h is a tuple
-            if isinstance(res_h, NDVar):
-                res_h = [res_h]
-            # morph to average brain
-            if is_ncrf:
-                res_h = [morph_source_space(h, 'fsaverage') for h in res_h]
-            # for vector results, the average norm is relevant
-            if is_vector_data and vector_as_norm:
-                res_h = [hi.norm('space') for hi in res_h]
-            # combine results
-            if h is None:
-                h = res_h
+            # Fit metrics
+            if tstep is None:  # (first iteration)
                 if is_ncrf:
                     tstep = res.tstep
                     mu = res.mu
@@ -1261,11 +1248,9 @@ class TRFExperiment(MneExperiment):
                         z1 = arctanh(r1, info={'unit': 'z(r)'})
                     residual = res.residual
                     det = res.proportion_explained
-                    tstep = res.h_time.tstep
-                x_keys = [Dataset.as_key(term) for term in x_.term_names]
+                    one_h = res.h_source if isinstance(res.h_source, NDVar) else res.h_source[0]
+                    tstep = one_h.time.tstep
             else:
-                for hi, res_hi in zip(h, res_h):
-                    hi += res_hi
                 if is_ncrf:
                     mu = 0  # how to combine multiple mu?
                 else:
@@ -1277,6 +1262,32 @@ class TRFExperiment(MneExperiment):
                         z1 += arctanh(res.r_l1)
                     residual += res.residual
                     det += res.proportion_explained
+            # TRFs
+            if trfs:
+                if scale is None:
+                    res_h = res.h
+                elif scale == 'original':
+                    res_h = res.h_scaled
+                else:
+                    raise ValueError(f"{scale=}")
+                # make sure h is a tuple
+                if isinstance(res_h, NDVar):
+                    res_h = [res_h]
+                # morph to average brain
+                if is_ncrf:
+                    res_h = [morph_source_space(h, 'fsaverage') for h in res_h]
+                # for vector results, the average norm is relevant
+                if is_vector_data and vector_as_norm:
+                    res_h = [hi.norm('space') for hi in res_h]
+                # combine results
+                if h is None:
+                    h = res_h
+                else:
+                    for hi, res_hi in zip(h, res_h):
+                        hi += res_hi
+        if not trfs:
+            h = ()
+
         # average
         if permutations > 1:
             for hi in h:
@@ -1291,6 +1302,7 @@ class TRFExperiment(MneExperiment):
                 det /= permutations
 
         # output Dataset
+        x_keys = [Dataset.as_key(term) for term in x.term_names]
         ds = Dataset(info={'xs': x_keys, 'x_names': x.term_names, 'samplingrate': 1 / tstep, 'partitions': partitions or res_partitions}, name=self._x_desc(x))
         ds['subject'] = Factor([subject], random=True)
         if is_ncrf:
@@ -1320,9 +1332,13 @@ class TRFExperiment(MneExperiment):
                 raise ValueError(f"smooth={smooth!r} with data={data.string!r}")
             keys = [key for key in ('residual', 'det', 'r', 'z', 'r1', 'z1') if key in ds]
             for key in chain(ds.info['xs'], keys):
+                if key not in ds:
+                    continue
                 ds[key] = ds[key].smooth('source', smooth, 'gaussian')
         if smooth_time:
             for key in ds.info['xs']:
+                if key not in ds:
+                    continue
                 ds[key] = ds[key].smooth('time', smooth_time)
 
     def _locate_missing_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, partition_results=False, permutations=1, existing=False, **state):
@@ -2054,7 +2070,7 @@ class TRFExperiment(MneExperiment):
             group = self.get('group')
             vardef = None if test is None else self._tests[test].vars
             x1_permutations = permutations if comparison.x1.has_randomization else 1
-            ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, vardef=vardef, permutations=x1_permutations)
+            ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, trfs=False, make=make, vardef=vardef, permutations=x1_permutations)
 
             if comparison.x0.terms or parameter is not None:
                 if parameter is not None:
@@ -2062,9 +2078,9 @@ class TRFExperiment(MneExperiment):
                     if parameter not in kwargs:
                         raise ValueError(f'parameter={parameter!r}: must be one of {set(kwargs)}')
                     kwargs[parameter] = compare_to
-                    ds0 = self.load_trfs(group, comparison.x1, **kwargs, data=data, make=make, vardef=vardef, permutations=permutations)
+                    ds0 = self.load_trfs(group, comparison.x1, **kwargs, data=data, trfs=False, make=make, vardef=vardef, permutations=permutations)
                 else:
-                    ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, vardef=vardef, permutations=permutations)
+                    ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, trfs=False, make=make, vardef=vardef, permutations=permutations)
                 # restructure data
                 assert np.all(ds1['subject'] == ds0['subject'])
                 if test is None:
