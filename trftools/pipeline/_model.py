@@ -334,7 +334,9 @@ class ModelExpression:
             return base
         # remove subtraction
         terms = list(base.terms)
-        terms.remove(self.subtract)
+        subtract = _expand_term(self.subtract, named_models)
+        for term_i in subtract:
+            terms.remove(term_i)
         return Model(tuple(terms))
 
 
