@@ -367,7 +367,7 @@ class Dispatcher:
                 elif self._notifier:
                     message = fmtxt.FMText([f"All TRFs received for {job.name}.", fmtxt.linebreak])
                     message.append(self.show_jobs())
-                    if self._request_queue:
+                    if not self._request_queue.empty():
                         message.append(fmtxt.linebreak)
                         message.append(fmtxt.linebreak)
                         message.append("Processing new requests...")
