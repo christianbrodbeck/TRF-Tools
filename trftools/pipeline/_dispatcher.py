@@ -382,18 +382,21 @@ class Dispatcher:
                 if cycle_time < MIN_IO_CYCLE_TIME:
                     sleep(MIN_IO_CYCLE_TIME - cycle_time)
 
-    def cancel_job(self, pattern: str):
+    def _find_jobs(self, model: str):
+        return [job for job in self._user_jobs if fnmatch.fnmatch(job.name, model)]
+
+    def cancel_job(self, model: str):
         """Cancel one or several jobs
 
         Parameters
         ----------
-        pattern
-            Pattern to match jobs. For example, a job's name, or '*' to match
-            all jobs.
+        model
+            Pattern to match jobs by model name. For example, a job's full
+            model, or '*' to match all jobs.
         """
-        jobs = [job for job in self._user_jobs if fnmatch.fnmatch(job.name, pattern)]
+        jobs = self._find_jobs(model)
         if not jobs:
-            raise ValueError(f"{pattern!r}: no job with this model name")
+            raise ValueError(f"{model=}: no job with this model name")
         n_removed = 0
         for job in jobs:
             if job.trf_jobs is None:
@@ -466,17 +469,14 @@ class Dispatcher:
                 n_made += 1
                 sleep(2)  # make lock available
 
-    def prioritize(self, model=None, priority=True):
-        """Set the priority of jobs named fnmatching ``model``
+    def prioritize(self, model: str = None, priority: bool = True):
+        """Set the priority of jobs with name matching ``model``
 
         Currently this only affects scheduling of new TRFs, i.e. a change only
         takes effect when a model is reduced.
         """
         priority = bool(priority)
-        jobs = self._report_jobs.values()
-        if model is not None:
-            jobs = (job for job in jobs if fnmatch.fnmatch(job.name, model))
-
+        jobs = self._find_jobs(model)
         for job in jobs:
             job.priority = priority
 
