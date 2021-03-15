@@ -437,11 +437,11 @@ class Dispatcher:
                 del self._report_jobs[job.test_path]
             self._user_jobs.remove(job)
 
-    def info(self, width=None):
+    def info(self):
         out = fmtxt.Report(f"{self.server.host} ({self.server.ip})", date='%c')
         out.append(self.show_workers())
         out.append(fmtxt.linebreak)
-        out.append(self.show_jobs(True, width))
+        out.append(self.show_jobs(True))
         print(out)
 
     def make_reports(self, block=False, notify=False):
@@ -564,9 +564,7 @@ class Dispatcher:
                     n_skipped += 1
             print(f"{n_restarted} restarted, {n_skipped} skipped")
 
-    def show_jobs(self, trfs=False, width=None):
-        if width is None:
-            width = shutil.get_terminal_size((150, 20))[0] - 60
+    def show_jobs(self, trfs=False):
         pending_jobs = {job.path: job for job in self.server.pending_jobs()}
         priority = len({job.priority for job in self._user_jobs}) > 1
         t = fmtxt.Table('lllrrl' + 'l' * priority)
@@ -597,7 +595,7 @@ class Dispatcher:
             else:
                 t.cell(job.experiment.__class__.__name__)  # Exp
                 t.cell(job.options.get('epoch', ''))  # Epoch
-            t.cell(job.name if len(job.name) <= width else f"{job.name[:width-3]}...")
+            t.cell(job.name)
             t.cell(n_trfs)  # TRFs
             t.cell(n_missing)  # Pending
             if priority:
