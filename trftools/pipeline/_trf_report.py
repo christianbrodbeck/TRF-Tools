@@ -1,9 +1,12 @@
+from dataclasses import dataclass
+from itertools import combinations
 from math import ceil
 from typing import Any, Dict, Sequence, Tuple, Union
 
-from eelbrain import plot, fmtxt, find_peaks, Dataset, resample
+from eelbrain import plot, fmtxt, table, test, testnd, Dataset, NDVar, concatenate, find_peaks, normalize_in_cells, resample
 from eelbrain._stats.testnd import MultiEffectNDTest
 from eelbrain._stats.spm import LMGroup
+from eelbrain._utils import LazyProperty
 from eelbrain.fmtxt import FMTextArg, Figure, Section, FMText
 
 from ._results import ResultCollection
@@ -177,6 +180,89 @@ def source_tfce_pmap(effect, pmap, statmap, max_statistic, surfer_kwargs, brain,
     caption = FMText([f"{effect}; ", fmtxt.eq(statistic, max_statistic, 'max'), ', ', fmtxt.peq(p)])
     fig = Figure(content, caption)
     return fig, brain
+
+
+@dataclass
+class CompareLocalization:
+    terms: Dict[str, str]  # list of terms, or {label: term} dict
+    ress: Dict[str, testnd.TTestRelated]
+    trf_dss: Dict[str, Dataset]
+    metric: str = 'det'
+    masks: Sequence[NDVar] = None
+
+    def __post_init__(self):
+        # restrict ROIs to data
+        if self.masks:
+            src = self.trf_dss['']['det'].source
+            self.masks = [mask.sub(source=src) for mask in self.masks]
+
+    @LazyProperty
+    def loc_ress(self):
+        # McCarthy & Wood tests
+        loc_ress = {}
+        for t1, t2 in combinations(self.terms.values(), 2):
+            for i, hemi in enumerate(['lh', 'rh']):
+                y1 = self.trf_dss[t1][self.metric].sub(source=self.masks[i])
+                y2 = self.trf_dss[t2][self.metric].sub(source=self.masks[i])
+                dy = normalize_in_cells(y1, 'source') - normalize_in_cells(y2, 'source')
+                ds_dy = table.melt_ndvar(dy, 'source', ds=self.trf_dss[t1])
+                loc_ress[t1, t2, hemi] = loc_ress[t2, t1, hemi] = test.ANOVA(self.metric, 'source * subject', ds=ds_dy)
+        return loc_ress
+
+    def report(
+            self,
+            brain_view: Union[str, Sequence[float]] = None,
+            axw: float = None,
+            surf: str = 'inflated',
+            cortex: Any = ((1.00,) * 3, (.4,) * 3),
+    ):
+        doc = []
+
+        # plot model-test results
+        layout = BrainLayout(brain_view, axw)
+        sp = plot.brain.SequencePlotter()
+        sp.set_brain_args(mask=(0, 0, 0, 1))
+        if layout.brain_view:
+            sp.set_parallel_view(*layout.brain_view)
+        sp.set_brain_args(surf=surf, cortex=cortex)
+        # ROI overlay
+        if self.masks:
+            roi = self.masks[0] + self.masks[1]
+            sp.add_ndvar_label(roi, color=(0, 1, 0), borders=2, overlay=True)
+        # det data
+        cmap = plot.soft_threshold_colormap('polar-lux-a', .2, 1)
+        for label, term in self.terms.items():
+            res = self.ress[term]
+            diffs = [res.difference.sub(source=hemi) for hemi in ['lh', 'rh']]
+            diffs = [diff / diff.max() for diff in diffs]
+            diff = concatenate(diffs, 'source')
+            sp.add_ndvar(diff, cmap=cmap, vmax=1, label=label)
+        p = sp.plot_table(view='lateral', orientation='vertical', **layout.table_args)
+        doc.append(p)
+
+        # generate table
+        t = fmtxt.Table('l' * (2 * len(self.terms) + 1))
+        # header 1
+        t.cell('')
+        for text in ['Left', 'Right']:
+            t.cell(f'{text} H', width=len(self.terms))
+        # header 2
+        t.cell('')
+        for _ in range(2):
+            t.cells(*self.terms.keys())
+        t.midrule()
+        for label, t1 in self.terms.items():
+            t.cell(label)
+            for hemi in ['lh', 'rh']:
+                for t2 in self.terms.values():
+                    if t1 == t2:
+                        t.cell('')
+                        continue
+                    res = self.loc_ress[t1, t2, hemi].f_tests[0]
+                    stars = fmtxt.Stars.from_p(res.p)
+                    t.cell([stars, res._asfmtext()])
+        doc.append(t)
+        return fmtxt.FloatingLayout(doc)
 
 
 def find_peak_times(y, y_mask):

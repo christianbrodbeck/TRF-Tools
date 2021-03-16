@@ -2479,6 +2479,39 @@ class TRFExperiment(MneExperiment):
             raise ValueError(f"{model!r} is an explicitly defined model; remove it from .models")
         self._remove_model(model)
 
+    def show_localization_test(
+            self,
+            x: ModelArg,
+            terms: Union[Sequence[str], Dict[str, str]],  # list of terms, or {label: term} dict
+            test_masks: Sequence[NDVar] = None,  # [lh, rh]
+            brain_view: Union[str, Sequence[float]] = None,
+            axw: float = 4,
+            surf: str = 'inflated',
+            cortex: Any = ((1.00,) * 3, (.4,) * 3),
+            return_data: bool = False,
+            metric: str = 'det',
+            **kwargs,
+    ):
+        """Test for localization difference of two terms in a model"""
+        if not isinstance(terms, dict):
+            terms = {term: term for term in terms}
+        # trf_kwargs = {key: value for key, value in kwargs.items() if key not in ('metric',)}
+        # load data
+        ress = {}
+        trf_dss = {}
+        for term in ['', *terms.values()]:
+            if term:
+                comp = self._coerce_comparison(f'{x} | {term}', cv=True)
+                model = comp.x0
+                ress[term] = self.load_model_test(comp, metric=metric, **kwargs)
+            else:
+                model = x
+            trf_dss[term] = self.load_trfs(-1, model, **kwargs, trfs=False)
+        data = trf_report.CompareLocalization(terms, ress, trf_dss, metric, test_masks)
+        if return_data:
+            return data
+        return data.report(brain_view, axw, surf, cortex)
+
     def show_model_test(
             self,
             x: Union[str, Dict[str, str]],
