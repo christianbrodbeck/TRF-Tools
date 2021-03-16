@@ -1545,7 +1545,7 @@ class TRFExperiment(MneExperiment):
             terms = [term_i.string for term_i in model.terms]
         elif term is None:
             if isinstance(terms, str):
-                term_names = [term_i.code for term_i in model.terms]
+                term_names = [term_i.string for term_i in model.terms]
                 term_list = [term_i for term_i in term_names if fnmatch.fnmatch(term_i, terms)]
                 if not term_list:
                     raise ValueError(f"terms={terms!r}: not matching TRF among {', '.join(term_names)}")
