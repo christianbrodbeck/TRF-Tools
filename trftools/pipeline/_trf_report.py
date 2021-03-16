@@ -78,7 +78,7 @@ def vsource_tfce_map(effect, stat_map, p, statistic, max_statistic):
 
 def source_results(
         ress: ResultCollection,
-        ress_hemi: dict = None,
+        ress_hemi: ResultCollection = None,
         heading: FMTextArg = None,
         brain_view: Union[str, Sequence[float]] = None,
         axw: float = None,
@@ -246,7 +246,7 @@ def source_trfs(
         for t in times_:
             yt = trf_resampled.mean(time=(t - dt, t + dt + 0.001))
             if isinstance(cmap, str):
-                vmax_ = vmax or max(-yt.min(), yt.max())
+                vmax_ = vmax or max(-yt.min(), yt.max()) or 1
                 cmap_ = plot.soft_threshold_colormap(cmap, vmax_ / 10, vmax_)
             else:
                 cmap_ = cmap
