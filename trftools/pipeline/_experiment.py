@@ -2377,6 +2377,10 @@ class TRFExperiment(MneExperiment):
         regressor : str
             Regressor that became invalid; can contain ``*`` and ``?`` for
             pattern matching.
+
+        Notes
+        -----
+        Deletes TRFs and tests. Corresponding predictor files are not affected.
         """
         files = set()  # avoid duplicate paths when model name contains regressor name
 
@@ -2395,7 +2399,7 @@ class TRFExperiment(MneExperiment):
         for name in models:
             files.update(self._find_model_files(name, trfs=True, tests=True))
 
-        # cached regressor files
+        # cached regressor files (only MakePredictors are cached)
         cache_dir = self.get('predictor-cache-dir', mkdir=True)
         files.update(glob(join(cache_dir, f'*|{regressor} *.pickle')))
 
@@ -2403,11 +2407,19 @@ class TRFExperiment(MneExperiment):
             print("No files affected")
             return
 
+        options = {
+            'yes': 'delete files',
+            'no': 'return without doing anything (default)',
+            'files': 'list files to be deleted',
+            'models': 'list models including predictor',
+        }
         while True:
-            command = ask(f"Invalidate {regressor} regressor, deleting {len(files)} files?", {'yes': 'delete files', 'show': 'list terms, models and files to be deleted'}, allow_empty=True)
+            command = ask(f"Invalidate {regressor} regressor, deleting {len(files)} files?", options, allow_empty=True)
             if command == 'yes':
                 for path in files:
                     os.remove(path)
+            elif command == 'no':
+                pass
             elif command == 'show':
                 print(f"Terms: {', '.join(sorted(terms))}")
                 print(f"Models: {', '.join(sorted(models))}")
@@ -2416,6 +2428,15 @@ class TRFExperiment(MneExperiment):
                 print(f"Files in {prefix}:")
                 for path in paths:
                     print(relpath(path, prefix))
+                continue
+            elif command == 'models':
+                print(f"Terms: {', '.join(sorted(terms))}")
+                describer = ModelDescriber(self._structured_models)
+                t = fmtxt.Table('ll')
+                for model in models:
+                    desc = describer.describe(self._named_models[model])
+                    t.cells(model, desc)
+                print(t)
                 continue
             return
 
