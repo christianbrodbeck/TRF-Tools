@@ -213,10 +213,6 @@ class TRFExperiment(MneExperiment):
     stim_var = 'stimulus'
     predictors = {}
 
-    # exclude rare phonemes
-    # epoch -> list of phones
-    exclude_phones = {}
-
     _values = {
         # Predictors
         'predictor-dir': join('{root}', 'predictors'),
