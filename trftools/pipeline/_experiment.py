@@ -228,6 +228,7 @@ class TRFExperiment(MneExperiment):
         # predictors
         'predictor-cache-dir': join('{cache-dir}', 'predictors'),
     }
+    _artifact_rejection_default = ''
 
     models = {}
     _named_models = {}
