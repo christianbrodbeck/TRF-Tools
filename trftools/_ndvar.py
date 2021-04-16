@@ -8,24 +8,34 @@ import numpy as np
 SHUFFLE_METHODS = ('shift',)
 
 
-def pad(ndvar, tstart=None, tstop=None, nsamples=None):
+def pad(
+        ndvar: NDVar,
+        tstart: float = None,
+        tstop: float = None,
+        nsamples: int = None,
+        set_tmin: bool = False,
+):
     """Pad (or crop) an NDVar in time
 
     Parameters
     ----------
-    ndvar : NDVar
+    ndvar
         NDVar to pad.
-    tstart : float
+    tstart
         New tstart.
-    tstop : float
+    tstop
         New tstop.
-    nsamples : int
+    nsamples
         New number of samples.
+    set_tmin
+        Reset ``tmin`` to be exactly equal to ``tstart``.
     """
     axis = ndvar.get_axis('time')
     time = ndvar.dims[axis]
     # start
     if tstart is None:
+        if set_tmin:
+            raise ValueError("set_tmin without defining tstart")
         if nsamples is not None:
             raise NotImplementedError("nsamples without tstart")
         n_add_start = 0
@@ -64,7 +74,11 @@ def pad(ndvar, tstart=None, tstop=None, nsamples=None):
     elif n_add_end < 0:
         xs[-1] = xs[-1][index(slice(None, n_add_end), axis)]
     x = np.concatenate(xs, axis)
-    new_time = UTS(time.tmin - (time.tstep * n_add_start), time.tstep, x.shape[axis])
+    if set_tmin:
+        new_tmin = tstart
+    else:
+        new_tmin = time.tmin - (time.tstep * n_add_start)
+    new_time = UTS(new_tmin, time.tstep, x.shape[axis])
     return NDVar(x, ndvar.dims[:axis] + (new_time,) + ndvar.dims[axis + 1:], ndvar.name, ndvar.info)
 
 

@@ -181,7 +181,7 @@ class FilePredictor:
             uts = UTS(tmin, tstep, n_samples)
             x = self._ds_to_ndvar(x, uts, code)
         elif isinstance(x, NDVar):
-            x = pad(x, tmin, nsamples=n_samples)
+            x = pad(x, tmin, nsamples=n_samples, set_tmin=True)
         else:
             raise RuntimeError(x)
 
