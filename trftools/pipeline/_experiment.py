@@ -2396,6 +2396,9 @@ class TRFExperiment(MneExperiment):
                 if reg_re_term.match(term.code):
                     terms.add(term.code)
                     models.add(name)
+                elif reg_re_term.match(term.string):
+                    terms.add(term.string)
+                    models.add(name)
         for name in models:
             files.update(self._find_model_files(name, trfs=True, tests=True))
 
@@ -2420,7 +2423,7 @@ class TRFExperiment(MneExperiment):
                     os.remove(path)
             elif command == 'no':
                 pass
-            elif command == 'show':
+            elif command == 'files':
                 print(f"Terms: {', '.join(sorted(terms))}")
                 print(f"Models: {', '.join(sorted(models))}")
                 paths = sorted(files)
