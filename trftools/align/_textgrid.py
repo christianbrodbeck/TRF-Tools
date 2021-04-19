@@ -68,7 +68,10 @@ class Realization:
 
 
 class TextGrid:
-    "TextGrid representation for regressors"
+    """Extract and manipulate information from TextGrids
+
+    Load an existing ``*.TextGrid` file using :meth:`TextGrid.from_file`
+    """
     def __init__(
             self,
             realizations: List[Realization],
@@ -106,6 +109,23 @@ class TextGrid:
     ):
         """Load ``*.TextGrid`` file
 
+        Parameters
+        ----------
+        grid_file
+            Path to the ``*.TextGrid`` file.
+        tmin
+            First time point (only applies when converting to uniform time series).
+        tstep
+            Time step (only applies when converting to uniform time series).
+        n_samples
+            Number of samples in the whole time series (only applies when converting to uniform time series).
+        word_tier
+            Name of the word tier in the ``TextGrid`` file.
+        phone_tier
+            Name of the phoneme tier in the ``TextGrid`` file.
+
+        Notes
+        -----
         Silence tags are normalized to ``' '`` (single space) for phones as well as words.
         These tags are interpreted as silence: ``'sp', 'sil', 'brth', '', ' '``.
 
@@ -367,18 +387,22 @@ class TextGrid:
             i_word += j_word + 1
         return out
 
-    def get_indexes(self, feature='phone', stop=True):
+    def get_indexes(
+            self,
+            feature: str = 'phone',
+            stop: bool = True,
+    ):
         """Event boundary indexes (in sample)
 
         Parameters
         ----------
-        feature : str
+        feature
             Feature for which to retrieve index:
              - 'phone': phonemes (including silence)
              - 'word': words (including silence)
              - 'word-up': onset of the morphological uniqueness point phoneme
                (silence onset for silence).
-        stop : bool
+        stop
             Include stop index (for intervals).
         """
         tmin = self.tmin

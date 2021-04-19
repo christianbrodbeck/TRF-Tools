@@ -3,9 +3,16 @@ Tools for data analysis with temporal response functions (TRFs). This repository
 
 ## Installing
 
-TRF-Tools should be installed with `pip` into a recent [`eelbrain` environment](https://github.com/christianbrodbeck/Eelbrain/wiki/Installing). To install directly from GitHub:
+TRF-Tools should be installed into a recent `eelbrain` environment. If starting from scratch, first create a new conda environment with Eelbrain ([other options](https://github.com/christianbrodbeck/Eelbrain/wiki/Installing)):
 
 ```Bash
+$ conda create -n eelbrain -c conda-forge eelbrain
+```
+
+Then, activate the new environment and install TRF-Tools directly from GitHub:
+
+```Bash
+$ conda activate eelbrain
 $ pip install https://github.com/christianbrodbeck/TRF-Tools/archive/master.zip
 ```
 
