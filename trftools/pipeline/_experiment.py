@@ -2364,6 +2364,7 @@ class TRFExperiment(MneExperiment):
         # merge
         for path_dst, paths_src in combine.items():
             res = concatenate([load.unpickle(path) for path in paths_src], 'source')
+            res._set_parc(dst)
             save.pickle(res, path_dst)
             for path in paths_src:
                 path.rename(path.with_suffix(f'.backup{path.suffix}'))
