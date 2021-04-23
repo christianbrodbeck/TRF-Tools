@@ -2050,7 +2050,6 @@ class TRFExperiment(MneExperiment):
 
         self._set_trf_options(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, pmin=pmin, test=test_desc, smooth_source=smooth, metric=metric, is_group_result=True, test_options=test_options, permutations=permutations, state=state)
         dst = self.get('model-test-file', mkdir=True)
-        dst = self._cache_path(dst)
         if self._result_file_mtime(dst, data):
             res = load.unpickle(dst)
             if data.source:
@@ -2464,32 +2463,6 @@ class TRFExperiment(MneExperiment):
         fwd_op = rename_dim(fwd_op, 'source', 'source_from')
         psf = inv_op.dot(fwd_op)
         return psf
-
-    # Long filenames
-    ################
-    def _cache_path(self, path):
-        dirname, basename = os.path.split(path)
-        if len(basename) < 256:
-            return path
-        raise RuntimeError("Path too long: %s" % (path,))
-        # is this really necessary...?
-        registry_path = join(self.get('cache-dir'), 'shortened_paths.pickle')
-        if exists(registry_path):
-            registry = load.unpickle(registry_path)
-        else:
-            registry = {}
-
-        if basename not in registry:
-            name, ext = splitext(basename)
-            prefix = name[:220]
-            dst = '%s shortened-%%i%s' % (prefix, ext)
-            values = registry.values()
-            i = 0
-            while dst % i in values:
-                i += 1
-            registry[basename] = dst % i
-            save.pickle(registry, registry_path)
-        return join(dirname, registry[basename])
 
     def remove_model(self, model):
         """Remove a named model and delete all associated files
