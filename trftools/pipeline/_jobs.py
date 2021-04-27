@@ -284,7 +284,7 @@ class ModelJob(ExperimentJob):
     ...
         Model-test parameters.
     """
-    def __init__(self, model, experiment=None, report=True, reduce_model=False, parent=None, priority=False, reduction_tag='red', metric='z', smooth=False, cv=False, **options):
+    def __init__(self, model, experiment=None, report=False, reduce_model=False, parent=None, priority=False, reduction_tag='red', metric='z', smooth=False, cv=False, **options):
         model = experiment._coerce_comparison(model, cv)
         if isinstance(reduce_model, float):
             assert 0. < reduce_model < 1.

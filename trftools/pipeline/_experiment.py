@@ -570,7 +570,7 @@ class TRFExperiment(MneExperiment):
             else:
                 self._remove_model(model, files=[])
 
-    def model_job(self, x, report=True, reduce_model=False, **kwargs):
+    def model_job(self, x, report=False, reduce_model=False, **kwargs):
         """Compute all TRFs needed for a model-test
 
         Parameters
@@ -578,7 +578,7 @@ class TRFExperiment(MneExperiment):
         x : str
             Model or comparison.
         report : bool
-            Schedule a model-test report.
+            Schedule a model-test report (only available for source space data).
         reduce_model : bool
             Iteratively reduce the model until it only contains predictors
             significant at the .05 level.
