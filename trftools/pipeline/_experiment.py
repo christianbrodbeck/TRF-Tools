@@ -2544,6 +2544,14 @@ class TRFExperiment(MneExperiment):
             Mask by significance (default ``True``)
         heading
             Heading for report section.
+        vmax
+            Colormap range.
+        cmap
+            Colormap.
+        alpha
+            Alpha of the colormap.
+        xhemi
+            Test lateralization.
 
         Notes
         -----
