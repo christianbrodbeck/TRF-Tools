@@ -4,7 +4,7 @@ from itertools import combinations
 from math import ceil
 from typing import Any, Dict, Sequence, Tuple, Union
 
-from eelbrain import plot, fmtxt, table, test, testnd, Dataset, NDVar, concatenate, find_peaks, normalize_in_cells, resample
+from eelbrain import plot, fmtxt, table, test, testnd, Dataset, NDVar, VolumeSourceSpace, concatenate, find_peaks, normalize_in_cells, resample
 from eelbrain._stats.testnd import MultiEffectNDTest
 from eelbrain._stats.spm import LMGroup
 from eelbrain.fmtxt import FMTextArg, Figure, Section, FMText
@@ -166,6 +166,10 @@ def source_results(
 
     if sig and all(res.p.min() > 0.05 for res in ress.values()):
         return doc
+
+    is_vol = any(isinstance(res.p.source, VolumeSourceSpace) for res in ress.values())
+    if is_vol:
+        return doc  # FIXME
 
     # plots tests
     panels = []
