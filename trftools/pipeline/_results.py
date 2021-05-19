@@ -68,18 +68,19 @@ class ResultCollection(dict):
         if self.test_type is TestType.TWO_STAGE:
             raise NotImplementedError
         else:
-            table = fmtxt.Table('lrrll')
-            table.cells('Effect', 't-start', 't-stop', fmtxt.symbol('p'), 'sig', just='l')
+            table = fmtxt.Table('lrrrll')
+            table.cells('Effect', 't-start', 't-stop', fmtxt.symbol(self._statistic, 'max'), fmtxt.symbol('p'), 'sig', just='l')
             table.midrule()
             for key, res in self.items():
                 table.cell(key)
                 table.endline()
-                clusters = res.find_clusters(p)
+                clusters = res.find_clusters(p, maps=True)
                 clusters.sort('tstart')
                 if self.test_type is not TestType.MULTI_EFFECT:
                     clusters[:, 'effect'] = ''
-                for effect, tstart, tstop, p_, sig in clusters.zip('effect', 'tstart', 'tstop', 'p', 'sig'):
-                    table.cells(f'  {effect}', ms(tstart), ms(tstop), fmtxt.p(p_), sig)
+                for effect, tstart, tstop, p_, sig, cmap in clusters.zip('effect', 'tstart', 'tstop', 'p', 'sig', 'cluster'):
+                    max_stat = res._max_statistic(mask=cmap != 0)
+                    table.cells(f'  {effect}', ms(tstart), ms(tstop), fmtxt.stat(max_stat), fmtxt.p(p_), sig)
         return table
 
     def table(self, title=None, caption=None):
