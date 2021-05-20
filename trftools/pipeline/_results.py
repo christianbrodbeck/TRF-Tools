@@ -68,8 +68,8 @@ class ResultCollection(dict):
         if self.test_type is TestType.TWO_STAGE:
             raise NotImplementedError
         else:
-            table = fmtxt.Table('lrrrll')
-            table.cells('Effect', 't-start', 't-stop', fmtxt.symbol(self._statistic, 'max'), fmtxt.symbol('p'), 'sig', just='l')
+            table = fmtxt.Table('lrrrrll')
+            table.cells('Effect', 't-start', 't-stop', fmtxt.symbol(self._statistic, 'max'), fmtxt.symbol('t', 'peak'), fmtxt.symbol('p'), 'sig', just='l')
             table.midrule()
             for key, res in self.items():
                 table.cell(key)
@@ -79,8 +79,8 @@ class ResultCollection(dict):
                 if self.test_type is not TestType.MULTI_EFFECT:
                     clusters[:, 'effect'] = ''
                 for effect, tstart, tstop, p_, sig, cmap in clusters.zip('effect', 'tstart', 'tstop', 'p', 'sig', 'cluster'):
-                    max_stat = res._max_statistic(mask=cmap != 0)
-                    table.cells(f'  {effect}', ms(tstart), ms(tstop), fmtxt.stat(max_stat), fmtxt.p(p_), sig)
+                    max_stat, max_time = res._max_statistic(mask=cmap != 0, return_time=True)
+                    table.cells(f'  {effect}', ms(tstart), ms(tstop), fmtxt.stat(max_stat), ms(max_time), fmtxt.p(p_), sig)
         return table
 
     def table(self, title=None, caption=None):
