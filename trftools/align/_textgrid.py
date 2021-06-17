@@ -9,7 +9,9 @@ from math import ceil
 import os
 from pathlib import Path
 import string
-from typing import Any, Iterator, List, Sequence, Union, Tuple
+from typing import Any, Dict, Iterator, List, Sequence, Union, Tuple
+
+import numpy
 
 from eelbrain import fmtxt, Dataset, Factor, Var
 from eelbrain._data_obj import FactorArg, asfactor
@@ -52,6 +54,24 @@ class Realization:
         if len(self.phones) == 0:
             raise ValueError("Word without phones")
         self.pronunciation = ' '.join(self.phones)
+
+    def map_phonemes(self, mapping: Dict[str, Union[str, Tuple[str, ...]]]):
+        "Replace each phoneme from ``mapping``"
+        if self.is_silence():
+            return self
+        phones = []
+        times = []
+        for i, phone in enumerate(self.phones):
+            target = mapping[phone]
+            if isinstance(target, str):
+                phones.append(target)
+                times.append(self.times[i])
+            else:
+                phones.extend(target)
+                t_start = self.times[i]
+                t_stop = self.tstop if i+1 == len(self.phones) else self.times[i+1]
+                times.extend(numpy.linspace(t_start, t_stop, len(target), endpoint=False))
+        return Realization(tuple(phones), tuple(times), self.graphs, self.tstop)
 
     def strip_stress(self):
         "Strip stress information (numbers 0/1/2 on vowels)"
@@ -225,6 +245,11 @@ class TextGrid:
             else:
                 new.append(realization)
         return TextGrid(new, self.tmin, self.tstep, self.n_samples, self._name)
+
+    def map_phonemes(self, mapping: Dict[str, str]):
+        "Replace each phoneme from ``mapping``"
+        realizations = [r.map_phonemes(mapping) for r in self.realizations]
+        return TextGrid(realizations, self.tmin, self.tstep, self.n_samples, self._name)
 
     def strip_stress(self):
         """Remove stress digits from all phones (``K AA1 R`` -> ``K AA R``)"""
