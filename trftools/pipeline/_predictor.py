@@ -59,7 +59,7 @@ class FilePredictor:
 
         1. Uniform time series (UTS). A :class:`NDVar` with time dimension
            matching the data.
-        2. Nun-uniform time series (NUTS). A :class:`Dataset` with columns
+        2. Non-uniform time series (NUTS). A :class:`Dataset` with columns
            representing time stamps, event values and optionally even masks.
 
     .. warning::

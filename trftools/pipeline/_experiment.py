@@ -1954,7 +1954,6 @@ class TRFExperiment(MneExperiment):
             Use cross-validation.
         data : 'sensor' | 'source'
             Analyze source- or sensor space data.
-            TRF parameters (see :meth:`.load_trf`)
         permutations
             When testing against a partially permuted model, average the result
             of ``permutations`` different permutations as baseline model.
