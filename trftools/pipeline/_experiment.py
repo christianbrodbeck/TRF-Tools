@@ -1954,7 +1954,6 @@ class TRFExperiment(MneExperiment):
             Use cross-validation.
         data : 'sensor' | 'source'
             Analyze source- or sensor space data.
-            TRF parameters (see :meth:`.load_trf`)
         permutations
             When testing against a partially permuted model, average the result
             of ``permutations`` different permutations as baseline model.
@@ -2057,9 +2056,9 @@ class TRFExperiment(MneExperiment):
         y, to_uv = FIT_METRIC_RE.match(metric).groups()
         if to_uv:  # make sure variables that don't affect tests are default
             if xhemi:
-                raise ValueError(f"xhemi={xhemi!r} with metric={metric!r}")
+                raise ValueError(f"{xhemi=} with {metric=}")
             elif pmin != 'tfce':
-                raise ValueError(f"pmin={pmin!r} with metric={metric!r}")
+                raise ValueError(f"{pmin=} with {metric=}")
 
         if return_data or res is None:
             # load data
