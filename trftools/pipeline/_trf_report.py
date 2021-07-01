@@ -12,6 +12,37 @@ from eelbrain.fmtxt import FMTextArg, Figure, Section, FMText
 from ._results import ResultCollection
 
 
+def sensor_results(
+        ress: ResultCollection,
+        heading: FMTextArg = None,
+        axw: float = None,
+        vmax: float = None,
+        cmap: str = None,
+):
+    "Only used for TRFExperiment model-test"
+    if heading is not None:
+        doc = fmtxt.Section(heading)
+    else:
+        doc = fmtxt.FMText()
+    # table
+    doc.append(fmtxt.Figure(ress.table(title='Model test')))
+
+    # plots tests
+    topographies = [res.masked_difference() for res in ress.values()]
+    if vmax is None:
+        vlims = plot._base.find_fig_vlims([topographies], vmax)
+        _, vmax = vlims.pop(None)
+
+    panels = []
+    for (x, res), y in zip(ress.items(), topographies):
+        title = [x, fmtxt.Stars.from_p(res.p.min())]
+        p = plot.Topomap(y, cmap=cmap, vmax=vmax, title=title, axw=axw, show=False, clip='circle')
+        panels.append(p.image())
+        p.close()
+    doc.append(fmtxt.Figure(fmtxt.FloatingLayout(panels)))
+    return doc
+
+
 class BrainLayout:
     _views = {
         'temporal': ((-18, -28, 50), 1.5),

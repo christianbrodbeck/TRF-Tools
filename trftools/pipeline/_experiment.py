@@ -2518,7 +2518,8 @@ class TRFExperiment(MneExperiment):
             vmax: float = None,
             cmap: str = None,
             alpha: float = 1.,
-            xhemi: bool = True,
+            xhemi: bool = False,
+            data: DataArg = DATA_DEFAULT,
             **test_args,
     ) -> fmtxt.Section:
         """Document section for one or several model tests
@@ -2548,11 +2549,17 @@ class TRFExperiment(MneExperiment):
             Alpha of the colormap.
         xhemi
             Test lateralization.
+        data : 'sensor' | 'source'
+            Analyze source- or sensor space data.
+        ...
+            Additional parameters for :meth:`.load_model_test`.
 
         Notes
         -----
         Surface source space only.
         """
+        data = TestDims.coerce(data, time=False)
+        test_args['data'] = data
         ress_hemi = None
         if isinstance(x, dict):
             ress = ResultCollection({k: self.load_model_test(m, **test_args) for k, m in x.items()})
@@ -2566,7 +2573,12 @@ class TRFExperiment(MneExperiment):
                 ress_hemi = self.load_model_test(x, xhemi=True, **test_args)
                 if not isinstance(ress_hemi, dict):
                     ress_hemi = ResultCollection({x: ress_hemi})
-        return trf_report.source_results(ress, ress_hemi, heading, brain_view, axw, surf, cortex, sig, vmax, cmap, alpha)
+        if data.source is True:
+            return trf_report.source_results(ress, ress_hemi, heading, brain_view, axw, surf, cortex, sig, vmax, cmap, alpha)
+        elif data.sensor is True:
+            return trf_report.sensor_results(ress, heading, axw, vmax, cmap)
+        else:
+            raise NotImplementedError(f'data={data.string!r}')
 
     def show_trf_test(
             self,
