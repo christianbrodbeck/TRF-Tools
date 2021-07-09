@@ -14,7 +14,8 @@ def pad(
         tstop: float = None,
         nsamples: int = None,
         set_tmin: bool = False,
-):
+        name: str = None,
+) -> NDVar:
     """Pad (or crop) an NDVar in time
 
     Parameters
@@ -29,9 +30,13 @@ def pad(
         New number of samples.
     set_tmin
         Reset ``tmin`` to be exactly equal to ``tstart``.
+    name
+        Name for the new NDVar.
     """
     axis = ndvar.get_axis('time')
-    time = ndvar.dims[axis]
+    time: UTS = ndvar.dims[axis]
+    if name is None:
+        name = ndvar.name
     # start
     if tstart is None:
         if set_tmin:
@@ -52,7 +57,7 @@ def pad(
     elif nsamples is None:
         n_add_end = int((tstop - time.tstop) // time.tstep)
     elif tstop is None:
-        n_add_end = nsamples - n_add_start - ndvar.time.nsamples
+        n_add_end = nsamples - n_add_start - time.nsamples
     else:
         raise TypeError("Can only specify one of tstart and nsamples")
     # need to pad?
@@ -79,7 +84,8 @@ def pad(
     else:
         new_tmin = time.tmin - (time.tstep * n_add_start)
     new_time = UTS(new_tmin, time.tstep, x.shape[axis])
-    return NDVar(x, ndvar.dims[:axis] + (new_time,) + ndvar.dims[axis + 1:], ndvar.name, ndvar.info)
+    dims = (*ndvar.dims[:axis], new_time, *ndvar.dims[axis + 1:])
+    return NDVar(x, dims, name, ndvar.info)
 
 
 def shuffle(ndvar, method, band=slice(None), angle=180):
