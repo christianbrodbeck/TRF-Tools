@@ -228,7 +228,6 @@ class Dispatcher:
         n_exceptions = n_trf_exceptions = 0
         while True:
             cycle_start_time = time()
-            new_results = False
 
             # schedule new jobs (on the same thread to make sure we don't miss
             # incoming result files)
@@ -237,8 +236,6 @@ class Dispatcher:
                 try:
                     job = self._request_queue.get(block=False)
                 except Empty:
-                    if n_reports_requested:
-                        new_results = True
                     if n_reports_requested or n_trfs_requested:
                         self.logger.info("%i requests processed, added %i reports and %i TRFs to queue", jobs_processed, n_reports_requested, n_trfs_requested)
                         if n_pending:
@@ -340,7 +337,6 @@ class Dispatcher:
                 except Empty:
                     break
                 else:
-                    new_results = True
                     if trf_path in self._trf_jobs:
                         trfjob = self._trf_jobs.pop(trf_path)
                         self.logger.info("Received  %s", trfjob.desc)
