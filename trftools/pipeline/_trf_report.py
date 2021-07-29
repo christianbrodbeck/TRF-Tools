@@ -31,7 +31,8 @@ def sensor_results(
     topographies = [res.masked_difference() for res in ress.values()]
     if vmax is None:
         vlims = plot._base.find_fig_vlims([topographies], vmax)
-        _, vmax = vlims.pop(None)
+        for _, vmax in vlims.values():
+            break
 
     panels = []
     for (x, res), y in zip(ress.items(), topographies):
