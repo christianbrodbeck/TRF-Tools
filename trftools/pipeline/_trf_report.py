@@ -25,7 +25,7 @@ def sensor_results(
     else:
         doc = fmtxt.FMText()
     # table
-    doc.append(fmtxt.Figure(ress.table(title='Model test')))
+    doc.append(fmtxt.Figure(ress.table(caption='Model test')))
 
     # plots tests
     topographies = [res.masked_difference() for res in ress.values()]
@@ -132,9 +132,9 @@ def source_results(
     else:
         doc = fmtxt.FMText()
 
-    tables = [ress.table(title='Model test')]
+    tables = [ress.table(caption='Model test')]
     if ress_hemi is not None:
-        tables.append(ress_hemi.table(title="Lateralization"))
+        tables.append(ress_hemi.table(caption="Lateralization"))
     doc.append(fmtxt.Figure(fmtxt.FloatingLayout(tables)))
 
     if sig and all(res.p.min() > 0.05 for res in ress.values()):
