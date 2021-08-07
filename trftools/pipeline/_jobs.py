@@ -14,13 +14,8 @@ from eelbrain._experiment.test_def import TestDims
 from ._model import StructuredModel, ModelArg
 
 
-def make_jobs(job_file, make_trfs=False, open_in_browser=False):
+def make_jobs(job_file, open_in_browser=False):
     for job in read_job_file(job_file):
-        if isinstance(job, TRFsJob):
-            if not make_trfs:
-                continue
-        elif make_trfs:
-            job.options['make'] = True
         path = job.execute()
         if path and open_in_browser:
             webbrowser.open(f"file://{path}")
@@ -492,7 +487,6 @@ def make_jobs_command():
     """
     argparser = ArgumentParser(description="TRF-Tools make-jobs")
     argparser.add_argument('job_file')
-    argparser.add_argument('--make-trfs', action='store_true', help="Compute TRFs if not already present")
     argparser.add_argument('--open', action='store_true', help="Open new reports in browser")
     args = argparser.parse_args()
-    make_jobs(args.job_file, args.make_trfs, args.open)
+    make_jobs(args.job_file, args.open)
