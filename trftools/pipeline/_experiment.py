@@ -114,7 +114,7 @@ from ._code import Code
 from ._jobs import TRFsJob, ModelJob
 from ._model import Comparison, Model, ModelExpression, StructuredModel, load_models, model_comparison_table, model_name_parser, save_models
 from ._predictor import EventPredictor, FilePredictor, MakePredictor
-from ._results import ResultCollection
+from ._results import DependentType, ResultCollection
 from . import _trf_report as trf_report
 
 
@@ -2573,7 +2573,9 @@ class TRFExperiment(MneExperiment):
                 ress_hemi = self.load_model_test(x, xhemi=True, **test_args)
                 if not isinstance(ress_hemi, dict):
                     ress_hemi = ResultCollection({x: ress_hemi})
-        if data.source is True:
+        if ress.dependent_type is DependentType.UNIVARIATE:
+            return trf_report.uv_result(ress, ress_hemi, heading)
+        elif data.source is True:
             return trf_report.source_results(ress, ress_hemi, heading, brain_view, axw, surf, cortex, sig, vmax, cmap, alpha)
         elif data.sensor is True:
             return trf_report.sensor_results(ress, heading, axw, vmax, cmap)

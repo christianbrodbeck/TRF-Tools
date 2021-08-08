@@ -111,6 +111,22 @@ def vsource_tfce_map(effect, stat_map, p, statistic, max_statistic):
     return Figure(content, caption)
 
 
+def uv_result(
+        ress: ResultCollection,
+        ress_hemi: ResultCollection = None,
+        heading: FMTextArg = None,
+):
+    if heading is not None:
+        doc = fmtxt.Section(heading)
+    else:
+        doc = fmtxt.FMText()
+    tables = [ress.table(caption='Model test')]
+    if ress_hemi is not None:
+        tables.append(ress_hemi.table(caption="Lateralization"))
+    doc.append(fmtxt.Figure(fmtxt.FloatingLayout(tables)))
+    return doc
+
+
 def source_results(
         ress: ResultCollection,
         ress_hemi: ResultCollection = None,
