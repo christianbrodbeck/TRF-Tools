@@ -1209,7 +1209,8 @@ class TRFExperiment(MneExperiment):
                     dss.append(ds)
             ds = combine(dss)
             self._smooth_trfs(data, ds, smooth, smooth_time)
-            self._add_vars(ds, vardef, groupvars=True)
+            self._add_vars(ds, self._variables, group_only=True)
+            self._add_vars(ds, vardef, group_only=True)
             return ds
 
         # single subject and epoch
@@ -1318,7 +1319,8 @@ class TRFExperiment(MneExperiment):
             ds[Dataset.as_key(hi.name)] = hi[newaxis]
 
         self._smooth_trfs(data, ds, smooth, smooth_time)
-        self._add_vars(ds, vardef, groupvars=True)
+        self._add_vars(ds, self._variables, group_only=True)
+        self._add_vars(ds, vardef, group_only=True)
         return ds
 
     @staticmethod
@@ -2078,10 +2080,10 @@ class TRFExperiment(MneExperiment):
                     ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, trfs=False, make=make, vardef=vardef, permutations=permutations)
                 # restructure data
                 assert np.all(ds1['subject'] == ds0['subject'])
+                keep = tuple(k for k in ds1 if isuv(ds1[k]) and np.all(ds1[k] == ds0[k]))
                 if test is None:
-                    ds = combine((ds1['subject', ], ds0['subject', ]))
+                    ds = combine((ds1[keep], ds0[keep]))
                 else:
-                    keep = tuple(k for k in ds1 if isuv(ds1[k]) and np.all(ds1[k] == ds0[k]))
                     ds = ds1[keep]
                 dss = [ds1, ds0]
             else:
