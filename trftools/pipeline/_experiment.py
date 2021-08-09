@@ -1184,17 +1184,7 @@ class TRFExperiment(MneExperiment):
             for _ in self.iter(group=group, progress_bar="Load TRFs"):
                 ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, None, None, vardef, permutations, vector_as_norm, trfs)
                 dss.append(ds)
-
-            try:
-                ds = combine(dss)
-            except DimensionMismatchError:
-                if not backward:
-                    raise
-                # backward model can have incompatible sensor dimensions
-                for ds in dss:
-                    del ds[data.y_name]
-                ds = combine(dss)
-                ds.info['load_trfs'] = f"Dropping {data.y_name} (incompatible dimension)"
+            ds = combine(dss, to_list=True)
             self._smooth_trfs(data, ds, smooth, smooth_time)
             return ds
 
