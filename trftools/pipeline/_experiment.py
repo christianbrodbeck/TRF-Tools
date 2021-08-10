@@ -729,7 +729,8 @@ class TRFExperiment(MneExperiment):
                 self.make_src(mrisubject=common_brain)
                 if parc:
                     self.make_annot(parc=parc, mrisubject=common_brain)
-            trf._morph(common_brain)
+            if hasattr(trf, '_morph'):
+                trf._morph(common_brain)
         if to_parc:
             self.make_annot(parc=to_parc)
             trf._set_parc(to_parc)
@@ -1059,6 +1060,9 @@ class TRFExperiment(MneExperiment):
                 xs = list(zip(*xs))
 
         if m:
+            if is_variable_time:
+                if len({len(yi.time) for yi in y}) != 1:
+                    raise ValueError("NCRF does not support variable time epochs")
             y0 = y[0] if is_variable_time else y
             fwd = self.load_fwd(ndvar=True)
             cov = self.load_cov()
@@ -1069,7 +1073,7 @@ class TRFExperiment(MneExperiment):
                 else:
                     y = y.sub(sensor=cov.ch_names)
             from ncrf import fit_ncrf
-            return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, normalize=True, in_place=True, **ncrf_args)
+            return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, normalize=True, in_place=True, gaussian_fwhm=1000*basis, **ncrf_args)
         return partial(boosting, y, xs, tstart, tstop, 'inplace', delta, mindelta, error, basis, partitions=partitions, test=cv, selective_stopping=selective_stopping, partition_results=partition_results)
 
     def load_trfs(
@@ -1672,8 +1676,6 @@ class TRFExperiment(MneExperiment):
 
         if dstrf:
             # make sure we are receiving default values
-            assert basis == 0.050
-            basis = None
             assert error == 'l1'
             error = None
             assert partitions is None
