@@ -2740,7 +2740,7 @@ class TRFExperiment(MneExperiment):
         for path in self.glob('trf-file', True):
             properties = self._parse_trf_path(path)
             if describer:
-                properties['model'] = describer.describe(self._named_models[properties['model']])
+                properties['model'] = describer.describe(self._named_models.get(properties['model'], properties['model']))
             if model and not fnmatch.fnmatch(properties['model'], model):
                 continue
             elif mask and not fnmatch.fnmatch(properties.get('mask', ''), mask):
