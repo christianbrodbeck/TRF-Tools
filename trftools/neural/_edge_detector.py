@@ -53,7 +53,7 @@ def delay_rf(tau):
     return delay_neuron(tau)[None, :]
 
 
-def saturate(x, c=10):
+def saturate(x: NDVar, c: float = 10):
     x_out = 2 / (1 + np.e**(-x.x / c)) - 1
     return NDVar(x_out, x.dims, name=f'c={c}')
 

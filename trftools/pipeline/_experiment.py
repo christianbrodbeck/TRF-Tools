@@ -1899,7 +1899,7 @@ class TRFExperiment(MneExperiment):
             data: DataArg = DATA_DEFAULT,
             permutations: int = 1,
             metric: str = 'z',
-            smooth: str = None,
+            smooth: float = None,
             test: str = None,
             return_data: bool = False,
             pmin: PMinArg = 'tfce',
@@ -1959,7 +1959,7 @@ class TRFExperiment(MneExperiment):
             - ``residual``: Residual form model fit
             - ``det``: Proportion of the explained variability
 
-        smooth : float
+        smooth
             Smooth data in space before test (value in [m] STD of Gaussian).
         test
             Hypothesis to test (default is ``x`` against ``0``).
@@ -2005,10 +2005,10 @@ class TRFExperiment(MneExperiment):
             x1 = self._coerce_model(x)
             comparison = Comparison(x1, Model(()), tail=tail or 0)
             if test is not None:
-                raise TypeError(f"test={test!r} for parameter={parameter!r}")
+                raise TypeError(f"{test=} for {parameter=}")
             test_desc = f'{parameter}={compare_to}'
         elif tail is not None:
-            raise TypeError(f"tail={tail!r}: argument only applies to parameter-tests")
+            raise TypeError(f"{tail=}: argument only applies to parameter-tests")
         else:
             comparison = self._coerce_comparison(x, cv)
             test_desc = True if test is None else test
@@ -2032,7 +2032,7 @@ class TRFExperiment(MneExperiment):
             else:
                 test_options = 'xhemi'
         elif xhemi_mask is not True:
-            raise ValueError(f"xhemi_mask={xhemi_mask!r}; parameter is invalid unless xhemi=True")
+            raise ValueError(f"{xhemi_mask=}; parameter is invalid unless xhemi=True")
         else:
             test_options = None
 
@@ -2063,7 +2063,7 @@ class TRFExperiment(MneExperiment):
                 if parameter is not None:
                     kwargs = dict(zip(('tstart', 'tstop', 'basis', 'error', 'partitions', 'samplingrate', 'mask', 'delta', 'mindelta', 'filter_x', 'selective_stopping', 'cv'), (tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv)))
                     if parameter not in kwargs:
-                        raise ValueError(f'parameter={parameter!r}: must be one of {set(kwargs)}')
+                        raise ValueError(f'{parameter=}: must be one of {set(kwargs)}')
                     kwargs[parameter] = compare_to
                     ds0 = self.load_trfs(group, comparison.x1, **kwargs, data=data, trfs=False, make=make, vardef=vardef, permutations=permutations)
                 else:
