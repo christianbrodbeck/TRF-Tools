@@ -2121,6 +2121,8 @@ class TRFExperiment(MneExperiment):
             elif test is None:
                 ds[y] = combine((ds1[y], ds0[y]))
                 ds['model'] = Factor(('test', 'baseline'), repeat=ds1.n_cases)
+            elif isinstance(ds1[y], Datalist):
+                ds[y] = Datalist([i1 - i0 for i1, i0 in zip(ds1[y], ds0[y])])
             else:
                 ds[y] = ds1[y] - ds0[y]
 
