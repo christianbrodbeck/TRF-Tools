@@ -44,6 +44,7 @@ a + b$rnd > b + a$rnd
 """
 from collections import abc, Counter
 from dataclasses import dataclass, replace
+from functools import cached_property
 from itertools import chain
 from pathlib import Path
 import pickle
@@ -52,7 +53,6 @@ from typing import Dict, Callable, List, Tuple, Sequence, Union
 import numpy as np
 from eelbrain import Dataset, fmtxt
 from eelbrain._experiment.mne_experiment import DefinitionError
-from eelbrain._utils import LazyProperty
 from pyparsing import ParseException, Literal, Optional, Word, alphas, alphanums, delimitedList, nums, oneOf
 
 
@@ -68,7 +68,7 @@ class ModelTerm:
     shuffle: str = None
     shuffle_angle: int = 180
 
-    @LazyProperty
+    @cached_property
     def string(self) -> str:
         items = [self.code]
         if self.stimulus:
@@ -77,7 +77,7 @@ class ModelTerm:
             items.append(self.shuffle_string)
         return ''.join(items)
 
-    @LazyProperty
+    @cached_property
     def shuffle_string(self) -> str:
         if not self.shuffle:
             return ''
@@ -92,7 +92,7 @@ class ModelTerm:
         return ''.join(items)
 
 
-    @LazyProperty
+    @cached_property
     def without_shuffle(self):
         if self.shuffle:
             return ModelTerm(self.stimulus, self.code)
@@ -136,22 +136,22 @@ class Model:
         if duplicates:
             raise DefinitionError(f"{self.name}: duplicate terms {', '.join(duplicates)}")
 
-    @LazyProperty
+    @cached_property
     def name(self):
         if not self.terms:
             return '0'
         return ' + '.join(term.string for term in self.terms)
 
-    @LazyProperty
+    @cached_property
     def sorted_key(self):
         return '+'.join(sorted([term.string for term in self.terms]))
 
-    @LazyProperty
+    @cached_property
     def dataset_based_key(self):
         term_keys = [Dataset.as_key(term.string) for term in self.terms]
         return '+'.join(sorted(term_keys))
 
-    @LazyProperty
+    @cached_property
     def term_names(self):
         return tuple([term.string for term in self.terms])
 
@@ -191,35 +191,35 @@ class Model:
         else:
             return cls.from_string(x)
 
-    @LazyProperty
+    @cached_property
     def has_randomization(self):
         return any(term.shuffle for term in self.terms)
 
-    @LazyProperty
+    @cached_property
     def sorted_randomized(self):
         return '+'.join(sorted(term.string for term in self.terms if term.shuffle))
 
-    @LazyProperty
+    @cached_property
     def terms_without_randomization(self):
         if self.has_randomization:
             return tuple([term.without_shuffle for term in self.terms])
         else:
             return self.terms
 
-    @LazyProperty
+    @cached_property
     def without_randomization(self) -> 'Model':
         if self.has_randomization:
             return Model(self.terms_without_randomization)
         return self
 
-    @LazyProperty
+    @cached_property
     def randomized_component(self) -> 'Model':
         terms = [term for term in self.terms if term.shuffle]
         if len(terms) == len(self.terms):
             return self
         return Model(tuple(terms))
 
-    @LazyProperty
+    @cached_property
     def unrandomized_component(self) -> 'Model':
         terms = [term for term in self.terms if not term.shuffle]
         if len(terms) == len(self.terms):
@@ -387,7 +387,7 @@ class Term:
             return cls._coerce(*x)
         raise TypeError(x)
 
-    @LazyProperty
+    @cached_property
     def _model_term(self):
         return parse_term(self.string)
 
@@ -428,11 +428,11 @@ class StructuredModel:
             raise TypeError(x)
         return cls(tuple(terms))
 
-    @LazyProperty
+    @cached_property
     def model(self) -> Model:
         return Model(tuple([term._model_term for term in self.terms]))
 
-    @LazyProperty
+    @cached_property
     def top_level_terms(self) -> List[Term]:
         parents = {term.parent for term in self.terms}
         return [term for i, term in enumerate(self.terms) if term.parent >= -1 and i not in parents]
@@ -627,37 +627,37 @@ class Comparison:
     tail: int = 1
     public_name: str = None
 
-    @LazyProperty
+    @cached_property
     def operator(self) -> str:
         return COMP[self.tail]
 
-    @LazyProperty
+    @cached_property
     def models(self) -> Tuple[Model, Model]:
         return self.x1, self.x0
 
-    @LazyProperty
+    @cached_property
     def common_base(self) -> Model:
         return self.x1.intersection(self.x0)
 
-    @LazyProperty
+    @cached_property
     def x1_only(self) -> Model:
         return self.x1.difference(self.x0)
 
-    @LazyProperty
+    @cached_property
     def x0_only(self) -> Model:
         return self.x0.difference(self.x1)
 
-    @LazyProperty
+    @cached_property
     def test_term_name(self):
         if not self.x0_only or self.x0_only.without_randomization == self.x1_only:
             return self.x1_only.name
 
-    @LazyProperty
+    @cached_property
     def baseline_term_name(self):
         if len(self.x0_only) == 1 and self.x0_only.without_randomization == self.x1_only:
             return self.x0_only.name
 
-    @LazyProperty
+    @cached_property
     def name(self) -> str:
         if self.public_name:
             return self.public_name

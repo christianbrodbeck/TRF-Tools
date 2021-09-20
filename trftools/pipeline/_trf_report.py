@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import cached_property
 from itertools import combinations
 from math import ceil
 from typing import Any, Dict, Sequence, Tuple, Union
@@ -6,7 +7,6 @@ from typing import Any, Dict, Sequence, Tuple, Union
 from eelbrain import plot, fmtxt, table, test, testnd, Dataset, NDVar, concatenate, find_peaks, normalize_in_cells, resample
 from eelbrain._stats.testnd import MultiEffectNDTest
 from eelbrain._stats.spm import LMGroup
-from eelbrain._utils import LazyProperty
 from eelbrain.fmtxt import FMTextArg, Figure, Section, FMText
 
 from ._results import ResultCollection
@@ -244,7 +244,7 @@ class CompareLocalization:
             src = self.trf_dss['']['det'].source
             self.masks = [mask.sub(source=src) for mask in self.masks]
 
-    @LazyProperty
+    @cached_property
     def loc_ress(self):
         # McCarthy & Wood tests
         loc_ress = {}

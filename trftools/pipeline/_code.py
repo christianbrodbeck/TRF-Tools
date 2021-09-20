@@ -1,9 +1,9 @@
+from functools import cached_property
 import re
 from typing import List
 
 from eelbrain import Dataset
 from eelbrain._experiment.definitions import CodeBase, CodeError
-from eelbrain._utils import LazyProperty
 import numpy as np
 
 from .._ndvar import SHUFFLE_METHODS as NDVAR_SHUFFLE_METHODS
@@ -147,12 +147,12 @@ class Code(CodeBase):
             code_string = code_string[i:]
         return Code(f'{stim}|{code_string}')
 
-    @LazyProperty
+    @cached_property
     def nuts_method(self):
         if self._items[-1] in NUTS_METHODS:
             return self._items[-1]
 
-    @LazyProperty
+    @cached_property
     def nuts_columns(self):
         n = len(self._items) - 1 - bool(self.nuts_method)
         # column
