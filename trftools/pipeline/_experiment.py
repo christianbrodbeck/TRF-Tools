@@ -832,7 +832,7 @@ class TRFExperiment(MneExperiment):
                 print(f"Error unpickling {dst}")
                 raise
             if data.source:
-                update_subjects_dir(res, self.get('mri-sdir'), 2)
+                update_subjects_dir(res, self.get('mri-sdir'), 4)
             # TRFs from before storing n_samples
             if isinstance(res, BoostingResult) and res.n_samples is None:
                 self._log.info("Recovering missing n_samples...")
