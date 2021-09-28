@@ -61,6 +61,7 @@ def saturate(x: NDVar, c: float = 10):
 def edge_detector(
         gammatone: NDVar,
         c: float = 0,
+        offset: bool = False,
         name: str = None,
 ):
     """Neural model for auditory edge-detection, as described by [1]_ and used in [2]_
@@ -71,6 +72,8 @@ def edge_detector(
         Gammatone spectrogram.
     c
         Saturation parameter (see [1]_).
+    offset
+        Detect offsets (instead of onsets).
     name
         Name for the returned :class:`NDVar`.
 
@@ -82,6 +85,8 @@ def edge_detector(
     """
     taus = np.linspace(3, 5, 10)
     ws = np.diff(gaussian(11, 2))
+    if offset:
+        ws *= -1
     rfs = [delay_rf(tau) for tau in taus]
     xs_d = [apply_receptive_field(gammatone, rf) for rf in rfs]
     if c:
