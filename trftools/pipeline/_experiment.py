@@ -2470,7 +2470,7 @@ class TRFExperiment(MneExperiment):
             x: ModelArg,
             terms: Union[Sequence[str], Dict[str, str]],  # list of terms, or {label: term} dict
             test_masks: Sequence[NDVar] = None,  # [lh, rh]
-            brain_view: Union[str, Sequence[float]] = None,
+            brain_view: Union[str, Sequence[float], Sequence[str]] = None,
             axw: float = 4,
             surf: str = 'inflated',
             cortex: Any = ((1.00,) * 3, (.4,) * 3),
@@ -2501,7 +2501,7 @@ class TRFExperiment(MneExperiment):
     def show_model_test(
             self,
             x: Union[str, Dict[str, str]],
-            brain_view: Union[str, Sequence[float]] = None,
+            brain_view: Union[str, Sequence[float], Sequence[str]] = None,
             axw: float = None,
             surf: str = 'inflated',
             cortex: Any = ((1.00,) * 3, (.4,) * 3),
@@ -2580,7 +2580,7 @@ class TRFExperiment(MneExperiment):
             # report plot parameters
             xlim: Tuple[float, float] = None,
             times: Sequence[float] = None,
-            brain_view: Union[str, Sequence[float]] = None,
+            brain_view: Union[str, Sequence[float], Sequence[str]] = None,
             axw: float = None,
             surf: str = 'inflated',
             cortex: Any = ((1.00,) * 3, (.4,) * 3),

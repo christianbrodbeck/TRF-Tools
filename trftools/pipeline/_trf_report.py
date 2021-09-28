@@ -45,22 +45,29 @@ def sensor_results(
 
 
 class BrainLayout:
+    parallel_args = ()
+    view = 'lateral'
     _views = {
-        'temporal': ((-18, -28, 50), 1.5),
+        'temporal': ((-18, -28, 50), 1.5, 'lateral'),
     }
 
     def __init__(
             self,
-            brain_view: Union[str, Tuple[float, ...]],
+            brain_view: Union[str, Tuple[float, ...], Tuple[str]],
             axw: float = None,
     ):
+        default_axw = 2.5
         if isinstance(brain_view, str):
-            brain_view, default_axw = self._views[brain_view]
+            if brain_view in self._views:
+                self.parallel_args, default_axw, self.view = self._views[brain_view]
+            else:
+                self.view = brain_view
+        elif isinstance(brain_view[0], str):
+            self.view = brain_view
         else:
-            default_axw = 2.5
+            self.parallel_args = brain_view
         if axw is None:
             axw = default_axw
-        self.brain_view = brain_view
         self.axw = axw
         self.dpi = 144  # good for notebook
         self.table_args = {'dpi': self.dpi, 'axw': self.axw, 'show': False}
@@ -131,7 +138,7 @@ def source_results(
         ress: ResultCollection,
         ress_hemi: ResultCollection = None,
         heading: FMTextArg = None,
-        brain_view: Union[str, Sequence[float]] = None,
+        brain_view: Union[str, Sequence[float], Sequence[str]] = None,
         axw: float = None,
         surf: str = 'inflated',
         cortex: Any = ((1.00,) * 3, (.4,) * 3),
@@ -161,13 +168,13 @@ def source_results(
     all_ress = (ress,) if ress_hemi is None else (ress, ress_hemi)
     for ress_i in all_ress:
         sp = plot.brain.SequencePlotter()
-        if layout.brain_view:
-            sp.set_parallel_view(*layout.brain_view)
+        if layout.parallel_args:
+            sp.set_parallel_view(*layout.parallel_args)
         sp.set_brain_args(surf=surf, cortex=cortex)
         for x, res in ress_i.items():
             y = res.masked_difference() if sig else res.difference
             sp.add_ndvar(y, label=x, cmap=cmap, vmax=vmax, alpha=alpha)
-        panel = sp.plot_table(view='lateral', orientation='vertical', **layout.table_args)
+        panel = sp.plot_table(view=layout.view, orientation='vertical', **layout.table_args)
         panels.append(panel)
     doc.append(fmtxt.Figure(panels))
     for panel in panels:
@@ -259,7 +266,7 @@ class CompareLocalization:
 
     def report(
             self,
-            brain_view: Union[str, Sequence[float]] = None,
+            brain_view: Union[str, Sequence[float], Sequence[str]] = None,
             axw: float = None,
             surf: str = 'inflated',
             cortex: Any = ((1.00,) * 3, (.4,) * 3),
@@ -270,8 +277,8 @@ class CompareLocalization:
         layout = BrainLayout(brain_view, axw)
         sp = plot.brain.SequencePlotter()
         sp.set_brain_args(mask=(0, 0, 0, 1))
-        if layout.brain_view:
-            sp.set_parallel_view(*layout.brain_view)
+        if layout.parallel_args:
+            sp.set_parallel_view(*layout.parallel_args)
         sp.set_brain_args(surf=surf, cortex=cortex)
         # ROI overlay
         if self.masks:
@@ -285,7 +292,7 @@ class CompareLocalization:
             diffs = [diff / diff.max() for diff in diffs]
             diff = concatenate(diffs, 'source')
             sp.add_ndvar(diff, cmap=cmap, vmax=1, label=label)
-        p = sp.plot_table(view='lateral', orientation='vertical', **layout.table_args)
+        p = sp.plot_table(view=layout.view, orientation='vertical', **layout.table_args)
         doc.append(p)
 
         # generate table
@@ -324,7 +331,7 @@ def find_peak_times(y, y_mask):
 def source_trfs(
         ress: ResultCollection,
         heading: FMTextArg = None,
-        brain_view: Union[str, Sequence[float]] = None,
+        brain_view: Union[str, Sequence[float], Sequence[str]] = None,
         axw: float = None,
         surf: str = 'inflated',
         cortex: Any = ((1.00,) * 3, (.4,) * 3),
@@ -374,8 +381,8 @@ def source_trfs(
         if not times_:
             trf_table.cell()
         sp = plot.brain.SequencePlotter()
-        if layout.brain_view:
-            sp.set_parallel_view(*layout.brain_view)
+        if layout.parallel_args:
+            sp.set_parallel_view(*layout.parallel_args)
         sp.set_brain_args(surf=surf, cortex=cortex)
         for t in times_:
             yt = trf_resampled.mean(time=(t - dt, t + dt + 0.001))
@@ -385,7 +392,7 @@ def source_trfs(
             else:
                 cmap_ = cmap
             sp.add_ndvar(yt, cmap=cmap_, label=f'{t * 1000:.0f} ms', smoothing_steps=10)
-        p = sp.plot_table(view='lateral', orientation='vertical', **layout.table_args)
+        p = sp.plot_table(view=layout.view, orientation='vertical', **layout.table_args)
         trf_table.cell(p)
         p.close()
     doc.append(fmtxt.Figure(trf_table))
