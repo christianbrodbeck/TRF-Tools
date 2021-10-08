@@ -22,6 +22,35 @@ def start_dispatcher(notify=False, debug=False, job_queue_length=5):
     -------
     dispatcher : Dispatcher
         The dispatcher.
+
+    Examples
+    --------
+    Start a dispatcher and add some jobs
+
+        import trftools
+
+        d = trftools.start_dispatcher(job_queue_length=1)
+        d.add_jobs_from_file('project/pipline/jobs.py')
+
+    Eelfarm workers with the host's IP will now start processing these jobs.
+    Display information about job status:
+
+        d.info()
+
+    You can cancel jobs, using model patterns with asterisks. For exaple, to
+    cancel all jobs that start with ``'gammatone +'``, use:
+
+        d.cancel_jobs('gammatone + *')
+
+    This will stop generating jobs (but if jobs were already sent to the eelfarm
+    worker they can't be stopped without killing the worker.
+    To stop the dispatcher properly (without losing jobs):
+
+        d.shutdown()
+
+    You can now quit the Python session. Jobs that were unfinished on workers
+    at the time of shutdown will be delivered the next time the dispatcher is
+    initialized again.
     """
     from eelfarm._utils import screen_handler
     from ._dispatcher import Dispatcher
