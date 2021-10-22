@@ -13,7 +13,7 @@ Then, activate the new environment and install TRF-Tools directly from GitHub:
 
 ```Bash
 $ conda activate eelbrain
-$ pip install https://github.com/christianbrodbeck/TRF-Tools/archive/master.zip
+$ pip install https://github.com/christianbrodbeck/TRF-Tools/archive/main.zip
 ```
 
 In order to use the `gammatone_bank` function, also install:
@@ -26,12 +26,4 @@ To later update TRF-Tools to the latest version of the master branch, use:
 
 ```bash
 $ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/master.zip --no-cache-dir
-```
-
-### Windows
-
-The TRF-Tools `master` branch is currently incompatible with the Windows operating system due to certain restrictions on filenames under Windows. If you are using Windows, use the `win` branch instead:
-
-```Bash
-$ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/win.zip
 ```
