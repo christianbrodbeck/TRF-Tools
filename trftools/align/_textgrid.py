@@ -124,8 +124,8 @@ class TextGrid:
             tmin: float = 0.,
             tstep: float = 0.001,
             n_samples: int = None,
-            word_tier: str = 'words',
-            phone_tier: str = 'phones',
+            word_tier: str = 'word*',
+            phone_tier: str = 'phone*',
     ):
         """Load ``*.TextGrid`` file
 
@@ -808,7 +808,7 @@ def fix_word_tier(
     grid.write(out)
 
 
-def textgrid_as_realizations(grid, word_tier='words', phone_tier='phones', strict=True):
+def textgrid_as_realizations(grid, word_tier='word*', phone_tier='phone*', strict=True):
     """Load a TextGrid as a list of Realizations"""
     if isinstance(grid, (str, Path)):
         path = grid
