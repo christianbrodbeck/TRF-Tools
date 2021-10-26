@@ -468,7 +468,7 @@ class TRFExperiment(MneExperiment):
             Filter predictors. Name of a raw pipe, or ``True`` to use current
             raw setting; default ``False``).
         y : str
-            :class:`NDVar` to match time axis to.
+            :class:`UTS` or :class:`NDVar` to match time axis to.
         """
         x = self._coerce_model(model)
         for term in x.terms:
@@ -493,7 +493,7 @@ class TRFExperiment(MneExperiment):
             Filter predictors. Name of a raw pipe, or ``True`` to use current
             raw setting; default ``False``).
         y
-            :class:`NDVar` to match time axis to.
+            :class:`UTS` or :class:`NDVar` to match time axis to.
         """
         if isinstance(y, UTS):
             time = y
