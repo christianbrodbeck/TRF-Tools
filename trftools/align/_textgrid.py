@@ -488,15 +488,45 @@ class TextGrid:
     def categories_to_codes(values, codes, weights=None):
         return _categories_to_codes(values, codes, weights)
 
-    def print(self, segmentation=None):
+    def print(
+            self,
+            time: bool = False,
+            tstart: float = None,
+            tstop: float = None,
+            segmentation: Any = None,
+    ):
         """Print text with pronunciation
 
         Parameters
         ----------
+        time
+            Add time-stamps.
+        tstart
+            Start listing at this time stamp.
+        tstop
+            Stop listing at this time stamp.
         segmentation : Lexicon
-            Display morphological segmentation form this lexicon.
+            Display morphological segmentation from this lexicon.
         """
-        lines = ['', '']
+        # select included realizations
+        realizations = self.realizations
+        if tstart is not None:
+            istart = 0
+            while realizations[istart].times[0] < tstart:
+                istart += 1
+            realizations = realizations[istart:]
+        if tstop is not None:
+            istop = 0
+            while realizations[istop].tstop < tstop:
+                istop += 1
+            realizations = realizations[:istop]
+        # str length of time-stamp
+        if time:
+            len_time = len(str(int(round(realizations[-1].times[0]))))
+        else:
+            len_time = 0
+        # generate text
+        lines = []
         for r in self.realizations:
             graphs = r.graphs
             pronunciation = r.pronunciation
@@ -506,8 +536,13 @@ class TextGrid:
                     word = words[0]
                     graphs = '+'.join(word.segmentation)
             n = max(map(len, (graphs, pronunciation))) + 2
-            if len(lines[-1]) + n > 80:
-                lines.extend(('', ''))
+            if not lines or len(lines[-1]) + n > 80:
+                if len_time:
+                    t = int(round(r.times[0]))
+                    prefix = f'{t: {len_time}} '
+                else:
+                    prefix = ''
+                lines.extend((prefix, ' '*len(prefix)))
             lines[-2] += graphs.ljust(n)
             lines[-1] += pronunciation.ljust(n)
         print('\n'.join(lines))
