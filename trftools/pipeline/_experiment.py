@@ -2350,8 +2350,12 @@ class TRFExperiment(MneExperiment):
                 continue
             return
         # merge
+        mri_sdir = self.get('mri-sdir')
         for path_dst, paths_src in combine.items():
-            res = concatenate([load.unpickle(path) for path in paths_src], 'source')
+            source_trfs = [load.unpickle(path) for path in paths_src]
+            for trf in source_trfs:
+                update_subjects_dir(trf, mri_sdir, 4)
+            res = concatenate(source_trfs, 'source')
             res._set_parc(dst)
             save.pickle(res, path_dst)
             for path in paths_src:
