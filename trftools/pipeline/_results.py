@@ -99,10 +99,10 @@ class ResultCollection(dict):
                     table.cells(f'  {effect}', ms(tstart), ms(tstop), fmtxt.stat(max_stat), ms(max_time), fmtxt.p(p_), sig)
         return table
 
-    def table(self, title=None, caption=None):
+    def table(self, title=None, caption=None, **sub):
         """Table with effects and smallest p-value"""
         is_mass_univariate = self.dependent_type is DependentType.MASS_UNIVARIATE
-        sub = 'max' if is_mass_univariate else None
+        subscript = 'max' if is_mass_univariate else None
         if self.test_type is TestType.TWO_STAGE:
             cols = sorted({col for res in self.values() for col in res.column_names})
             table = fmtxt.Table('l' * (1 + len(cols)), title=title, caption=caption)
@@ -112,18 +112,21 @@ class ResultCollection(dict):
             for key, lmg in self.items():
                 table.cell(key)
                 for res in (lmg.tests[c] for c in cols):
-                    pmin = res.p.min()
+                    p_map = res.p.sub(**sub) if sub else res.p
+                    pmin = p_map.min()
                     table.cell(fmtxt.FMText([fmtxt.p(pmin), star(pmin)]))
         elif self.test_type is TestType.MULTI_EFFECT:
             table = fmtxt.Table('lllll', title=title, caption=caption)
-            table.cells('Test', 'Effect', fmtxt.symbol(self._statistic, sub), fmtxt.symbol('p'), 'sig')
+            table.cells('Test', 'Effect', fmtxt.symbol(self._statistic, subscript), fmtxt.symbol('p'), 'sig')
             table.midrule()
             for key, res in self.items():
                 for i, effect in enumerate(res.effects):
                     table.cells(key, effect)
                     if is_mass_univariate:
-                        stat = res._max_statistic(i)
-                        p = res.p[i].min()
+                        stat, p = res._max_statistic(i, return_p=True, sub=sub)
+                        if stat is None:
+                            table.cells('', '', '')
+                            continue
                     else:
                         stat = res.f_tests[i].F
                         p = res.f_tests[i].p
@@ -133,13 +136,15 @@ class ResultCollection(dict):
                     key = ''
         else:
             table = fmtxt.Table('llll', title=title, caption=caption)
-            table.cells('Effect', fmtxt.symbol(self._statistic, sub), fmtxt.symbol('p'), 'sig')
+            table.cells('Effect', fmtxt.symbol(self._statistic, subscript), fmtxt.symbol('p'), 'sig')
             table.midrule()
             for key, res in self.items():
                 table.cell(key)
                 if is_mass_univariate:
-                    stat = res._max_statistic()
-                    p = res.p.min()
+                    stat, p = res._max_statistic(return_p=True, sub=sub)
+                    if stat is None:
+                        table.cells('', '', '')
+                        continue
                 else:
                     stat = getattr(res, res._statistic.lower())
                     p = res.p
@@ -147,3 +152,11 @@ class ResultCollection(dict):
                 table.cell(fmtxt.p(p))
                 table.cell(star(p))
         return table
+
+
+def _result_stats(stat_map, p_map, sub):
+    if sub:
+        p_map = p_map.sub(**sub)
+        stat_map = stat_map.sub(**sub)
+    pmin = p_map.min()
+    return fmtxt.stat(stat), fmtxt.p(pmin), star(pmin)

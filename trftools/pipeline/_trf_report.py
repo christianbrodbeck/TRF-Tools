@@ -160,6 +160,8 @@ def source_results(
     tables = [ress.table(caption='Model test')]
     if ress_hemi is not None:
         tables.append(ress_hemi.table(caption="Lateralization"))
+        tables.append(ress.table(source='lh', caption="Left Hemisphere"))
+        tables.append(ress.table(source='rh', caption="Right Hemisphere"))
     doc.append(fmtxt.Figure(fmtxt.FloatingLayout(tables)))
 
     if sig and all(res.p.min() > 0.05 for res in ress.values()):
