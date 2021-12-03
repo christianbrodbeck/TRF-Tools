@@ -62,6 +62,8 @@ class BrainLayout:
                 self.parallel_args, default_axw, self.view = self._views[brain_view]
             else:
                 self.view = brain_view
+        elif brain_view is None:
+            self.view = ('lateral',)
         elif isinstance(brain_view[0], str):
             self.view = brain_view
         else:
