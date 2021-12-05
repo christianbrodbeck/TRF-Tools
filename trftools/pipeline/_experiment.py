@@ -2101,8 +2101,11 @@ class TRFExperiment(MneExperiment):
                     ds1[y] -= ds0[y]
                 lh, rh = eelbrain.xhemi(ds1[y], parc=self._xhemi_parc())
                 if test is None:
-                    ds[y] = combine((lh, rh))
-                    ds['hemi'] = Factor(('lh', 'rh'), repeat=ds1.n_cases)
+                    ds = Dataset({
+                        'subject': ds1['subject'].tile(2),
+                        y: combine((lh, rh)),
+                        'hemi': Factor(('lh', 'rh'), repeat=ds1.n_cases),
+                    })
                 else:
                     ds[y] = lh - rh
 
