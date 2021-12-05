@@ -2061,7 +2061,7 @@ class TRFExperiment(MneExperiment):
 
             if comparison.x0.terms or parameter is not None:
                 if parameter is not None:
-                    kwargs = dict(zip(('tstart', 'tstop', 'basis', 'error', 'partitions', 'samplingrate', 'mask', 'delta', 'mindelta', 'filter_x', 'selective_stopping', 'cv'), (tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv)))
+                    kwargs = {'tstart': tstart, 'tstop': tstop, 'basis': basis, 'error': error, 'partitions': partitions, 'samplingrate': samplingrate, 'mask': mask, 'delta': delta, 'mindelta': mindelta, 'filter_x': filter_x, 'selective_stopping': selective_stopping, 'cv': cv}
                     if parameter not in kwargs:
                         raise ValueError(f'{parameter=}: must be one of {set(kwargs)}')
                     kwargs[parameter] = compare_to
