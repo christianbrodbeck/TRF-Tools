@@ -67,8 +67,11 @@ def gammatone_bank(
 
         $ pip install https://github.com/christianbrodbeck/gammatone/archive/fmax.zip
     """
-    from gammatone.filters import centre_freqs, erb_filterbank
-    from gammatone.gtgram import make_erb_filters
+    try:
+        from gammatone.filters import centre_freqs, erb_filterbank
+        from gammatone.gtgram import make_erb_filters
+    except ModuleNotFoundError:
+        raise ModuleNotFoundError("gammatone module not installed. Install using:\n\n  $ pip install https://github.com/christianbrodbeck/gammatone/archive/fmax.zip")
 
     wav_ = wav
     if location == 'left':

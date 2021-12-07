@@ -879,7 +879,8 @@ class TRFExperiment(MneExperiment):
 
         # make it if make=True
         if not make:
-            raise IOError(f"TRF {relpath(dst, self.get('root'))} does not exist; set make=True to compute it.")
+            model_desc = ModelDescriber(self._structured_models).describe(x)
+            raise IOError(f"TRF {relpath(dst, self.get('root'))} does not exist (model {model_desc!r}); set make=True to compute it.")
 
         self._log.info("Computing TRF:  %s %s %s %s", self.get('subject'), data.string, '->' if backward else '<-', x.name)
         func = self._trf_job(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, partition_results)
@@ -2524,7 +2525,10 @@ class TRFExperiment(MneExperiment):
             Test contrast, or dictionary with labeled contrasts
             ``{label: contrast}``.
         brain_view
-            Crop brain view; valid values: ``temporal``
+            Crop brain view to pre-specified view, or set arguments for
+            :meth:`~eelbrain.plot._brain_object.Brain.set_parallel_view`
+            ``(forward [mm], up [mm], scale)`` (default scale is 95 for inflated
+             surface, 75 otherwise).
         axw
             Brain axes width.
         surf
