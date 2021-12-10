@@ -1012,7 +1012,8 @@ class TRFExperiment(MneExperiment):
             # FIXME: in TRF-path, use mri-subject rather than mri value
             ds = self.load_epochs_stc(baseline=False, mask=mask, samplingrate=samplingrate, morph=data.morph)
         elif data.sensor:
-            ds = self.load_epochs(samplingrate=samplingrate, data=data, interpolate_bads=data.sensor is True)
+            interpolate_bads = (data.sensor is True) and not backward
+            ds = self.load_epochs(samplingrate=samplingrate, data=data, interpolate_bads=interpolate_bads)
         else:
             raise NotImplemented(f"data={data.string!r}")
         y = ds[data.y_name]
