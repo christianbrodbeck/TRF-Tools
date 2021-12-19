@@ -2009,16 +2009,16 @@ class TRFExperiment(MneExperiment):
             Test result.
         """
         data = TestDims.coerce(data, time=False)
+        comparison = self._coerce_comparison(x, cv)
         if parameter is not None:
-            x1 = self._coerce_model(x)
-            comparison = Comparison(x1, Model(()), tail=tail or 0)
+            if isinstance(comparison, StructuredModel):
+                comparison = Comparison(self._coerce_model(x), Model(()), tail=tail or 0)
             if test is not None:
                 raise TypeError(f"{test=} for {parameter=}")
             test_desc = f'{parameter}={compare_to}'
         elif tail is not None:
             raise TypeError(f"{tail=}: argument only applies to parameter-tests")
         else:
-            comparison = self._coerce_comparison(x, cv)
             test_desc = True if test is None else test
 
         # Load multiple tests for a comparison group
@@ -2074,11 +2074,16 @@ class TRFExperiment(MneExperiment):
                         raise ValueError(f'{parameter=}: must be one of {set(kwargs)}')
                     kwargs[parameter] = compare_to
                     ds0 = self.load_trfs(group, comparison.x1, **kwargs, data=data, backward=backward, trfs=False, make=make, vardef=vardef, permutations=permutations)
+                    if comparison.x0.terms:
+                        ds1_0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, trfs=False, make=make, vardef=vardef, permutations=x1_permutations)
+                        ds1[y] -= ds1_0[y]
+                        ds0_0 = self.load_trfs(group, comparison.x0, **kwargs, data=data, backward=backward, trfs=False, make=make, vardef=vardef, permutations=permutations)
+                        ds0[y] -= ds0_0[y]
                 else:
                     ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, trfs=False, make=make, vardef=vardef, permutations=permutations)
                 # restructure data
                 assert np.all(ds1['subject'] == ds0['subject'])
-                keep = tuple(k for k in ds1 if isuv(ds1[k]) and np.all(ds1[k] == ds0[k]))
+                keep = tuple([k for k in ds1 if isuv(ds1[k]) and np.all(ds1[k] == ds0[k])])
                 if test is None:
                     ds = combine((ds1[keep], ds0[keep]))
                 else:
