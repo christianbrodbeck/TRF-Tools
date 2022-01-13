@@ -1,6 +1,6 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
 from math import log
-from pathlib import Path
+from typing import Literal
 
 from ._utils import download
 
@@ -12,37 +12,55 @@ MINIMAL_ENTRY = {
     'Lg10CD': log(2, 10),
 }
 TOTAL_COUNT = 51e6
+LANGUAGES = {
+    'US': ('https://www.ugent.be/pp/experimentele-psychologie/en/research/documents/subtlexus/subtlexus2.zip/at_download/file', 'SUBTLEXus74286wordstextversion.txt'),
+    'NL': ('http://crr.ugent.be/subtlex-nl/SUBTLEX-NL.txt.zip', 'SUBTLEX-NL.txt'),
+}
+KNOWN_DUPLICATES = {
+    'US': (),
+    'NL': ('wat', 'ged', 'scott', 'het', 'doen', 'wilhelmstrasse', 'scheisse'),
+}
 
 
-def read_subtlex(lower=False):
+def read_subtlex(
+        language: Literal['US', 'NL'] = 'US',
+        lower: bool = False,
+):
     """Read the SUBTLEXus data
 
     Parameters
     ----------
-    lower : bool
+    language
+        Language to load.
+    lower
         Use lower case keys (default is upper case).
 
     Notes
     -----
-    http://www.ugent.be/pp/experimentele-psychologie/en/research/documents/subtlexus
+    NL
+        http://crr.ugent.be/programs-data/subtitle-frequencies/subtlex-nl
+    US
+        http://www.ugent.be/pp/experimentele-psychologie/en/research/documents/subtlexus
 
     Columns:
 
     Word, FREQcount, CDcount, FREQlow, Cdlow, SUBTLWF, Lg10WF, SUBTLCD, Lg10CD
 
     """
-    path = download('https://www.ugent.be/pp/experimentele-psychologie/en/research/documents/subtlexus/subtlexus2.zip/at_download/file', 'SUBTLEXus74286wordstextversion.txt', unzip=True)
+    url, filename = LANGUAGES[language]
+    path = download(url, filename, unzip=True)
     out = {}
     str_trans = str.lower if lower else str.upper
+    known_duplicates = [str_trans(word) for word in KNOWN_DUPLICATES[language]]
     with path.open() as fid:
         columns = fid.readline().split()
         i_key = columns.index('Word')
         columns.pop(i_key)
         for line in fid:
-            items = line.split()
+            items = line.split('\t')
             key = str_trans(items.pop(i_key))
-            if key in out:
-                raise RuntimeError(f"Duplicate key: {key}")
+            if key in out and key not in known_duplicates:
+                print(f"Duplicate key: {key}")
             out[key] = dict(zip(columns, map(float, items)))
     return out
 

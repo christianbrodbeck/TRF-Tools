@@ -14,8 +14,8 @@ def download(url: str, filename: str, unzip: bool = False):
         with ZipFile(filename) as zipfile:
             names = zipfile.namelist()
             assert len(names) == 1
-            tmp_dst = file_path.parent / names.pop()
-            zipfile.extract(tmp_dst.name, file_path.parent)
+            tmp_dst = file_path.parent / names[0]
+            zipfile.extract(names[0], file_path.parent)
             tmp_dst.rename(file_path)
     else:
         urlretrieve(url, file_path)
