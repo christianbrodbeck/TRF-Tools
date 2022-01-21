@@ -2751,10 +2751,18 @@ class TRFExperiment(MneExperiment):
         paths = []
         for path in self.glob('trf-file', True):
             properties = self._parse_trf_path(path)
+            model_key = properties['model']
             if describer:
                 properties['model'] = describer.describe(self._named_models.get(properties['model'], properties['model']))
-            if model and not fnmatch.fnmatch(properties['model'], model):
-                continue
+            if model:
+                match = fnmatch.fnmatch(model_key, model)
+                if not match and model_key in self._named_models:
+                    model_obj = self._named_models[model_key]
+                    match = fnmatch.fnmatch(model_obj.name, model)
+                if not match and properties['model'] != model_key:
+                    match = fnmatch.fnmatch(properties['model'], model)
+                if not match:
+                    continue
             elif mask and not fnmatch.fnmatch(properties.get('mask', ''), mask):
                 continue
             key = tuple([properties.get(k, '') for k in keys])
