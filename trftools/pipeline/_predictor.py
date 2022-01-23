@@ -1,6 +1,7 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
 from itertools import chain
 from pathlib import Path
+from typing import Literal
 
 from eelbrain import load, Categorial, Dataset, Factor, NDVar, UTS, Var, combine, epoch_impulse_predictor, event_impulse_predictor, resample
 from eelbrain._experiment.definitions import typed_arg
@@ -84,6 +85,12 @@ class FilePredictor:
         Only applies to NUTS (:class:`Dataset`) predictors.
         Use a single file with different columns. The code is interpreted as
         ``{name}-{value-column}-{mask-column}`` (the last one is optional).
+    sampling
+        Whether to expect a continuous or a discrete predictor (usually an
+        :class:`NDVar` or a :class:`Dataset`, respectively). Used to decide
+        whether to filter this predictor with ``filter_x='continuous'``.
+        Note: ``discrete`` predictors with ``*-step`` suffix will always be
+        trated as continuous (i.e. filtered).
 
     Notes
     -----
@@ -135,10 +142,35 @@ class FilePredictor:
      - ``$shift``: displace the final uniform time-series circularly (i.e.,
        the impulse times themselves change).
     """
-    def __init__(self, resample: str = None, columns: bool = False):
+    def __init__(
+            self,
+            resample: Literal['bin', 'resample'] = None,
+            columns: bool = False,
+            sampling: Literal['continuous', 'discrete'] = None,
+    ):
         assert resample in (None, 'bin', 'resample')
         self.resample = resample
         self.columns = columns
+        self.sampling = sampling
+
+    def _sampling(
+            self,
+            data_type: Literal['nuts', 'uts'] = None,
+            nuts_method: str = None,
+    ):
+        if data_type == 'uts':
+            return self.sampling or 'continuous'
+        elif data_type == 'nuts' or nuts_method:
+            if nuts_method == 'step':
+                return 'continuous'
+            elif nuts_method == 'is':
+                return None
+            elif nuts_method is None:
+                return 'discrete'
+            else:
+                raise RuntimeError(f'{nuts_method=}')
+        else:
+            return self.sampling
 
     def _load(self, tstep: float, filename: str, directory: Path):
         path = directory / f'{filename}.pickle'
@@ -180,8 +212,12 @@ class FilePredictor:
                 n_samples = int((x.info['tstop'] - tmin) // tstep)
             uts = UTS(tmin, tstep, n_samples)
             x = self._ds_to_ndvar(x, uts, code)
+            x.info['sampling'] = self._sampling('nuts', code.nuts_method)
         elif isinstance(x, NDVar):
+            if code.nuts_method:
+                raise code.error(f"Suffix {code.nuts_method} reserved for non-uniform time series predictors")
             x = pad(x, tmin, nsamples=n_samples, set_tmin=True)
+            x.info['sampling'] = self._sampling('uts')
         else:
             raise RuntimeError(x)
 

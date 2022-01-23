@@ -83,7 +83,7 @@ from os.path import exists, getmtime, join, relpath, splitext
 from pathlib import Path
 from pyparsing import ParseException
 import re
-from typing import Any, Dict, List, Sequence, Tuple, Union
+from typing import Any, Dict, List, Literal, Sequence, Tuple, Union
 
 import eelbrain
 from eelbrain import (
@@ -135,6 +135,7 @@ NCRF_RE = re.compile(r'(ncrf)(?:-([\w\d]+))?$')
 
 ComparisonArg = Union[str, Comparison, StructuredModel]
 ModelArg = Union[str, Model]
+FilterXArg = Literal[True, False, 'continuous']
 
 
 class NameTooLong(Exception):
@@ -455,30 +456,37 @@ class TRFExperiment(MneExperiment):
 
     # Stimuli
     #########
-    def add_predictors(self, ds, model, filter=False, y=None):
+    def add_predictors(
+            self,
+            ds: Dataset,
+            model: str,
+            filter_x: FilterXArg = False,
+            y: str = None,
+    ):
         """Add all predictor variables in a given model to a :class:`Dataset`
 
         Parameters
         ----------
-        ds : Dataset
+        ds
             Dataset with the dependent measure.
-        model : str
+        model
             Model for which to load predictors.
-        filter : bool | str
+        filter_x
             Filter predictors. Name of a raw pipe, or ``True`` to use current
             raw setting; default ``False``).
-        y : str
+        y
             :class:`UTS` or :class:`NDVar` to match time axis to.
         """
         x = self._coerce_model(model)
         for term in x.terms:
             code = Code.coerce(term.string)  # TODO: use parse result
-            self.add_predictor(ds, code, filter, y)
+            self.add_predictor(ds, code, filter_x, y)
 
     def add_predictor(
-            self, ds: Dataset,
+            self,
+            ds: Dataset,
             code: str,
-            filter: Union[str, bool] = False,
+            filter_x: FilterXArg = False,
             y: Union[UTS, NDVarArg] = None,
     ):
         """Add predictor variable to a :class:`Dataset`
@@ -489,9 +497,8 @@ class TRFExperiment(MneExperiment):
             Dataset with the dependent measure.
         code
             Predictor to add. Suffix demarcated by ``$`` for shuffling.
-        filter
-            Filter predictors. Name of a raw pipe, or ``True`` to use current
-            raw setting; default ``False``).
+        filter_x
+            Filter the predictors with the same method as the raw data.
         y
             :class:`UTS` or :class:`NDVar` to match time axis to.
         """
@@ -538,8 +545,10 @@ class TRFExperiment(MneExperiment):
             return
 
         if isinstance(predictor, EventPredictor):
-            assert not filter, f"filter not available for {predictor.__class__.__name__}"
-            assert not is_variable_time, "EventPredictor not implemented for variable-time epoch"
+            if filter_x:
+                raise ValueError(f"{filter_x=}: not available for {predictor.__class__.__name__}")
+            elif is_variable_time:
+                raise NotImplementedError("EventPredictor not implemented for variable-time epochs")
             ds[code.key] = predictor._generate(time, ds, code)
             code.assert_done()
             return
@@ -547,9 +556,9 @@ class TRFExperiment(MneExperiment):
         # load predictors (cache for same stimulus unless they are randomized)
         if code.has_randomization or is_variable_time:
             time_dims = time if is_variable_time else repeat(time, ds.n_cases)
-            xs = [self.load_predictor(code.with_stim(stim), time.tstep, time.nsamples, time.tmin, filter, code.key) for stim, time in zip(ds[stim_var], time_dims)]
+            xs = [self.load_predictor(code.with_stim(stim), time.tstep, time.nsamples, time.tmin, filter_x, code.key) for stim, time in zip(ds[stim_var], time_dims)]
         else:
-            x_cache = {stim: self.load_predictor(code.with_stim(stim), time.tstep, time.nsamples, time.tmin, filter, code.key) for stim in ds[stim_var].cells}
+            x_cache = {stim: self.load_predictor(code.with_stim(stim), time.tstep, time.nsamples, time.tmin, filter_x, code.key) for stim in ds[stim_var].cells}
             xs = [x_cache[stim] for stim in ds[stim_var]]
 
         if not is_variable_time:
@@ -612,24 +621,32 @@ class TRFExperiment(MneExperiment):
         """
         return TRFsJob(x, self, **kwargs)
 
-    def load_predictor(self, code, tstep=0.01, n_samples=None, tmin=0., filter=False, name=None):
+    def load_predictor(
+            self,
+            code: str,
+            tstep: float = 0.01,
+            n_samples: int = None,
+            tmin: float = 0.,
+            filter_x: FilterXArg = False,
+            name: str = None,
+    ):
         """Load predictor NDVar
 
         Parameters
         ----------
-        code : str
+        code
             Code for the predictor to load (using the pattern
             ``{stimulus}~{code}${randomization}``)
-        tstep : float
+        tstep
             Time step for the predictor.
-        n_samples : int
+        n_samples
             Number of samples in the predictor (the default returns all
             available samples).
-        tmin : scalar
+        tmin
             First sample time stamp (default 0).
-        filter : bool
+        filter_x
             Filter the predictor with the same method as the raw data.
-        name : str
+        name
             Reassign the name of the predictor :class:`NDVar`.
         """
         code = Code.coerce(code)
@@ -654,13 +671,14 @@ class TRFExperiment(MneExperiment):
         else:
             raise code.error(f"Unknown predictor type {predictor}", 0)
 
-        if filter:
-            if filter is True:
-                raw = self.get('raw')
-            elif filter in self._raw:
-                raw = filter
+        if isinstance(filter_x, str):
+            if filter_x == 'continuous':
+                filter_x = x.info['sampling'] == 'continuous'
             else:
-                raise ValueError(f"filter={filter!r}")
+                raise ValueError(f"{filter_x=}")
+
+        if filter_x:
+            raw = self.get('raw')
             pipe = self._raw[raw]
             pipes = []
             while not isinstance(pipe, RawSource):
@@ -749,7 +767,7 @@ class TRFExperiment(MneExperiment):
             mask: str = None,
             delta: float = 0.005,
             mindelta: float = None,
-            filter_x: bool = False,
+            filter_x: FilterXArg = False,
             selective_stopping: int = 0,
             cv: bool = False,
             data: DataArg = DATA_DEFAULT,
@@ -903,13 +921,14 @@ class TRFExperiment(MneExperiment):
             mask: str = None,
             delta: float = 0.005,
             mindelta: float = None,
-            filter_x: bool = False,
+            filter_x: FilterXArg = False,
             selective_stopping: int = 0,
             cv: bool = False,
             data: DataArg = DATA_DEFAULT,
             backward: bool = False,
             **state):
         "Return path of the corresponding trf-file"
+        # FIXME: if filter_x == 'continuous': check whether all x are same type
         self._set_trf_options(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, state=state)
 
         path = self.get('trf-file', mkdir=True)
@@ -931,7 +950,7 @@ class TRFExperiment(MneExperiment):
             mask: str = None,
             delta: float = 0.005,
             mindelta: float = None,
-            filter_x: bool = False,
+            filter_x: FilterXArg = False,
             selective_stopping: int = 0,
             cv: bool = False,
             data: DataArg = DATA_DEFAULT,
@@ -1087,7 +1106,7 @@ class TRFExperiment(MneExperiment):
             mask: str = None,
             delta: float = 0.005,
             mindelta: float = None,
-            filter_x: bool = False,
+            filter_x: FilterXArg = False,
             selective_stopping: int = 0,
             cv: bool = False,
             data: DataArg = DATA_DEFAULT,
@@ -1404,7 +1423,7 @@ class TRFExperiment(MneExperiment):
             mask: str = None,
             delta: float = 0.005,
             mindelta: float = None,
-            filter_x: bool = False,
+            filter_x: FilterXArg = False,
             selective_stopping: int = 0,
             cv: bool = False,
             data: DataArg = DATA_DEFAULT,
@@ -1712,8 +1731,10 @@ class TRFExperiment(MneExperiment):
         if backward:
             trf_options.append('backward')
         # filter regressors
-        if filter_x:
+        if filter_x is True:
             trf_options.append('filtx')
+        elif filter_x:
+            trf_options.append(f'filtx={filter_x}')
         # delta
         assert 0. < delta < 1.
         if delta != 0.005 or mindelta is not None:
@@ -1895,7 +1916,7 @@ class TRFExperiment(MneExperiment):
             mask: str = None,
             delta: float = 0.005,
             mindelta: float = None,
-            filter_x: bool = False,
+            filter_x: FilterXArg = False,
             selective_stopping: int = 0,
             cv: bool = False,
             data: DataArg = DATA_DEFAULT,
@@ -2617,7 +2638,7 @@ class TRFExperiment(MneExperiment):
             mask: str = None,
             delta: float = 0.005,
             mindelta: float = None,
-            filter_x: bool = False,
+            filter_x: FilterXArg = False,
             selective_stopping: int = 0,
             cv: bool = False,
             data: DataArg = DATA_DEFAULT,
