@@ -1119,6 +1119,7 @@ class TRFExperiment(MneExperiment):
             permutations: int = 1,
             vector_as_norm: bool = False,
             trfs: bool = True,
+            partition_results: bool = False,
             **state):
         """Load TRFs for the group in a Dataset (see ``.load_trf()``)
 
@@ -1185,6 +1186,11 @@ class TRFExperiment(MneExperiment):
         trfs
             Load TRFs. If TRFs are not needed, setting ``trfs=False`` can speed
             up loading for complex model.
+        partition_results
+            Keep results for each test-partition (TRFs and model evaluation).
+            Partition results are currently not available in the TRFs dataset,
+            but setting ``partition_results=True`` will make sure that the TRFs
+            that are computed contain the partition-specific results.
         ...
             Experiment state parameters.
 
