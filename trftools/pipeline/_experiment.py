@@ -73,6 +73,7 @@ With predictor randomization (``cv=False``):
 
 """
 from collections import defaultdict
+import datetime
 import fnmatch
 from functools import partial
 from glob import glob
@@ -92,7 +93,6 @@ from eelbrain import (
     MneExperiment, Dataset, Datalist, Factor, NDVar, Categorial, UTS,
     morph_source_space, rename_dim, boosting, combine, concatenate,
 )
-from eelbrain._exceptions import DimensionMismatchError
 from eelbrain.pipeline import TTestOneSample, TTestRelated, TwoStageTest, RawFilter, RawSource
 from eelbrain._experiment.definitions import FieldCode
 from eelbrain._experiment.epochs import EpochCollection
@@ -1580,7 +1580,7 @@ class TRFExperiment(MneExperiment):
             parc = self._xhemi_parc()
         else:
             test_obj = TTestOneSample() if test is True else self.tests[test]
-            parc =  None
+            parc = None
         if isinstance(test_obj, TwoStageTest):
             raise NotImplementedError
 
@@ -2729,6 +2729,7 @@ class TRFExperiment(MneExperiment):
             keys: Sequence[str] = ('analysis', 'epoch', 'time_window', 'samplingrate', 'model', 'mask'),
             mask: str = None,
             rm: bool = False,
+            mtime: Literal['min', 'max'] = None,
     ):
         """List cached TRFs and how much space they take
 
@@ -2769,6 +2770,7 @@ class TRFExperiment(MneExperiment):
             describer = None
         ns = defaultdict(lambda: 0)
         sizes = defaultdict(lambda: 0.)  # in bytes
+        mtimes = defaultdict(list)
         paths = []
         for path in self.glob('trf-file', True):
             properties = self._parse_trf_path(path)
@@ -2789,19 +2791,27 @@ class TRFExperiment(MneExperiment):
             key = tuple([properties.get(k, '') for k in keys])
             ns[key] += 1
             sizes[key] += os.stat(path).st_size
+            if mtime:
+                mtimes[key].append(os.path.getmtime(path))
             paths.append(path)
         if not paths:
             print("No cached TRFs found")
             return
         sorted_keys = sorted(ns)
-        t = fmtxt.Table('l' * len(keys) + 'rr')
+        t = fmtxt.Table('l' * len(keys) + 'rr' + 'r'*bool(mtime))
         t.cells(*keys, 'n', 'size (MB)')
+        if mtime:
+            t.cell(f'{mtime} mtime')
         t.midrule()
         for key in sorted_keys:
             t.cells(*key)
             t.cell(ns[key])
             size_mb = round(sizes[key] / 1e6, 1)
             t.cell(size_mb)
+            if mtime:
+                func = {'min': min, 'max': max}[mtime]
+                time_obj = datetime.datetime.fromtimestamp(func(mtimes[key]))
+                t.cell(time_obj.strftime('%Y-%m-%d %H:%M:%S'))
         if not rm:
             return t
         # prompt to delete files
