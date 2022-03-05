@@ -840,6 +840,10 @@ class TRFExperiment(MneExperiment):
                 meg = self.load_epochs(samplingrate=samplingrate)['meg']
                 res.n_samples = meg.shape[0] * meg.shape[meg.get_axis('time')]
                 save.pickle(res, dst)
+            elif hasattr(res, 'mu') and not isinstance(res.source._filename, str):
+                print("Fixing NCRF source space")
+                res.source._filename = '{subject}-{src}-src.fif'
+                save.pickle(res, dst)
             # check x
             if not backward and hasattr(res, 'x'):  # not NCRF
                 # res.x are from a Dataset (except variable length epochs)
