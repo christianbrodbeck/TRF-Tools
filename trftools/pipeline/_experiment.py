@@ -2494,7 +2494,8 @@ class TRFExperiment(MneExperiment):
         """Test for localization difference of two terms in a model"""
         if not isinstance(terms, dict):
             terms = {term: term for term in terms}
-        # trf_kwargs = {key: value for key, value in kwargs.items() if key not in ('metric',)}
+        # FIXME: use MneExperiment defaults
+        surfer_kwargs = self._surfer_plot_kwargs(surf, brain_view)
         # load data
         ress = {}
         trf_dss = {}
