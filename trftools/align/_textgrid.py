@@ -841,7 +841,12 @@ def textgrid_as_realizations(grid, word_tier='word*', phone_tier='phone*', stric
             continue
         word_pronunciation = tuple([phone.mark for phone in word_phones])
         word_times = tuple([phone.minTime for phone in word_phones])
-        if word.mark in SILENCE:
+        if word.mark.startswith('<'):
+            is_silence = all(p in SILENCE for p in word_pronunciation)
+        else:
+            is_silence = word.mark in SILENCE
+
+        if is_silence:
             if not all(p in SILENCE for p in word_pronunciation):
                 errors.append(f"{word.minTime:.3f}: Silence word tag {word.mark!r} but non-silent phones {word_pronunciation!r}")
             out.append(Realization((' ',), word_times[:1], ' ', max_time))
