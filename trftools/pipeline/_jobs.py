@@ -445,8 +445,7 @@ class ModelJob(ExperimentJob):
 
 
 def split_lines(string):
-    return (line for line in (line.strip() for line in string) if line and not
-    line.startswith('#'))
+    return (line for line in (line.strip() for line in string) if line and not line.startswith('#'))
 
 
 def read_job_file(filename):

@@ -2622,6 +2622,7 @@ class TRFExperiment(MneExperiment):
             test: Union[str, bool] = True,
             **state,
     ) -> fmtxt.Section:
+        """Show mass-univariate test of TRFs"""
         ress = self.load_trf_test(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, None, terms, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, samples, test, **state)
         return trf_report.source_trfs(ress, heading, brain_view, axw, surf, cortex, vmax, xlim, times, cmap, labels, rasterize)
 

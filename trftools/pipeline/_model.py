@@ -181,7 +181,7 @@ class Model:
     def __sub__(self, other: 'Model') -> 'Model':
         if not all(term in self.terms for term in other.terms):
             missing = [term.string for term in other.terms if term not in self.terms]
-            raise ValueError(f"Missing terms: {', '.join(missing)}")
+            raise ValueError(f"{self.name} - {other.name}:\nMissing terms: {', '.join(missing)}")
         return Model(tuple([term for term in self.terms if term not in other.terms]))
 
     @classmethod

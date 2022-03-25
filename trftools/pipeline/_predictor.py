@@ -69,7 +69,7 @@ class FilePredictor:
 
     Parameters
     ----------
-    resample : 'bin' | 'resample'
+    resample
         How to resample predictor. When analyses are done at different sampling
         rates, it is often convenient to generate predictors at a high sampling
         rate and then downsample dynamically to match the data.
@@ -125,7 +125,7 @@ class FilePredictor:
     ``mask`` values can be specified dynamically in the variable name, as
     ``{name}-{value-column}`` or ``{name}-{value-column}-{mask-column}``.
 
-    The variables supports the following randomization protocols:
+    Supports the following randomization protocols:
 
      - ``$permute``: Shuffle the values. If ``mask`` is present in the dataset,
        only shuffle the cases for which ``mask == True``. An alternative mask,
@@ -150,7 +150,7 @@ class FilePredictor:
                 if x.time.tstep == tstep:
                     break
             else:
-                raise IOError(f"{path.name} does not contain tstep={tstep!r}")
+                raise IOError(f"{path.name} does not contain {tstep=}")
         elif isinstance(x, NDVar):
             if x.time.tstep == tstep:
                 pass
@@ -166,7 +166,7 @@ class FilePredictor:
             elif self.resample is None:
                 raise RuntimeError(f"{path.name} has tstep={x.time.tstep}, not {tstep}")
             else:
-                raise RuntimeError(f"resample={self.resample!r}")
+                raise RuntimeError(f"{self.resample=}")
         elif not isinstance(x, Dataset):
             raise TypeError(f'{x!r} at {path}')
         return x
@@ -228,7 +228,7 @@ class FilePredictor:
                     raise ValueError(f"{code.string_without_rand} for {stim} is longer than the data")
                 x.x[i_start:i_stop] = x_stim.get_data(dimnames)
         else:
-            raise RuntimeError(f"stim_type={stim_type!r}")
+            raise RuntimeError(f"{stim_type=}")
         return x
 
     def _ds_to_ndvar(self, ds: Dataset, uts: UTS, code: Code):
