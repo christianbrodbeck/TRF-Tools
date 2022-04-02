@@ -2548,7 +2548,8 @@ class TRFExperiment(MneExperiment):
             surf: str = 'inflated',
             cortex: Any = ((1.00,) * 3, (.4,) * 3),
             sig: bool = True,
-            heading: str = None,
+            heading: fmtxt.FMTextArg = None,
+            caption: fmtxt.FMTextArg = None,
             vmax: float = None,
             cmap: str = None,
             alpha: float = 1.,
@@ -2578,6 +2579,8 @@ class TRFExperiment(MneExperiment):
             Mask by significance (default ``True``)
         heading
             Heading for report section.
+        caption
+            Caption for the model test table.
         vmax
             Colormap range.
         cmap
@@ -2611,11 +2614,11 @@ class TRFExperiment(MneExperiment):
                 if not isinstance(ress_hemi, dict):
                     ress_hemi = ResultCollection({x: ress_hemi})
         if ress.dependent_type is DependentType.UNIVARIATE:
-            return trf_report.uv_result(ress, ress_hemi, heading)
+            return trf_report.uv_result(ress, ress_hemi, heading, caption)
         elif data.source is True:
-            return trf_report.source_results(ress, ress_hemi, heading, brain_view, axw, surf, cortex, sig, vmax, cmap, alpha)
+            return trf_report.source_results(ress, ress_hemi, heading, brain_view, axw, surf, cortex, sig, vmax, cmap, alpha, caption)
         elif data.sensor is True:
-            return trf_report.sensor_results(ress, heading, axw, vmax, cmap)
+            return trf_report.sensor_results(ress, heading, axw, vmax, cmap, caption)
         else:
             raise NotImplementedError(f'data={data.string!r}')
 

@@ -18,6 +18,7 @@ def sensor_results(
         axw: float = None,
         vmax: float = None,
         cmap: str = None,
+        caption: FMTextArg = 'Model test',
 ):
     "Only used for TRFExperiment model-test"
     if heading is not None:
@@ -25,7 +26,7 @@ def sensor_results(
     else:
         doc = fmtxt.FMText()
     # table
-    doc.append(fmtxt.Figure(ress.table(caption='Model test')))
+    doc.append(fmtxt.Figure(ress.table(caption=caption)))
 
     # plots tests
     topographies = [res.masked_difference() for res in ress.values()]
@@ -115,12 +116,13 @@ def uv_result(
         ress: ResultCollection,
         ress_hemi: ResultCollection = None,
         heading: FMTextArg = None,
+        caption: FMTextArg = 'Model test',
 ):
     if heading is not None:
         doc = fmtxt.Section(heading)
     else:
         doc = fmtxt.FMText()
-    tables = [ress.table(caption='Model test')]
+    tables = [ress.table(caption=caption)]
     if ress_hemi is not None:
         tables.append(ress_hemi.table(caption="Lateralization"))
     doc.append(fmtxt.Figure(fmtxt.FloatingLayout(tables)))
@@ -139,6 +141,7 @@ def source_results(
         vmax: float = None,
         cmap: str = None,
         alpha: float = 1.,
+        caption: FMTextArg = 'Model test',
 ):
     "Only used for TRFExperiment model-test"
     layout = BrainLayout(brain_view, axw)
@@ -148,7 +151,7 @@ def source_results(
     else:
         doc = fmtxt.FMText()
 
-    tables = [ress.table(caption='Model test')]
+    tables = [ress.table(caption=caption)]
     if ress_hemi is not None:
         tables.append(ress_hemi.table(caption="Lateralization"))
     doc.append(fmtxt.Figure(fmtxt.FloatingLayout(tables)))
