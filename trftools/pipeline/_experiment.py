@@ -2739,6 +2739,7 @@ class TRFExperiment(MneExperiment):
             mask: str = None,
             rm: bool = False,
             mtime: Literal['min', 'max'] = None,
+            return_paths: bool = False,
     ):
         """List cached TRFs and how much space they take
 
@@ -2756,6 +2757,10 @@ class TRFExperiment(MneExperiment):
         rm
             After listing TRFs, prompt to delete them (nothing will be deleted
             before user confirmation).
+        mtime
+            Show the earliest or latest file modification time for each model.
+        return_paths
+            Return the paths of the relevant files instead of a descriptive table.
 
         See Also
         --------
@@ -2803,7 +2808,9 @@ class TRFExperiment(MneExperiment):
             if mtime:
                 mtimes[key].append(os.path.getmtime(path))
             paths.append(path)
-        if not paths:
+        if return_paths:
+            return paths
+        elif not paths:
             print("No cached TRFs found")
             return
         sorted_keys = sorted(ns)
