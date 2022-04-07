@@ -403,8 +403,7 @@ class TRFExperiment(MneExperiment):
         """
         assert trfs or tests
         if name not in self._named_models:
-            raise ValueError(f"{name!r}: not a named model")
-        files = []
+            raise ValueError(f"{name=}: not a named model")
         pattern = f"*{name}*"
         regex = re.compile(rf"(^| ){re.escape(name)}(-red\d+)?($|[. ])")  # -red for legacy names
         for temp, is_public in TRF_TEMPLATES:
@@ -416,8 +415,7 @@ class TRFExperiment(MneExperiment):
                     continue
             for path in self.glob(temp, True, test_options=pattern):
                 if regex.search(path):
-                    files.append(path)
-        return files
+                    yield path
 
     def _remove_model(self, name, files=None):
         """Remove a named model and delete all associated files
@@ -431,7 +429,7 @@ class TRFExperiment(MneExperiment):
         """
         # FIXME: check model names file mtime any time model names are accessed?
         if files is None:
-            files = self._find_model_files(name, trfs=True, tests=True)
+            files = list(self._find_model_files(name, trfs=True, tests=True))
         if files:
             while True:
                 command = ask(f"Remove model {name} and delete {len(files)} files?", {"remove": "confirm", 'show': 'list files'}, allow_empty=True)
@@ -565,8 +563,17 @@ class TRFExperiment(MneExperiment):
             xs = combine(xs)
         ds[code.key] = xs
 
-    def prune_models(self):
+    def prune_models(
+            self,
+            prune_tests: bool = False,
+    ):
         """Remove internal models that have no corresponding files
+
+        Parameters
+        ----------
+        prune_tests
+            Remove cached test files if corresponding TRFs have been removed
+            previously.
 
         See Also
         --------
@@ -575,9 +582,12 @@ class TRFExperiment(MneExperiment):
         """
         models = list(self._named_models)
         for model in models:
-            for _ in self._find_model_files(model, trfs=True, tests=True):
+            for _ in self._find_model_files(model, trfs=True, tests=not prune_tests):
                 break
             else:
+                if prune_tests:
+                    for path in self._find_model_files(model, tests=True):
+                        os.unlink(path)
                 self._remove_model(model, files=[])
 
     def model_job(self, x, report=False, reduce_model=False, **kwargs):
@@ -2943,8 +2953,8 @@ class TRFExperiment(MneExperiment):
                 t.cell(model.name)
 
             if files:
-                n = len(self._find_model_files(name, trfs=True))
+                n = len(list(self._find_model_files(name, trfs=True)))
                 t.cell(n or '')
-                n = len(self._find_model_files(name, tests=True))
+                n = len(list(self._find_model_files(name, tests=True)))
                 t.cell(n or '')
         return t
