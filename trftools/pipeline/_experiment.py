@@ -2734,6 +2734,7 @@ class TRFExperiment(MneExperiment):
     def show_cached_trfs(
             self,
             model: str = None,
+            term: str = None,
             raw_names: bool = False,
             keys: Sequence[str] = ('analysis', 'epoch', 'time_window', 'samplingrate', 'model', 'mask'),
             mask: str = None,
@@ -2747,6 +2748,8 @@ class TRFExperiment(MneExperiment):
         ----------
         model
             String to fnmatch the model.
+        term
+            Include all models with this term (can be fnmatch pattern).
         raw_names
             Show model names as they are used in paths, instead of descriptive names.
         keys
@@ -2782,6 +2785,14 @@ class TRFExperiment(MneExperiment):
             describer = ModelDescriber(self._structured_models)
         else:
             describer = None
+        if term:
+            pattern = re.compile(fnmatch.translate(term))
+            term_models = [name for name, model in self._named_models.items() if any(pattern.match(term.string) for term in model.terms)]
+            if not term_models:
+                raise ValueError(f"{term=} does not match any models")
+        else:
+            term_models = None
+
         ns = defaultdict(lambda: 0)
         sizes = defaultdict(lambda: 0.)  # in bytes
         mtimes = defaultdict(list)
@@ -2789,6 +2800,8 @@ class TRFExperiment(MneExperiment):
         for path in self.glob('trf-file', True):
             properties = self._parse_trf_path(path)
             model_key = properties['model']
+            if term_models and properties['model'] not in term_models:
+                continue
             if describer:
                 properties['model'] = describer.describe(self._named_models.get(properties['model'], properties['model']))
             if model:
