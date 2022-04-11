@@ -846,11 +846,11 @@ class TRFExperiment(MneExperiment):
         data = TestDims.coerce(data, morph=morph)
         x = self._coerce_model(x)
         # check epoch
-        epoch = self._epochs[self.get('epoch')]
+        epoch = self._epochs[self.get('epoch', **state)]
         if isinstance(epoch, EpochCollection):
             raise ValueError(f"epoch={epoch.name!r} (use .load_trfs() to load multiple TRFs from a collection epoch)")
         # check cache
-        dst = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, **state)
+        dst = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward)
         if path_only:
             return dst
         elif exists(dst) and cache_valid(getmtime(dst), self._epochs_mtime()):
