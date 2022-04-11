@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from argparse import ArgumentParser
+import contextlib
 from operator import itemgetter
 import os
 from os.path import relpath, dirname
@@ -10,6 +11,7 @@ import webbrowser
 
 from eelbrain import fmtxt, save
 from eelbrain._experiment.test_def import TestDims
+from eelbrain._utils.com import Notifier
 
 from ._model import StructuredModel, ModelArg
 
@@ -487,5 +489,13 @@ def make_jobs_command():
     argparser = ArgumentParser(description="TRF-Tools make-jobs")
     argparser.add_argument('job_file')
     argparser.add_argument('--open', action='store_true', help="Open new reports in browser")
+    argparser.add_argument('--notify', type=str, default='', help="Send email notification to this address when the jobs are finshed")
     args = argparser.parse_args()
-    make_jobs(args.job_file, args.open)
+
+    if args.notify:
+        notification = Notifier(args.notify, 'TRF-Jobs', debug=False)
+    else:
+        notification = contextlib.nullcontext()
+
+    with notification:
+        make_jobs(args.job_file, args.open)
