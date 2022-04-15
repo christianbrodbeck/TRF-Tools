@@ -21,6 +21,8 @@ def sensor_results(
         caption: FMTextArg = 'Model test',
 ):
     "Only used for TRFExperiment model-test"
+    if not ress:
+        raise ValueError(f"{ress=}: empty result")
     if heading is not None:
         doc = fmtxt.Section(heading)
     else:

@@ -84,7 +84,8 @@ class FilePredictor:
     columns
         Only applies to NUTS (:class:`Dataset`) predictors.
         Use a single file with different columns. The code is interpreted as
-        ``{name}-{value-column}-{mask-column}`` (the last one is optional).
+        ``{name}-{value-column}-{mask-column}``. The code ``{name}`` alone
+        invokes an intercept, i.e. a value of 1 at each time point.
     sampling
         Whether to expect a continuous or a discrete predictor (usually an
         :class:`NDVar` or a :class:`Dataset`, respectively). Used to decide

@@ -84,7 +84,7 @@ from os.path import exists, getmtime, join, relpath, splitext
 from pathlib import Path
 from pyparsing import ParseException
 import re
-from typing import Any, Dict, List, Literal, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Sequence, Tuple, Union
 
 import eelbrain
 from eelbrain import (
@@ -966,8 +966,9 @@ class TRFExperiment(MneExperiment):
             data: DataArg = DATA_DEFAULT,
             backward: bool = False,
             partition_results: bool = False,
-            **state):
-        "Return ``func`` to create TRF result"
+            **state,
+    ) -> Callable:
+        "Return function to create TRF result"
         data = TestDims.coerce(data)
         epoch = self.get('epoch', **state)
         assert not isinstance(self._epochs[epoch], EpochCollection)
