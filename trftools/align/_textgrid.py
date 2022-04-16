@@ -9,7 +9,7 @@ from math import ceil
 import os
 from pathlib import Path
 import string
-from typing import Any, Dict, Iterator, List, Sequence, Union, Tuple
+from typing import Any, Dict, Iterator, List, Literal, Sequence, Union, Tuple
 
 import numpy
 
@@ -88,7 +88,7 @@ class Realization:
 
 
 class TextGrid:
-    """Extract and manipulate information from TextGrids
+    """TextGrid representation that associates phonemes with words
 
     Load an existing ``*.TextGrid` file using :meth:`TextGrid.from_file`
     """
@@ -126,6 +126,7 @@ class TextGrid:
             n_samples: int = None,
             word_tier: str = 'word*',
             phone_tier: str = 'phone*',
+            backend: Literal['textgrid', 'praatio'] = 'textgrid',
     ):
         """Load ``*.TextGrid`` file
 
@@ -155,7 +156,12 @@ class TextGrid:
         - a non-silence word contains silence phones
         """
         grid_file = Path(grid_file)
-        realizations = textgrid_as_realizations(grid_file, word_tier, phone_tier)
+        if backend == 'textgrid':
+            realizations = textgrid_as_realizations(grid_file, word_tier, phone_tier)
+        elif backend == 'praatio':
+            realizations = realizations_from_praatio(grid_file, word_tier, phone_tier)
+        else:
+            raise ValueError(f'{backend=}')
         return cls(realizations, tmin, tstep, n_samples, grid_file.name)
 
     def __repr__(self):
@@ -637,22 +643,35 @@ def gentle_to_grid(gentle_file, out_file=None):
     grid.write(out_file)
 
 
+def _find_tier(
+        target: str,  # target name or expression
+        available: Sequence[str],  # available tiers
+        grid_desc: Any,  # description in case of error
+):
+    matches = [name for name in available if fnmatch.fnmatch(name.lower(), target.lower())]
+    if len(matches) != 1:
+        available = ', '.join(available)
+        raise IOError(f"{len(matches)} tiers match {target!r} in {grid_desc}. Availabe tiers: {available}")
+    return matches[0]
+
+
+def _clean_label(label: str):
+    label = label.strip()
+    if label in SILENCE:
+        return ' '
+    return label
+
+
 def _load_tier(
         grid: textgrid.TextGrid,
         tier: str = 'phones',
         clean: bool = True,
 ):
     """Load one or more tiers as textgrid Tier object"""
-    names = [name for name in grid.getNames() if fnmatch.fnmatch(name.lower(), tier.lower())]
-    if len(names) != 1:
-        available = ', '.join(grid.getNames())
-        raise IOError(f"{len(names)} tiers match {tier!r} in {grid.name or grid}. Availabe tiers: {available}")
-    tier = grid.getFirst(names[0])
+    tier = grid.getFirst(_find_tier(tier, grid.getNames(), grid.name or grid))
     if clean:
         for item in tier:
-            item.mark = item.mark.strip()
-            if item.mark in SILENCE:
-                item.mark = ' '
+            item.mark = _clean_label(item.mark)
     return tier
 
 
@@ -854,6 +873,71 @@ def textgrid_as_realizations(grid, word_tier='word*', phone_tier='phone*', stric
             if any(p in SILENCE for p in word_pronunciation):
                 errors.append(f"{word.minTime:.3f}: Non-silence word tag {word.mark!r} includes silence phones {word_pronunciation!r}")
             out.append(Realization(word_pronunciation, word_times, word.mark, max_time))
+    if errors:
+        raise TextGridError('\n'.join(errors))
+
+    return out
+
+
+def realizations_from_praatio(
+        path: Path,
+        word_tier: str = 'word*',
+        phone_tier: str = 'phone*',
+        include_empty_intervals: bool = True,
+        **kwargs,
+):
+    """Load a TextGrid as a list of Realizations"""
+    import praatio.textgrid
+    from praatio.utilities.constants import Interval
+
+    textgrid = praatio.textgrid.openTextgrid(path, include_empty_intervals, **kwargs)
+    word_tier = textgrid.tierDict[_find_tier(word_tier, textgrid.tierNameList, path)]
+    phone_tier = textgrid.tierDict[_find_tier(phone_tier, textgrid.tierNameList, path)]
+    phones = list(phone_tier.entryList)
+    errors = []
+    out = []
+    # fill in the gaps in words
+    words = []
+    current_time = phones[0].start
+    for word in word_tier.entryList:
+        if word.start > current_time:
+            words.append(Interval(current_time, word.start, ' '))
+        words.append(Interval(word.start, word.end, _clean_label(word.label)))
+        current_time = word.end
+    # align phonemes and words
+    max_time = phones[0].start
+    for word in words:
+        word_phones = []
+        while phones and phones[0].start < word.end:
+            word_phones.append(phones.pop(0))
+        # update max_time
+        if word_phones:
+            max_time = word_phones[-1].end
+        # resolve misaligned phones
+        if max_time < word.end and phones:
+            start_dist = abs(phones[0].start - word.end)
+            stop_dist = abs(phones[0].end - word.end)
+            if stop_dist < start_dist:
+                word_phones.append(phones.pop(0))
+                max_time = word_phones[-1].end
+
+        if not word_phones:
+            continue
+        word_pronunciation = tuple([_clean_label(phone.label) for phone in word_phones])
+        word_times = tuple([phone.start for phone in word_phones])
+        if word.label.startswith('<'):
+            is_silence = all(p in SILENCE for p in word_pronunciation)
+        else:
+            is_silence = word.label in SILENCE
+
+        if is_silence:
+            if not all(p in SILENCE for p in word_pronunciation):
+                errors.append(f"{word.start:.3f}: Silence word tag {word.label!r} but non-silent phones {word_pronunciation!r}")
+            out.append(Realization((' ',), word_times[:1], ' ', max_time))
+        else:
+            if any(p in SILENCE for p in word_pronunciation):
+                errors.append(f"{word.start:.3f}: Non-silence word tag {word.label!r} includes silence phones {word_pronunciation!r}")
+            out.append(Realization(word_pronunciation, word_times, word.label, max_time))
     if errors:
         raise TextGridError('\n'.join(errors))
 
