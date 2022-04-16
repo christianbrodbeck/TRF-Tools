@@ -85,6 +85,7 @@ from pathlib import Path
 from pyparsing import ParseException
 import re
 from typing import Any, Callable, Dict, List, Literal, Sequence, Tuple, Union
+import warnings
 
 import eelbrain
 from eelbrain import (
@@ -695,8 +696,10 @@ class TRFExperiment(MneExperiment):
                 if isinstance(pipe, RawFilter):
                     pipes.append(pipe)
                 pipe = pipe.source
-            for pipe in reversed(pipes):
-                x = pipe.filter_ndvar(x)
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', 'filter_length \(', RuntimeWarning)
+                for pipe in reversed(pipes):
+                    x = pipe.filter_ndvar(x, pad='edge')
 
         if name is not None:
             x.name = name
