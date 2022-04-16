@@ -16,7 +16,7 @@ VOWELS = ('AA', 'AE', 'AH', 'AO', 'AW', 'AY', 'EH', 'ER', 'EY', 'IH', 'IY',
           'OW', 'OY', 'UH', 'UW')
 CONSONANTS = ('B', 'CH', 'D', 'DH', 'F', 'G', 'HH', 'JH', 'K', 'L', 'M', 'N',
               'NG', 'P', 'R', 'S', 'SH', 'T', 'TH', 'V', 'W', 'Y', 'Z', 'ZH')
-SILENCE = ('sp', 'sil', 'brth', '', ' ')
+SILENCE = ('sp', 'spn', 'sil', 'brth', '', ' ')
 ARPABET = VOWELS + CONSONANTS + (' ',)
 # https://en.wikipedia.org/wiki/ARPABET
 # 'AH': can also be 'ʌ'
