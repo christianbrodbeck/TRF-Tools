@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from argparse import ArgumentParser
 import contextlib
+import logging
 from operator import itemgetter
 import os
 from os.path import relpath, dirname
@@ -9,9 +10,11 @@ import sys
 from typing import Any, Callable, Dict, Iterable, List, Optional
 import webbrowser
 
+import eelbrain
 from eelbrain import fmtxt, save
 from eelbrain._experiment.test_def import TestDims
 from eelbrain._utils.com import Notifier
+from eelbrain._utils import ScreenHandler
 
 from ._model import StructuredModel, ModelArg
 
@@ -27,18 +30,21 @@ class Job:
     "Single function to be executed"
     def __init__(self, path, desc=None):
         self.path = path
-        self.desc = desc or path
+        self.desc = desc or path[:path.rfind('.')]
 
     def __repr__(self):
         return f"<{self.__class__.__name__}: {self.desc}>"
 
     def generate_job(self) -> Optional[Callable]:
-        return
+        raise NotImplementedError
 
     def _execute(self):
         job = self.generate_job()
         if job:
+            logger = logging.getLogger(__name__)
+            logger.info("Starting %s", self.desc)
             save.pickle(job(), self.path)
+            logger.info("Done     %s", self.desc)
 
 
 class FuncJob(Job):
@@ -488,14 +494,25 @@ def make_jobs_command():
     """
     argparser = ArgumentParser(description="TRF-Tools make-jobs")
     argparser.add_argument('job_file')
-    argparser.add_argument('--open', action='store_true', help="Open new reports in browser")
     argparser.add_argument('--notify', type=str, default='', help="Send email notification to this address when the jobs are finshed")
+    argparser.add_argument('-p', '--processes', type=int, default=None, help='Number of processes to use for jobs (0 to disable multiprocessing; negative number for "all but").')
+    argparser.add_argument('-n', '--nice', type=int, default=None, help='Scheduling priority (-20 is highest priority, 19 is lowest).')
+    argparser.add_argument('--open', action='store_true', help="Open new reports in browser")
     args = argparser.parse_args()
+
+    if args.processes or args.nice:
+        eelbrain.configure(args.processes, nice=args.nice)
 
     if args.notify:
         notification = Notifier(args.notify, 'TRF-Jobs', debug=False)
     else:
         notification = contextlib.nullcontext()
+
+    handler = ScreenHandler()
+    handler.setLevel(logging.DEBUG)
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
 
     with notification:
         make_jobs(args.job_file, args.open)
