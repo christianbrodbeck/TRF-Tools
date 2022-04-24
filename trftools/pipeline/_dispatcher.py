@@ -94,8 +94,14 @@ def print_traceback(exc_info):
 class Dispatcher:
     """Dispatch jobs to Eelfarm server"""
 
-    def __init__(self, host=None, job_queue_length=5, notify=False):
-        self.server = JobServer(host, job_queue_length)
+    def __init__(
+            self,
+            host: str = None,
+            port: int = 8000,
+            job_queue_length: int = 2,
+            notify: str = False,
+    ):
+        self.server = JobServer(host, port, job_queue_length)
         self.e_lock = Lock()  # access to experiment
         self.logger = logging.getLogger('eelfarm.dispatcher')
         # queues

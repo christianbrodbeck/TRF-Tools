@@ -1,26 +1,32 @@
 import logging
 
 
-def start_dispatcher(notify=False, debug=False, job_queue_length=5):
+def start_dispatcher(
+        notify: str = False,
+        debug: bool = False,
+        job_queue_length: int = 2,
+        port: int = 8000,
+):
     """A dispatcher provides an experiment level interface to Eelfarm
 
     Parameters
     ----------
-    notify : str
+    notify
         Email addresss to notify when jobs are done.
-    debug : bool
+    debug
         Log debug messages from HTML server.
-    job_queue_length : int
+    job_queue_length
         Number of jobs that will be kept in memory in a queue while waiting for
-        a worker (default 5). Reduce this number of jobs take up a lot of local
-        memory. With the minimum (0) The dispatcher will only start loading the
+        a worker. With the minimum (0) The dispatcher will only start loading the
         next job once the current job has been claimed by a worker (this can
         still lead to multiple jobs in memory while the data is being
         transferred to the worker).
+    port
+        Port to use for server.
 
     Returns
     -------
-    dispatcher : Dispatcher
+    Dispatcher
         The dispatcher.
 
     Examples
@@ -55,7 +61,7 @@ def start_dispatcher(notify=False, debug=False, job_queue_length=5):
     from eelfarm._utils import screen_handler
     from ._dispatcher import Dispatcher
 
-    d = Dispatcher(job_queue_length=job_queue_length, notify=notify)
+    d = Dispatcher(port=port, job_queue_length=job_queue_length, notify=notify)
     # configure logging
     d.logger.addHandler(screen_handler)
     d.logger.setLevel(logging.DEBUG)
