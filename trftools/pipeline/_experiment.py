@@ -2754,6 +2754,8 @@ class TRFExperiment(MneExperiment):
             mask: str = None,
             rm: bool = False,
             mtime: Literal['min', 'max'] = None,
+            subject: str = None,
+            group: str = None,
             return_paths: bool = False,
     ):
         """List cached TRFs and how much space they take
@@ -2776,6 +2778,10 @@ class TRFExperiment(MneExperiment):
             before user confirmation).
         mtime
             Show the earliest or latest file modification time for each model.
+        subject
+            Show files for a single subjects.
+        group
+            Show files for a group.
         return_paths
             Return the paths of the relevant files instead of a descriptive table.
 
@@ -2795,6 +2801,15 @@ class TRFExperiment(MneExperiment):
             e.rm('trf-file', True, test_options='* model *', analysis='1-8 *')
 
         """
+        if group:
+            if subject:
+                raise ValueError(f"{subject=}, {group=}: can only specify one at a time")
+            subjects = self._groups[group]
+        elif subject:
+            subjects = (subject,)
+        else:
+            subjects = ()
+
         if not raw_names:
             describer = ModelDescriber(self._structured_models)
         else:
@@ -2813,6 +2828,8 @@ class TRFExperiment(MneExperiment):
         paths = []
         for path in self.glob('trf-file', True):
             properties = self._parse_trf_path(path)
+            if subjects and properties['subject'] not in subjects:
+                continue
             model_key = properties['model']
             if term_models and properties['model'] not in term_models:
                 continue
