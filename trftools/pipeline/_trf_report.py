@@ -43,6 +43,8 @@ def sensor_results(
         p = plot.Topomap(y, cmap=cmap, vmax=vmax, title=title, axw=axw, show=False, clip='circle')
         panels.append(p.image())
         p.close()
+    cbar = p.plot_colorbar(orientation='vertical', h=p._layout.h, w=p._layout.w, width=0.1)
+    panels.append(cbar)
     doc.append(fmtxt.Figure(fmtxt.FloatingLayout(panels)))
     return doc
 
