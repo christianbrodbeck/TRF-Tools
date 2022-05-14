@@ -908,7 +908,7 @@ def realizations_from_praatio(
     max_time = phones[0].start
     for word in words:
         word_phones = []
-        while phones and phones[0].start < word.end:
+        while phones and phones[0].end <= word.end:
             word_phones.append(phones.pop(0))
         # update max_time
         if word_phones:
