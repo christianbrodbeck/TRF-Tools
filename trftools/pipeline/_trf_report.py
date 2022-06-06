@@ -150,7 +150,7 @@ def source_results(
         vmax: float = None,
         cmap: str = None,
         alpha: float = 1.,
-        caption: FMTextArg = 'Model test',
+        caption: FMTextArg = None,
 ):
     "Only used for TRFExperiment model-test"
     layout = BrainLayout(brain_view, axw)
@@ -160,9 +160,11 @@ def source_results(
     else:
         doc = fmtxt.FMText()
 
+    if caption is None and ress_hemi:
+        caption = 'Test of predictive power'
     tables = [ress.table(caption=caption)]
     if ress_hemi is not None:
-        tables.append(ress_hemi.table(caption="Lateralization"))
+        tables.append(ress_hemi.table(caption="Test of lateralization"))
     doc.append(fmtxt.Figure(fmtxt.FloatingLayout(tables)))
 
     if sig and all(res.p.min() > 0.05 for res in ress.values()):
