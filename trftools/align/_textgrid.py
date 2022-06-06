@@ -257,6 +257,18 @@ class TextGrid:
         realizations = [r.map_phonemes(mapping) for r in self.realizations]
         return TextGrid(realizations, self.tmin, self.tstep, self.n_samples, self._name)
 
+    def merge_silence(self):
+        """Merge consecutive silence realizations"""
+        new = []
+        last = False
+        for r in self.realizations:
+            if last and r.is_silence():
+                new[-1] = Realization((' ',), new[-1].times, ' ', r.tstop)
+            else:
+                new.append(r)
+                last = r.is_silence()
+        return TextGrid(new, self.tmin, self.tstep, self.n_samples, self._name)
+
     def strip_stress(self):
         """Remove stress digits from all phones (``K AA1 R`` -> ``K AA R``)"""
         realizations = [r.strip_stress() for r in self.realizations]
