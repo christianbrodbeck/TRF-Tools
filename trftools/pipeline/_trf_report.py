@@ -9,7 +9,7 @@ from eelbrain._stats.testnd import MultiEffectNDTest
 from eelbrain._stats.spm import LMGroup
 from eelbrain.fmtxt import FMTextArg, Figure, Section, FMText
 
-from ._results import ResultCollection
+from ._results import ResultCollection, TestType
 
 
 def sensor_results(
@@ -31,7 +31,12 @@ def sensor_results(
     doc.append(fmtxt.Figure(ress.table(caption=caption)))
 
     # plots tests
-    topographies = [res.masked_difference() for res in ress.values()]
+    if ress.test_type == TestType.CORRELATION:
+        topographies = [res.masked_parameter_map() for res in ress.values()]
+    elif ress.test_type == TestType.DIFFERENCE:
+        topographies = [res.masked_difference() for res in ress.values()]
+    else:
+        raise NotImplementedError(f"{ress.test_type=}")
     if vmax is None:
         vlims = plot._base.find_fig_vlims([topographies], vmax)
         for _, vmax in vlims.values():

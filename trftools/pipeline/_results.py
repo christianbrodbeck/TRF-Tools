@@ -8,6 +8,7 @@ from eelbrain._stats.test import star
 
 class TestType(enum.Enum):
     DIFFERENCE = enum.auto()
+    CORRELATION = enum.auto()
     MULTI_EFFECT = enum.auto()
     TWO_STAGE = enum.auto()
 
@@ -17,6 +18,8 @@ class TestType(enum.Enum):
             return cls.TWO_STAGE
         elif isinstance(test, (testnd.MultiEffectNDTest, test_.ANOVA)):
             return cls.MULTI_EFFECT
+        elif isinstance(test, testnd.Correlation):
+            return cls.CORRELATION
         else:
             return cls.DIFFERENCE
 
