@@ -635,11 +635,12 @@ class TRFExperiment(MneExperiment):
     def load_predictor(
             self,
             code: str,
-            tstep: float = 0.01,
+            tstep: float = None,
             n_samples: int = None,
-            tmin: float = 0.,
+            tmin: float = None,
             filter_x: FilterXArg = False,
             name: str = None,
+            **state,
     ):
         """Load predictor NDVar
 
@@ -649,12 +650,12 @@ class TRFExperiment(MneExperiment):
             Code for the predictor to load (using the pattern
             ``{stimulus}~{code}${randomization}``)
         tstep
-            Time step for the predictor.
+            Time-step for the predictor (defautl is the original ``tstep``).
         n_samples
             Number of samples in the predictor (the default returns all
             available samples).
         tmin
-            First sample time stamp (default 0).
+            First sample time stamp (default is all abailable data).
         filter_x
             Filter the predictor with the same method as the raw data.
         name
@@ -667,6 +668,8 @@ class TRFExperiment(MneExperiment):
             raise code.error(f"predictor undefined in {self.__class__.__name__}", 0)
 
         # if called without add_predictor
+        if state:
+            self.set(**state)
         if code._seed is None:
             code.seed(self.get('subject'))
 
