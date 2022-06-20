@@ -139,12 +139,14 @@ class Code(CodeBase):
         else:
             return self.code
 
-    def with_stim(self, stim):
+    def with_stim(self, stim=None):
         "Copy of the code with different stimulus"
         code_string = self.string
         if self.stim:
             i = len(self.stim) + 1
             code_string = code_string[i:]
+        if stim is None:
+            return code_string
         return Code(f'{stim}~{code_string}')
 
     @cached_property

@@ -1,5 +1,5 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
-from math import ceil
+from math import ceil, floor
 
 from eelbrain import NDVar, UTS
 from eelbrain._utils.numpy_utils import index
@@ -57,7 +57,7 @@ def pad(
     if nsamples is None and tstop is None:
         n_add_end = 0
     elif nsamples is None:
-        n_add_end = int((tstop - time.tstop) // time.tstep)
+        n_add_end = int(floor((tstop - time.tstop) / time.tstep + 1e-5))
     elif tstop is None:
         n_add_end = nsamples - n_add_start - time.nsamples
     else:

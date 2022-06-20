@@ -115,7 +115,7 @@ from .._numpy_funcs import arctanh
 from ._code import Code
 from ._jobs import TRFsJob, ModelJob
 from ._model import Comparison, Model, ModelExpression, StructuredModel, load_models, model_comparison_table, model_name_parser, save_models
-from ._predictor import EventPredictor, FilePredictor, MakePredictor
+from ._predictor import EventPredictor, FilePredictor, FilePredictorBase, MakePredictor, SessionPredictor
 from ._results import DependentType, ResultCollection
 from . import _trf_report as trf_report
 
@@ -516,11 +516,23 @@ class TRFExperiment(MneExperiment):
         is_variable_time = isinstance(time, list)
         code = Code.coerce(code)
         code.seed(ds.info['subject'])
+        directory = Path(self.get('predictor-dir'))
 
         try:
-            predictor = self.predictors[code.next()]
+            predictor = self.predictors[code.lookahead()]
         except KeyError:
             raise code.error(f"predictor undefined in {self.__class__.__name__}", 0)
+
+        if isinstance(predictor, SessionPredictor):
+            if not is_variable_time:
+                raise NotImplementedError(f"SessionPredictor for fixed duration epochs")
+            x = self.load_predictor(code, filter_x=filter_x, name=code.key)
+            onset_times = ds['T'] - ds[0, 'T']
+            ds[code.key] = predictor._epoch_for_data(x, time, onset_times)
+            return
+
+        # register that predictor is identified
+        code.next()
 
         # which Dataset variable indicates the stimulus?
         stim_var = self._stim_var[code.stim or '']
@@ -528,15 +540,16 @@ class TRFExperiment(MneExperiment):
         # For nested events
         events_key = ds.info.get('nested_events')
         if events_key:
+            if filter_x:
+                raise ValueError(f"{filter_x=}: not available for {predictor.__class__.__name__}")
             assert is_variable_time
-            directory = Path(self.get('predictor-dir'))
             xs = []
             assert not code._shuffle_done
             for uts, sub_ds in zip(time, ds[events_key]):
                 code._shuffle_done = False  # each iteration will register shuffle
                 if isinstance(predictor, EventPredictor):
                     x = predictor._generate_continuous(uts, sub_ds, code)
-                elif isinstance(predictor, FilePredictor):
+                elif isinstance(predictor, FilePredictorBase):
                     x = predictor._generate_continuous(uts, sub_ds, stim_var, code, directory)
                 else:
                     raise RuntimeError(predictor)
@@ -683,9 +696,12 @@ class TRFExperiment(MneExperiment):
         if code._seed is None:
             code.seed(self.get('subject'))
 
-        if isinstance(predictor, FilePredictor):
+        if isinstance(predictor, FilePredictorBase):
             directory = Path(self.get('predictor-dir'))
-            x = predictor._generate(tmin, tstep, n_samples, code, directory)
+            if isinstance(predictor, FilePredictor):
+                x = predictor._generate(tmin, tstep, n_samples, code, directory)
+            elif isinstance(predictor, SessionPredictor):
+                x = predictor._generate(tmin, tstep, n_samples, code, directory, self.get('subject'), self.get('recording'))
             code.register_string_done()
             code.assert_done()
         elif isinstance(predictor, MakePredictor):

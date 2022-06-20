@@ -1,9 +1,9 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
 from itertools import chain
 from pathlib import Path
-from typing import Literal
+from typing import List, Literal, Optional
 
-from eelbrain import load, Categorial, Dataset, Factor, NDVar, UTS, Var, combine, epoch_impulse_predictor, event_impulse_predictor, resample
+from eelbrain import load, Categorial, Dataset, Factor, NDVar, UTS, Var, combine, epoch_impulse_predictor, event_impulse_predictor, resample, set_time, set_tmin
 from eelbrain._experiment.definitions import typed_arg
 import numpy
 
@@ -52,8 +52,57 @@ class EventPredictor:
         return event_impulse_predictor(uts, 'T_relative', self.value, self.latency, code.code, ds)
 
 
-class FilePredictor:
-    """Predictor stored in files
+class FilePredictorBase:
+
+    def __init__(
+            self,
+            resample: Literal['bin', 'resample'] = None,
+            sampling: Literal['continuous', 'discrete'] = None,
+    ):
+        assert resample in (None, 'bin', 'resample')
+        self.resample = resample
+        self.sampling = sampling
+
+    def _resample(self, x: NDVar, tstep: float = None):
+        if tstep is None or x.time.tstep == tstep:
+            pass
+        elif x.time.tstep > tstep:
+            raise ValueError(f"Requested samplingrate rate is higher than in file ({1/tstep:g} > {1/x.time.tstep:g})")
+        elif self.resample == 'bin':
+            x = x.bin(tstep, label='start')
+        elif self.resample == 'resample':
+            srate = 1 / tstep
+            int_srate = int(round(srate))
+            srate = int_srate if abs(int_srate - srate) < .001 else srate
+            x = resample(x, srate)
+        elif self.resample is None:
+            raise RuntimeError(f"{path.name} has tstep={x.time.tstep}, not {tstep}")
+        else:
+            raise RuntimeError(f"{self.resample=}")
+        return x
+
+    def _sampling(
+            self,
+            data_type: Literal['nuts', 'uts'] = None,
+            nuts_method: str = None,
+    ):
+        if data_type == 'uts':
+            return self.sampling or 'continuous'
+        elif data_type == 'nuts' or nuts_method:
+            if nuts_method == 'step':
+                return 'continuous'
+            elif nuts_method == 'is':
+                return None
+            elif nuts_method is None:
+                return 'discrete'
+            else:
+                raise RuntimeError(f'{nuts_method=}')
+        else:
+            return self.sampling
+
+
+class FilePredictor(FilePredictorBase):
+    """Predictor stored in files corresponding to specific stimuli
 
     There are two basic ways to represent predictors in files (see the Notes
     section below for  details):
@@ -149,31 +198,10 @@ class FilePredictor:
             columns: bool = False,
             sampling: Literal['continuous', 'discrete'] = None,
     ):
-        assert resample in (None, 'bin', 'resample')
-        self.resample = resample
         self.columns = columns
-        self.sampling = sampling
+        super().__init__(resample, sampling)
 
-    def _sampling(
-            self,
-            data_type: Literal['nuts', 'uts'] = None,
-            nuts_method: str = None,
-    ):
-        if data_type == 'uts':
-            return self.sampling or 'continuous'
-        elif data_type == 'nuts' or nuts_method:
-            if nuts_method == 'step':
-                return 'continuous'
-            elif nuts_method == 'is':
-                return None
-            elif nuts_method is None:
-                return 'discrete'
-            else:
-                raise RuntimeError(f'{nuts_method=}')
-        else:
-            return self.sampling
-
-    def _load(self, tstep: float, filename: str, directory: Path):
+    def _load(self, tstep: float, filename: str, directory: Path) -> NDVar:
         path = directory / f'{filename}.pickle'
         x = load.unpickle(path)
         # allow for pre-computed resampled versions
@@ -185,21 +213,7 @@ class FilePredictor:
             else:
                 raise IOError(f"{path.name} does not contain {tstep=}")
         elif isinstance(x, NDVar):
-            if x.time.tstep == tstep:
-                pass
-            elif x.time.tstep > tstep:
-                raise ValueError(f"Requested samplingrate rate is higher than in file ({1/tstep:g} > {1/x.time.tstep:g})")
-            elif self.resample == 'bin':
-                x = x.bin(tstep, label='start')
-            elif self.resample == 'resample':
-                srate = 1 / tstep
-                int_srate = int(round(srate))
-                srate = int_srate if abs(int_srate - srate) < .001 else srate
-                x = resample(x, srate)
-            elif self.resample is None:
-                raise RuntimeError(f"{path.name} has tstep={x.time.tstep}, not {tstep}")
-            else:
-                raise RuntimeError(f"{self.resample=}")
+            x = self._resample(x, tstep)
         elif not isinstance(x, Dataset):
             raise TypeError(f'{x!r} at {path}')
         return x
@@ -348,6 +362,73 @@ class FilePredictor:
             for t0, t1, v in zip(ds['time'], t_stops, ds[column_key]):
                 x_step[t0:t1] = v
         return x
+
+
+class SessionPredictor(FilePredictorBase):
+    """Predictor stored in files corresponding to specific subjects
+
+    In contrast to a :class:`FilePredictor`, which represents a speicific
+    stimulus, a :class:`SessionPredictor` represents a whole recording session
+    for a specific subject.
+
+    Filename should be ``{subject} {session}~{code}.pickle`` or, if the
+    experiment includes multiple visits,
+    ``{subject} {session} {visit}~{code}.pickle``.
+    """
+    def _load(self, tstep: Optional[float], filename: str, directory: Path) -> NDVar:
+        path = directory / f'{filename}.pickle'
+        x = load.unpickle(path)
+        x = self._resample(x, tstep)
+        return x
+
+    def _generate(
+            self,
+            tmin: float,
+            tstep: float,
+            n_samples: int,
+            code: Code,
+            directory: Path,
+            subject: str,
+            recording: str,
+    ):
+        "predictor for one recording"
+        if code.stim is not None:
+            raise code.error(f"{self.__class__.__name__} cannot have stimulus", -1)
+        elif code.nuts_method:
+            raise code.error(f"Suffix {code.nuts_method} reserved for non-uniform time series predictors")
+        elif code.shuffle:
+            raise code.error(f"Shuffling not available for {self.__class__.__name__}")
+        file_name = f"{subject} {recording}~{code.string}"
+        x = self._load(tstep, file_name, directory)
+        x = pad(x, tmin, nsamples=n_samples, set_tmin=True)
+        x.info['sampling'] = self._sampling('uts')
+        return x
+
+    def _epoch_for_data(
+            self,
+            x: NDVar,
+            utss: List[UTS],
+            onset_times: List[float],  # onset of utss in x (relative to first uts)
+    ) -> List[NDVar]:
+        out = []
+        for uts, t0 in zip(utss, onset_times):
+            # align x to uts
+            if t0:
+                t0 = x.time.tstep * round(t0 / x.time.tstep)
+                new_tmin = x.time.tmin - t0  # set x t=0 to uts t=0
+                x_shifted = set_tmin(x, new_tmin)
+            else:
+                x_shifted = x
+            # resample
+            if x_shifted.time.tstep == uts.tstep:
+                x_resampled = x_shifted
+            else:
+                x_cropped = pad(x_shifted, uts.tmin - 2, uts.tstop + 2)
+                x_resampled = self._resample(x_cropped, uts.tstep)
+            x_matching = pad(x_resampled, uts.tmin, uts.tstop, set_tmin=True)
+            assert x_matching.time == uts
+            out.append(x_matching)
+        return out
 
 
 class MakePredictor:
