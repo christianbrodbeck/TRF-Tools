@@ -30,6 +30,10 @@ def pad(
         New number of samples.
     set_tmin
         Reset ``tmin`` to be exactly equal to ``tstart``.
+        By default, the new ``tmin`` is inferred from the time-step, i.e. the
+        sample at which ``time == 0`` is left exactly unchanged. With
+        ``set_tmin``, the time point at which ``time == 0`` might shift slightly
+        if the amount of time added is not an exact multiple of the time step.
     name
         Name for the new NDVar.
     """
@@ -39,8 +43,6 @@ def pad(
         name = ndvar.name
     # start
     if tstart is None:
-        if set_tmin:
-            raise ValueError("set_tmin without defining tstart")
         if nsamples is not None:
             raise NotImplementedError("nsamples without tstart")
         n_add_start = 0
@@ -79,7 +81,9 @@ def pad(
     elif n_add_end < 0:
         xs[-1] = xs[-1][index(slice(None, n_add_end), axis)]
     x = np.concatenate(xs, axis)
-    if set_tmin:
+    if n_add_start == 0:
+        new_tmin = time.tmin
+    elif set_tmin:
         new_tmin = tstart
     else:
         new_tmin = time.tmin - (time.tstep * n_add_start)
