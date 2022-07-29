@@ -591,20 +591,27 @@ class TRFExperiment(MneExperiment):
                         os.unlink(path)
                 self._remove_model(model, files=[])
 
-    def model_job(self, x, report=False, reduce_model=False, **kwargs):
+    def model_job(
+            self,
+            x: str,
+            report: bool = False,
+            reduce_model: bool = False,
+            priority: bool = False,
+            **kwargs,
+    ):
         """Compute all TRFs needed for a model-test
 
         Parameters
         ----------
-        x : str
+        x
             Model or comparison.
-        report : bool
+        report
             Schedule a model-test report (only available for source space data).
-        reduce_model : bool
+        reduce_model
             Iteratively reduce the model until it only contains predictors
             significant at the .05 level.
-        priority : bool
-            Prioritize job over others (default ``False``)
+        priority
+            Prioritize job over others.
         ...
             For more arguments see :meth:`.load_model_test`.
 
@@ -612,17 +619,17 @@ class TRFExperiment(MneExperiment):
         --------
         .trf_job
         """
-        return ModelJob(x, self, report, reduce_model, **kwargs)
+        return ModelJob(x, self, report, reduce_model, priority=priority, **kwargs)
 
-    def trf_job(self, x, **kwargs):
+    def trf_job(self, x: str, priority: bool = False, **kwargs):
         """Compute all TRFs with the given model
 
         Parameters
         ----------
-        x : str
+        x
             Model.
-        priority : bool
-            Prioritize job over others (default ``False``)
+        priority
+            Prioritize job over others.
         ...
             For more arguments see :meth:`.load_trf`.
 
@@ -630,7 +637,7 @@ class TRFExperiment(MneExperiment):
         --------
         .model_job
         """
-        return TRFsJob(x, self, **kwargs)
+        return TRFsJob(x, self, priority, **kwargs)
 
     def load_predictor(
             self,
@@ -650,7 +657,9 @@ class TRFExperiment(MneExperiment):
             Code for the predictor to load (using the pattern
             ``{stimulus}~{code}${randomization}``)
         tstep
-            Time-step for the predictor (defautl is the original ``tstep``).
+            Time-step for the predictor (for :class:`NDVar` predictors, the
+            default is the original ``tstep``; for :class:`Dataset` predictors
+            ``tstep`` needs to be specified).
         n_samples
             Number of samples in the predictor (the default returns all
             available samples).
@@ -1157,8 +1166,12 @@ class TRFExperiment(MneExperiment):
         error : 'l1' | 'l2'
             Error function.
         partitions
-            Number of partitions used for cross-validation in boosting (default
-            is the number of epochs; -1 to concatenate data).
+            Number of partitions used for cross-validation in boosting. A
+            positive number to divide epochs evenly (e.g., ``partitions=5`` to
+            group ``epochs[0::5]``, ``epochs[1::5]``, ..., ``epochs[4::5]``.
+            A negative number to concatenate all epochs and then divide the
+            resulting time series into ``abs(partitions)`` contiguous, equal
+            length segments.
         samplingrate
             Samplingrate in Hz for the analysis (default is specified in epoch
             definition).
@@ -1885,7 +1898,7 @@ class TRFExperiment(MneExperiment):
         if isinstance(x, str):
             return Comparison.coerce(x, cv, self._structured_models)
         elif not isinstance(x, (StructuredModel, Comparison)):
-            raise TypeError(f"x={x!r}: need comparison")
+            raise TypeError(f"{x=}: need comparison")
         return x
 
     def _x_desc(self, x, is_public=False):

@@ -42,6 +42,8 @@ a + b$rnd > b + a$rnd
 
 
 """
+from __future__ import annotations
+
 from collections import abc, Counter
 from dataclasses import dataclass, replace
 from functools import cached_property
@@ -694,7 +696,7 @@ class Comparison:
         return f"{name(self.x1)} {op} {x0_only}"
 
     @classmethod
-    def coerce(cls, x, cv=True, named_models={}):
+    def coerce(cls, x, cv=True, named_models={}) -> Union[StructuredModel, Comparison]:
         if isinstance(x, (cls, StructuredModel)):
             return x
         comp = parse_comparison(x)
