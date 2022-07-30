@@ -58,6 +58,10 @@ class Realization:
             raise ValueError("Word without phones")
         self.pronunciation = ' '.join(self.phones)
 
+    @property
+    def duration(self):
+        return self.tstop - self.times[0]
+
     def map_phonemes(self, mapping: Dict[str, Union[str, Tuple[str, ...]]]):
         "Replace each phoneme from ``mapping``"
         if self.is_silence():
@@ -525,18 +529,28 @@ class TextGrid:
     def categories_to_codes(values, codes, weights=None):
         return _categories_to_codes(values, codes, weights)
 
-    def print(self, segmentation=None):
+    def print(
+            self,
+            segmentation=None,
+            silence: bool = False,
+    ):
         """Print text with pronunciation
 
         Parameters
         ----------
         segmentation : Lexicon
             Display morphological segmentation form this lexicon.
+        silence
+            Print silence duration (in ms).
         """
         lines = ['', '']
         for r in self.realizations:
             graphs = r.graphs
-            pronunciation = r.pronunciation
+            if silence and r.is_silence():
+                duration_ms = int(round(r.duration * 1000))
+                pronunciation = f'<{duration_ms}>'
+            else:
+                pronunciation = r.pronunciation
             if segmentation:
                 words = segmentation.lookup(graphs.lower())
                 if words:
