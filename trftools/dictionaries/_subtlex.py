@@ -65,18 +65,32 @@ def read_subtlex(
     return out
 
 
-def read_subtlex_pos():
-    """Read SUBTLEXus with part-of-speech tags"""
+def read_subtlex_pos(
+        upper: bool = False,
+):
+    """Read SUBTLEXus with part-of-speech tags
+
+    Parameters
+    ----------
+    upper
+        Turn keys into all upper-case. By default, 'I' is the only upper-case
+        key.
+
+    Notes
+    -----
+    Possible POS tags:
+    Adjective, Adverb, Article, Conjunction, Determiner, Ex, Interjection,
+    Letter, Name, Not, Noun, Number, Preposition, Pronoun, To, Unclassified,
+    Verb
+    """
     path = download('http://crr.ugent.be/papers/SUBTLEX-US_frequency_list_with_PoS_information_final_text_version.zip', 'SUBTLEX-US-PoS.txt', unzip=True)
     with path.open() as fid:
         keys = next(fid).split()
         i_word = keys.index('Word')
         i_class = keys.index('All_PoS_SUBTLEX')
         i_freq = keys.index('All_freqs_SUBTLEX')
-        d = {}
-        for line in fid:
-            line = line.split()
-            d[line[i_word]] = {k: int(v) for k, v in
-                               zip(line[i_class].split('.'),
-                                   line[i_freq].split('.')) if v != '#N/A'}
-    return d
+        rows = (line.split() for line in fid)
+        subtlex = {row[i_word]: {k: int(v) for k, v in zip(row[i_class].split('.'), row[i_freq].split('.')) if v != '#N/A'} for row in rows}
+    if upper:
+        subtlex = {k.upper(): v for k, v in subtlex.items()}
+    return subtlex
