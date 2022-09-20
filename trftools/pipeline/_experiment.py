@@ -1182,7 +1182,7 @@ class TRFExperiment(Pipeline):
     def load_trfs(
             self,
             subject: Union[str, int],
-            x: ModelArg,
+            x: Union[ModelArg, ComparisonArg],
             tstart: float = 0,
             tstop: float = 0.5,
             basis: float = 0.050,
@@ -1297,8 +1297,30 @@ class TRFExperiment(Pipeline):
             ``trf_ds.info['xs']`` is a tuple of the names of all TRF components.
         """
         data = TestDims.coerce(data)
+        if data.source:
+            inv = self.get('inv')
+            is_ncrf = bool(NCRF_RE.match(inv))
+            is_vector_data = is_ncrf or inv.startswith('vec')
+        else:
+            is_vector_data = is_ncrf = False
+
+        try:
+            x = self._coerce_model(x)
+        except DefinitionError:  # Comparison (two models)
+            assert not is_ncrf
+            self.set(**state)
+            x = self._coerce_comparison(x, cv)
+            ds = self.load_trfs(subject, x.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, smooth, smooth_time, vardef, permutations, vector_as_norm, trfs)
+            ds0 = self.load_trfs(subject, x.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, smooth, smooth_time, vardef, permutations, vector_as_norm, False)
+            assert np.all(ds['subject'] == ds0['subject'])
+            keys = ['r', 'residual', 'det', 'z']
+            if is_vector_data:
+                keys.extend(('r1', 'z1'))
+            for key in keys:
+                ds[key] -= ds0[key]
+            return ds
+
         subject, group = self._process_subject_arg(subject, state)
-        x = self._coerce_model(x)
 
         # group data
         if group is not None:
@@ -1331,13 +1353,6 @@ class TRFExperiment(Pipeline):
             raise ValueError(f"{permutations=} for model without randomization ({x.name})")
         else:
             xs = x.multiple_permutations(permutations)
-
-        if data.source:
-            inv = self.get('inv')
-            is_ncrf = bool(NCRF_RE.match(inv))
-            is_vector_data = is_ncrf or inv.startswith('vec')
-        else:
-            is_vector_data = is_ncrf = False
 
         # load result(s)
         h = r = z = r1 = z1 = residual = det = tstep = res_partitions = mu = None
