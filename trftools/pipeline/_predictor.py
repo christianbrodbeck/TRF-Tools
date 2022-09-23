@@ -323,10 +323,10 @@ class FilePredictor:
         # prepare output NDVar
         if code.nuts_method == 'is':
             dim = Categorial('representation', ('step', 'impulse'))
-            x = NDVar(numpy.zeros((2, len(uts))), (dim, uts), name=code.key)
+            x = NDVar.zeros((dim, uts), name=code.key)
             x_step, x_impulse = x
         else:
-            x = NDVar(numpy.zeros(len(uts)), uts, name=code.key)
+            x = NDVar.zeros(uts, name=code.key)
             if code.nuts_method == 'step':
                 x_step, x_impulse = x, None
             elif not code.nuts_method:
@@ -338,7 +338,7 @@ class FilePredictor:
         ds = ds[ds['time'] < uts.tstop]
         if x_impulse is not None:
             for t, v in ds.zip('time', column_key):
-                x_impulse[t] = v
+                x_impulse[t] += v
         if x_step is not None:
             t_stops = ds[1:, 'time']
             if ds[-1, column_key] != 0:
