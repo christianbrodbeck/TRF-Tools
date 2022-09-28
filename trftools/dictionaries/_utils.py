@@ -18,7 +18,7 @@ def fix_apostrophe_pronounciations(
     from ..align._textgrid import APOSTROPHE_TOKENS
 
     new = {
-        "N'T": {'N T'},
+        "N'T": {'N T', 'AH N T'},
         "'D": {'D'},
         "'M": {'AH M', 'M'},
         "'S": {'AH Z', 'EH S', 'S', 'Z'},
@@ -27,13 +27,12 @@ def fix_apostrophe_pronounciations(
         "'RE": {'R'},
         "'VE": {'V'},
     }
+    keep = set(APOSTROPHE_TOKENS).union(new)
+    remove = [key for key in dictionary if "'" in key and key not in keep]
+    for key in remove:
+        del dictionary[key]
     for word, pronunciations in new.items():
         dictionary[word].update(pronunciations)
-    remove = [key for key in dictionary if "'" in key and key not in APOSTROPHE_TOKENS]
-    for key in remove:
-        # if not key.endswith(tuple(APOSTROPHE_TOKENS)):
-        #     print(key, end=', ')
-        del dictionary[key]
 
 
 def download(url: str, filename: str, unzip: bool = False):

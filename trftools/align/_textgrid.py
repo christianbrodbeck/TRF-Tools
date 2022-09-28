@@ -26,7 +26,7 @@ from ._text import text_to_words
 
 
 PUNC = [s.encode('ascii') for s in string.punctuation + "\n\r"]
-APOSTROPHE_AFFIXES = {"'D", "'M", "'S", "'T", "'LL", "'RE", "'VE"}
+APOSTROPHE_AFFIXES = {"'D", "'M", "'S", "'T", "'LL", "'RE", "'VE", "N'T"}
 APOSTROPHE_WORDS = {"CAN'T", "DON'T", "'EM", "O'CLOCK", "SHAN'T", "WON'T"}
 APOSTROPHE_TOKENS = {*APOSTROPHE_AFFIXES, *APOSTROPHE_WORDS}
 
@@ -243,14 +243,14 @@ class TextGrid:
                         ip = -2
                 else:
                     ig = realization.graphs.index("'")
-                    if ig == 0:
-                        new.append(replace(realization, graphs=realization.graphs[1:]))
-                        continue
-                    elif ig == len(realization.graphs) - 1:
-                        new.append(replace(realization, graphs=realization.graphs[:-1]))
+                    if ig == 0 or ig == len(realization.graphs) - 1:
+                        new.append(replace(realization, graphs=realization.graphs))
                         continue
                     elif realization.graphs[ig:].upper() in APOSTROPHE_AFFIXES:
-                        ip = -1
+                        if realization.pronunciation.endswith('IH Z'):  # prices -> IH Z
+                            ip = -2
+                        else:
+                            ip = -1
                     else:
                         raise ValueError(f"Unknown word: {realization.graphs!r} ({realization})")
                 ps = realization.phones[:ip]
