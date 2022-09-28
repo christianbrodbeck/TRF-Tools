@@ -26,6 +26,9 @@ from ._text import text_to_words
 
 
 PUNC = [s.encode('ascii') for s in string.punctuation + "\n\r"]
+APOSTROPHE_AFFIXES = {"'D", "'M", "'S", "'T", "'LL", "'RE", "'VE"}
+APOSTROPHE_WORDS = {"CAN'T", "DON'T", "'EM", "O'CLOCK", "SHAN'T", "WON'T"}
+APOSTROPHE_TOKENS = {*APOSTROPHE_AFFIXES, *APOSTROPHE_WORDS}
 
 
 class TextGridError(Exception):
@@ -203,7 +206,7 @@ class TextGrid:
             #     table.cells(i, f'{time:.3f}', word, phone)
         return table
 
-    def split_by_apostrophe(self):
+    def split_by_apostrophe(self, exceptions: bool = False):
         """Split words with apostrophe
 
         Language models often represent words containing apostrophe as two
@@ -212,14 +215,26 @@ class TextGrid:
          - he's ->  he 's
          - isn't -> is n't
 
-        This method returns a new TextGrid in which realizations with
-        apostrophe are split accordingly.
+        Parameters
+        ----------
+        exceptions
+            Retain some pre-defined words with apostrophe (mainly words for
+            which the left part pronounciation does not correspond to a prefix
+            of the whole ord pronounciation).
+
+        Returns
+        -------
+        A new TextGrid in which realizations with apostrophe are split accordingly.
         """
-        # e.g. YOU'D -> Y UW / D
-        valid = {'D', 'M', 'S', 'T', 'LL', 'RE', 'VE'}
+        if exceptions is True:
+            apostrophe_tokens = APOSTROPHE_TOKENS
+        elif exceptions:
+            raise TypeError(f"{exceptions=}")
+        else:
+            apostrophe_tokens = APOSTROPHE_AFFIXES
         new = []
         for realization in self.realizations:
-            if "'" in realization.graphs:
+            if "'" in realization.graphs and realization.graphs not in apostrophe_tokens:
                 if realization.graphs.upper().endswith("N'T"):
                     ig = -3
                     if realization.pronunciation.endswith('AH N T'):
@@ -234,7 +249,7 @@ class TextGrid:
                     elif ig == len(realization.graphs) - 1:
                         new.append(replace(realization, graphs=realization.graphs[:-1]))
                         continue
-                    elif realization.graphs[ig+1:].upper() in valid:
+                    elif realization.graphs[ig:].upper() in APOSTROPHE_AFFIXES:
                         ip = -1
                     else:
                         raise ValueError(f"Unknown word: {realization.graphs!r} ({realization})")
@@ -691,7 +706,7 @@ def dict_lookup(pronunciations, word):
     try:
         return pronunciations[word]
     except KeyError:
-        raise KeyError(f"No pronunciation for {key}")
+        raise KeyError(f"No pronunciation for {word}")
 
 
 def grid_to_dict(grid):

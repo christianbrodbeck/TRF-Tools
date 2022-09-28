@@ -1,9 +1,39 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
 from pathlib import Path
+from typing import Dict, Set
 from urllib.request import urlretrieve
 from zipfile import ZipFile
 
 import appdirs
+
+
+def fix_apostrophe_pronounciations(
+        dictionary: Dict[str, Set[str]],
+) -> None:
+    """Add affixes, remove any other words with apostrophe
+
+    Make a pronunciation dictionary compatible with preprocessing in the
+    ``speech`` module.
+    """
+    from ..align._textgrid import APOSTROPHE_TOKENS
+
+    new = {
+        "N'T": {'N T'},
+        "'D": {'D'},
+        "'M": {'AH M', 'M'},
+        "'S": {'AH Z', 'EH S', 'S', 'Z'},
+        # "'T": {'T'},
+        "'LL": {'L', 'AH L'},
+        "'RE": {'R'},
+        "'VE": {'V'},
+    }
+    for word, pronunciations in new.items():
+        dictionary[word].update(pronunciations)
+    remove = [key for key in dictionary if "'" in key and key not in APOSTROPHE_TOKENS]
+    for key in remove:
+        # if not key.endswith(tuple(APOSTROPHE_TOKENS)):
+        #     print(key, end=', ')
+        del dictionary[key]
 
 
 def download(url: str, filename: str, unzip: bool = False):
