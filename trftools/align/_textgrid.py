@@ -119,6 +119,7 @@ class TextGrid:
         self._name = name
         self._stop = int(round((realizations[-1].tstop - tmin) / tstep))
         self.tstop = self.realizations[-1].tstop
+        self.has_stress = any(phone.endswith('0') for phone in self.phones)
 
     @classmethod
     def from_file(
@@ -226,6 +227,9 @@ class TextGrid:
         -------
         A new TextGrid in which realizations with apostrophe are split accordingly.
         """
+        if self.has_stress:
+            raise NotImplementedError(f"Splitting is not implemented for TextGrid ith stress; run .strip_stress() first.")
+
         if exceptions is True:
             apostrophe_tokens = APOSTROPHE_TOKENS
         elif exceptions:
