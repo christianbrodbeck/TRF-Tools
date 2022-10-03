@@ -540,16 +540,24 @@ class Dispatcher:
             print("No jobs match pattern")
             return
         prefix = commonprefix(keys)
-        t = fmtxt.Table('lll')
-        t.cells("Job", "Worker", "Orphan")
+        t = fmtxt.Table('llll')
+        t.cells("Job", "Worker", "Orphan", "File")
         t.midrule()
-        t.caption("Common prefix: %r" % (prefix,))
-        n_prefix = len(prefix)
+        i_prefix = keys[0].rfind('/', 0, len(prefix)) + 1
+        t.caption('\n'.join((
+            f"Common prefix: {keys[0][:i_prefix]}",
+            f"Orphan: Marked jobs are unknown (cannot be requeued)",
+            f"File: Target file already exists",
+        )))
         for key in keys:
-            desc = key[n_prefix:]
-            desc = desc if len(desc) < 100 else desc[:97] + '...'
-            orphan = '' if key in self._trf_jobs else 'x'
-            t.cells(desc, self.server._jobs[key].worker, orphan)
+            desc = key[i_prefix:]
+            if key in self._trf_jobs:
+                orphan = '\u2610'
+                file_desc = '\u2611' if exists(key) else '\u2610'
+            else:
+                orphan = '\u2612'
+                file_desc = ''
+            t.cells(desc, self.server._jobs[key].worker, orphan, file_desc)
         print(t)
         command = ask(f"Remove {len(keys)} jobs?", {'requeue': 'requeue jobs', 'drop': 'drop jobs', 'abort': "don't do anything (default)"}, allow_empty=True)
         if command in ('requeue', 'drop'):
