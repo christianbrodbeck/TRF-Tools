@@ -134,6 +134,7 @@ class TextGrid:
             n_samples: int = None,
             word_tier: str = 'word*',
             phone_tier: str = 'phone*',
+            upper: bool = False,
             backend: Literal['textgrid', 'praatio'] = 'textgrid',
     ):
         """Load ``*.TextGrid`` file
@@ -152,6 +153,10 @@ class TextGrid:
             Name of the word tier in the ``TextGrid`` file.
         phone_tier
             Name of the phoneme tier in the ``TextGrid`` file.
+        upper
+            Force words to be upper-case.
+        backend
+            Library to use to read TextGrid.
 
         Notes
         -----
@@ -170,6 +175,10 @@ class TextGrid:
             realizations = realizations_from_praatio(grid_file, word_tier, phone_tier)
         else:
             raise ValueError(f'{backend=}')
+        if upper:
+            for realization in realizations:
+                if not realization.is_silence():
+                    realization.graphs = realization.graphs.upper()
         return cls(realizations, tmin, tstep, n_samples, grid_file.name)
 
     def __repr__(self):
