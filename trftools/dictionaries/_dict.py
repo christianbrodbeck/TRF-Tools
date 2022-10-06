@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Generator, Union
+from typing import Collection, Dict, Generator, Union
 
 from ._arpabet import STRIP_STRESS_MAP
 from ._utils import download
@@ -121,17 +121,24 @@ def split_apostrophe(dic):
     return out
 
 
-def write_dict(dictionary: Dict[str, str], file_name: PathArg):
+def write_dict(
+        dictionary: Dict[str, Collection[str]],
+        file_name: PathArg,
+        separator: str = '\t',
+):
     """Write a pronunciation dictionary to a text file
 
     Parameters
     ----------
-    dictionary : dict {str: list of str}
+    dictionary
         Dictionary mapping words (all caps) to lists of pronunciations.
-    file_name : str
+    file_name
         Destination file.
+    separator
+        String to separate words from their pronunciation. The Montral Forced
+        Aligner expects tab (the default).
     """
     with open(file_name, 'w') as fid:
         for key in sorted(dictionary):
             for pronunciation in sorted(dictionary[key]):
-                fid.write(f'{key}  {pronunciation}\n')
+                fid.write(f'{key}{separator}{pronunciation}\n')
