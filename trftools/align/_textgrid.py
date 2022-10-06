@@ -531,6 +531,8 @@ class TextGrid:
 
     def print(
             self,
+            start: int = None,
+            stop: int = None,
             segmentation=None,
             silence: bool = False,
     ):
@@ -538,13 +540,20 @@ class TextGrid:
 
         Parameters
         ----------
+        start
+            First realization to print.
+        stop
+            Print up to this realization.
         segmentation : Lexicon
-            Display morphological segmentation form this lexicon.
+            Display morphological segmentation from this lexicon.
         silence
             Print silence duration (in ms).
         """
         lines = ['', '']
-        for r in self.realizations:
+        to_print = self.realizations
+        if start or stop:
+            to_print = to_print[start: stop]
+        for r in to_print:
             graphs = r.graphs
             if silence and r.is_silence():
                 duration_ms = int(round(r.duration * 1000))
