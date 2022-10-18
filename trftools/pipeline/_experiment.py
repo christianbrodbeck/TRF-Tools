@@ -2815,6 +2815,7 @@ class TRFExperiment(MneExperiment):
             subject: str = None,
             group: str = None,
             return_paths: bool = False,
+            **state,
     ):
         """List cached TRFs and how much space they take
 
@@ -2842,6 +2843,8 @@ class TRFExperiment(MneExperiment):
             Show files for a group.
         return_paths
             Return the paths of the relevant files instead of a descriptive table.
+        ...
+            Additional constraints (default is to use wildcard ``*`` for all).
 
         See Also
         --------
@@ -2884,7 +2887,7 @@ class TRFExperiment(MneExperiment):
         sizes = defaultdict(lambda: 0.)  # in bytes
         mtimes = defaultdict(list)
         paths = []
-        for path in self.glob('trf-file', True):
+        for path in self.glob('trf-file', True, **state):
             properties = self._parse_trf_path(path)
             if subjects and properties['subject'] not in subjects:
                 continue
