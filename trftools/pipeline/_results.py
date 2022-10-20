@@ -135,11 +135,12 @@ class ResultCollection(dict):
                     table.cell(star(p))
                     key = ''
         else:
-            table = fmtxt.Table('llll', title=title, caption=caption)
-            table.cells('Effect', fmtxt.symbol(self._statistic, sub), fmtxt.symbol('p'), 'sig')
+            table = fmtxt.Table('lllll', title=title, caption=caption)
+            table.cells('Effect', 'df', fmtxt.symbol(self._statistic, sub), fmtxt.symbol('p'), 'sig')
             table.midrule()
             for key, res in self.items():
                 table.cell(key)
+                table.cell(getattr(res, 'df', ''))
                 if is_mass_univariate:
                     stat = res._max_statistic()
                     p = res.p.min()
