@@ -102,6 +102,7 @@ from eelbrain._experiment.parc import SubParc
 from eelbrain._data_obj import NDVarArg, legal_dataset_key_re, isuv
 from eelbrain._io.pickle import update_subjects_dir
 from eelbrain._text import ms, n_of
+from eelbrain._types import PathArg
 from eelbrain._utils.mne_utils import is_fake_mri
 from eelbrain._utils.notebooks import tqdm
 from eelbrain._utils.numpy_utils import newaxis
@@ -2433,24 +2434,33 @@ class TRFExperiment(MneExperiment):
             for path in paths_src:
                 path.rename(path.with_suffix(f'.backup{path.suffix}'))
 
-    def invalidate(self, regressor):
+    def invalidate(
+            self,
+            regressor: str,
+            backup: Union[bool, PathArg] = False,
+    ):
         """Remove cache and result files when input data becomes invalid
 
         Parameters
         ----------
-        regressor : str
+        regressor
             Regressor that became invalid; can contain ``*`` and ``?`` for
             pattern matching.
+        backup
+            Instead of deleting invalidated files, copy them to this directory.
+            Can be an absolute path, or relative to experiment root. ``True`` to
+            use ``eelbrain-cache-backup``.
 
         Notes
         -----
         Deletes TRFs and tests. Corresponding predictor files are not affected.
         """
-        files = set()  # avoid duplicate paths when model name contains regressor name
-
         # patterns
-        reg_re = fnmatch.translate(regressor)
-        reg_re_term = re.compile(rf"^{reg_re}$")
+        if regressor in self.predictors:
+            reg_re_term = re.compile(rf"^{regressor}(-\S+)?$")
+        else:
+            reg_re = fnmatch.translate(regressor)
+            reg_re_term = re.compile(rf"^{reg_re}$")
 
         # find all named models that contain term
         terms = set()
@@ -2463,8 +2473,12 @@ class TRFExperiment(MneExperiment):
                 elif reg_re_term.match(term.string):
                     terms.add(term.string)
                     models.add(name)
+        files = set()  # avoid duplicate paths when model name contains regressor name
+        counts = defaultdict(lambda: 0)
         for name in models:
+            n = len(files)
             files.update(self._find_model_files(name, trfs=True, tests=True))
+            counts[name] = len(files) - n
 
         # cached regressor files (only MakePredictors are cached)
         cache_dir = self.get('predictor-cache-dir', mkdir=True)
@@ -2476,15 +2490,37 @@ class TRFExperiment(MneExperiment):
 
         options = {
             'yes': 'delete files',
-            'no': 'return without doing anything (default)',
+            'no': 'return without doing anything',
             'files': 'list files to be deleted',
             'models': 'list models including predictor',
         }
+        verb = 'moving' if backup else 'deleting'
         while True:
-            command = ask(f"Invalidate {regressor} regressor, deleting {len(files)} files?", options, allow_empty=True)
+            command = ask(f"Invalidate {regressor} regressor, {verb} {len(files)} files?", options, default='no')
             if command == 'yes':
-                for path in files:
-                    os.remove(path)
+                print(f"{verb.capitalize()} {len(files)} files...")
+                if backup:
+                    cache_dir = Path(self.get('cache-dir'))
+                    if backup is True:
+                        backup_dir = cache_dir.parent / 'eelbrain-cache-backup'
+                    else:
+                        backup_dir = Path(backup)
+                        if not backup_dir.is_absolute():
+                            backup_dir = cache_dir.parent / backup_dir
+                    # check for existing targets
+                    sources = [Path(path) for path in files]
+                    targets = [backup_dir / path.relative_to(cache_dir) for path in sources]
+                    exist = [path for path in targets if path.exists()]
+                    if exist and ask(f'{len(exist)} backup target files already exist, overwrite?', {'yes': 'overwrite backup files', 'no': 'abort'}, default='no') == 'no':
+                        return
+                    # move files
+                    backup_dir.mkdir(exist_ok=True)
+                    for source, target in zip(sources, targets):
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        source.rename(target)
+                else:
+                    for path in files:
+                        os.remove(path)
             elif command == 'no':
                 pass
             elif command == 'files':
@@ -2497,13 +2533,15 @@ class TRFExperiment(MneExperiment):
                     print(relpath(path, prefix))
                 continue
             elif command == 'models':
-                print(f"Terms: {', '.join(sorted(terms))}")
+                print(f"Terms: {', '.join(sorted(terms))}\n")
                 describer = ModelDescriber(self._structured_models)
-                t = fmtxt.Table('ll')
+                t = fmtxt.Table('lll')
+                t.cells('files', 'id', 'model')
+                t.midrule()
                 for model in models:
                     desc = describer.describe(self._named_models[model])
-                    t.cells(model, desc)
-                print(t)
+                    t.cells(counts[model], model, desc)
+                print(t, end='\n\n')
                 continue
             return
 
