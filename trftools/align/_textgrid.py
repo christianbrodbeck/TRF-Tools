@@ -27,8 +27,6 @@ from ._text import text_to_words
 
 PUNC = [s.encode('ascii') for s in string.punctuation + "\n\r"]
 APOSTROPHE_AFFIXES = {"'D", "'M", "'S", "'T", "'LL", "'RE", "'VE", "N'T"}
-APOSTROPHE_WORDS = {"CAN'T", "DON'T", "'EM", "O'CLOCK", "SHAN'T", "WON'T"}
-APOSTROPHE_TOKENS = {*APOSTROPHE_AFFIXES, *APOSTROPHE_WORDS}
 
 
 class TextGridError(Exception):
@@ -220,8 +218,8 @@ class TextGrid:
             #     table.cells(i, f'{time:.3f}', word, phone)
         return table
 
-    def split_by_apostrophe(self, exceptions: bool = False):
-        """Split words with apostrophe
+    def split_by_apostrophe(self, exceptions: Sequence[str] = ()):
+        f"""Split words with apostrophe
 
         Language models often represent words containing apostrophe as two
         words, for example:
@@ -232,26 +230,22 @@ class TextGrid:
         Parameters
         ----------
         exceptions
-            Retain some pre-defined words with apostrophe (mainly words for
-            which the left part pronounciation does not correspond to a prefix
-            of the whole ord pronounciation).
+            Preserve these words with apostrophe instead of splitting them.
 
         Returns
         -------
         A new TextGrid in which realizations with apostrophe are split accordingly.
         """
         if self.has_stress:
-            raise NotImplementedError(f"Splitting is not implemented for TextGrid ith stress; run .strip_stress() first.")
+            raise NotImplementedError(f"Splitting is not implemented for TextGrid with stress; run .strip_stress() first.")
 
-        if exceptions is True:
-            apostrophe_tokens = APOSTROPHE_TOKENS
-        elif exceptions:
-            raise TypeError(f"{exceptions=}")
+        if exceptions and not all(isinstance(exception, str) for exception in exceptions):
+            raise TypeError(f"{exceptions=}: need list of str")
         else:
-            apostrophe_tokens = APOSTROPHE_AFFIXES
+            exception_tokens = (*APOSTROPHE_AFFIXES, *exceptions)
         new = []
         for realization in self.realizations:
-            if "'" in realization.graphs and realization.graphs not in apostrophe_tokens:
+            if "'" in realization.graphs and realization.graphs not in exception_tokens:
                 if realization.graphs.upper().endswith("N'T"):
                     ig = -3
                     if realization.pronunciation.endswith('AH N T'):
