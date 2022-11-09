@@ -1726,7 +1726,7 @@ class TRFExperiment(MneExperiment):
         # avoid _set_trf_options(**state) because _set_trf_options could catch invalid state
         # parameters like `scale`
         if metric and not FIT_METRIC_RE.match(metric):
-            raise ValueError(f'metric={metric!r}')
+            raise ValueError(f'{metric=}')
         data = TestDims.coerce(data)
 
         if test:
@@ -1738,7 +1738,7 @@ class TRFExperiment(MneExperiment):
                 state['test'] = test
                 state['match'] = False
             else:
-                raise TypeError(f"test={test!r}")
+                raise TypeError(f"{test=}")
 
         if state:
             self.set(**state)
@@ -1820,15 +1820,15 @@ class TRFExperiment(MneExperiment):
         src = self.get('src')
         if mask:
             if not isinstance(mask, str):
-                raise TypeError(f"mask={mask!r}")
+                raise TypeError(f"{mask=}")
             elif data.source is not True:
-                raise ValueError(f"mask={mask!r} with data={data.string!r}")
+                raise ValueError(f"{mask=} with data={data.string!r}")
             elif src.startswith('vol'):
-                raise ValueError(f"mask={mask!r} with src={src!r}")
+                raise ValueError(f"{mask=} with {src=}")
         else:
             assert mask is None
             if not dstrf and data.source is True and not src.startswith('vol'):
-                raise ValueError(f"mask={mask!r} with src={src!r}")
+                raise ValueError(f"{mask=} with {src=}")
 
         options = [x_name]
         # whether TRF or test (for backwards compatibility)
@@ -1855,7 +1855,8 @@ class TRFExperiment(MneExperiment):
         if samplingrate is None:
             epoch = self._epochs[self.get('epoch')]
             if epoch.samplingrate is None:
-                raise NotImplementedError("Epoch.samplingrate")  # FIXME
+                # FIXME: samplingrate is needed for filename to make sure we don't create redundant TRFs; could read in raw samplingrate during initialization and store it if all files have the same samplingrate
+                raise NotImplementedError(f"{samplingrate=} with epoch {self.get('epoch')} ({epoch.samplingrate=}); set samplingrate parameter either when loading TRF or on epoch definition")
             samplingrate = epoch.samplingrate
 
         self._set_analysis_options(data, False, False, pmin, tstart, tstop, None, mask, samplingrate, options, folder)
