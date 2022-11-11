@@ -2439,6 +2439,13 @@ class TRFExperiment(MneExperiment):
                     print(f'⎿ {path_2.relative_to(trf_dir)}')
                 continue
             return
+        # make sure target parc exists
+        subjects = set()
+        for path_dst in combine:
+            info = self._parse_trf_path(path_dst)
+            subjects.add(info['subject'])
+        for subject in subjects:
+            self.make_annot(parc=dst, subject=subject)
         # merge
         mri_sdir = self.get('mri-sdir')
         for path_dst, paths_src in combine.items():
