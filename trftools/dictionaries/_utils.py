@@ -1,6 +1,6 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
 from pathlib import Path
-from typing import Dict, Set
+from typing import Collection, Dict, Set
 from urllib.request import urlretrieve
 from zipfile import ZipFile
 
@@ -9,14 +9,17 @@ import appdirs
 
 def fix_apostrophe_pronounciations(
         dictionary: Dict[str, Set[str]],
+        keep: Collection[str] = (),
 ) -> None:
-    """Add affixes, remove any other words with apostrophe
+    """Update a pronunciation dictionary: add affixes and remove any other words with apostrophe
 
-    Make a pronunciation dictionary compatible with preprocessing in the
-    ``speech`` module.
+    Parameters
+    ----------
+    dictionary
+        Pronunciations; will be modified in-place.
+    keep
+        Keep these words with apostrophe (e.g., ``("'EM", "O'CLOCK")``).
     """
-    from ..align._textgrid import APOSTROPHE_TOKENS
-
     new = {
         "N'T": {'N T', 'AH N T'},
         "'D": {'D'},
@@ -27,8 +30,8 @@ def fix_apostrophe_pronounciations(
         "'RE": {'R'},
         "'VE": {'V'},
     }
-    keep = set(APOSTROPHE_TOKENS).union(new)
-    remove = [key for key in dictionary if "'" in key and key not in keep]
+    keep_ = set(keep).union(new)
+    remove = [key for key in dictionary if "'" in key and key not in keep_]
     for key in remove:
         del dictionary[key]
     for word, pronunciations in new.items():
