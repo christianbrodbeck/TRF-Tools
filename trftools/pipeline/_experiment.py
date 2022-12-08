@@ -2408,6 +2408,7 @@ class TRFExperiment(MneExperiment):
         # '{trf-dir}/{analysis}/{epoch_visit} {test_options}.pickle'
         # mask is in test_options
         combine = {}
+        dst_exist = 0
         trf_dir = Path(self.get('trf-sdir'))
         for path_1 in trf_dir.glob(f'*/*/* {src_1} *.pickle'):
             if path_1.stem.endswith('.backup'):
@@ -2416,14 +2417,17 @@ class TRFExperiment(MneExperiment):
             assert path_2 != path_1
             path_dst = path_1.parent / path_1.name.replace(f' {src_1} ', f' {dst} ')
             if path_2.exists():
-                assert not path_dst.exists()
+                dst_exist += path_dst.exists()
                 combine[path_dst] = (path_1, path_2)
         # display
         if not combine:
             print("No files found for merging")
             return
+        prompt = f"Merge {len(combine)} file pairs?"
+        if dst_exist:
+            prompt = f"{prompt}\nWARNING: {dst_exist} target files already exist and will be overwritten"
         while True:
-            command = ask(f"Merge {len(combine)} file pairs?", {'yes': 'merge files', 'show': 'list the files that would be merged'}, allow_empty=True)
+            command = ask(prompt, {'yes': 'merge files', 'show': 'list the files that would be merged'}, allow_empty=True)
             if command == 'yes':
                 break
             elif command == 'show':
