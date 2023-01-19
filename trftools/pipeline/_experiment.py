@@ -1876,6 +1876,18 @@ class TRFExperiment(MneExperiment):
         out['trf_options'] = ' '.join(code)
         return out
 
+    def _parse_predictor_path(self, filename: str):
+        "Parse a predictor filename into components"
+        path = Path(filename)
+        assert path.suffix == '.pickle'
+        name = path.stem
+        stimulus, predictor = name.split('~')
+        if ' ' in stimulus:
+            subject, stimulus = stimulus.split(' ')
+        else:
+            subject = None
+        return {'subject': subject, 'stimulus': stimulus, 'predictor': predictor}
+
     def _parse_trf_path(self, filename: str):
         """Parse a TRF filename into components
 
@@ -3061,3 +3073,27 @@ class TRFExperiment(MneExperiment):
                 n = len(list(self._find_model_files(name, tests=True)))
                 t.cell(n or '')
         return t
+
+    def show_predictors(self, pattern: str = None):
+        for prefix_ in sorted(self.predictors):
+            predictor = self.predictors[prefix_]
+            # Non-file-based
+            if not isinstance(predictor, FilePredictorBase):
+                if not pattern or fnmatch.fnmatch(prefix_, pattern):
+                    print(f"{prefix_}: {type(predictor).__name__}")
+                continue
+            # File-based
+            predictor_dir = Path(self.get('predictor-dir'))
+            files_1 = predictor_dir.glob(f'*~{prefix_}.pickle')
+            files_2 = predictor_dir.glob(f'*~{prefix_}-*.pickle')
+            sub_predictors = set()
+            for filename in chain(files_1, files_2):
+                components = self._parse_predictor_path(filename)
+                sub_predictors.add(components['predictor'])
+            if pattern:
+                sub_predictors = fnmatch.filter(sub_predictors, pattern)
+                if not sub_predictors:
+                    continue
+            print(f"{prefix_}: {type(predictor).__name__}")
+            for sub_predictor in sorted(sub_predictors):
+                print(f"  {sub_predictor}")
