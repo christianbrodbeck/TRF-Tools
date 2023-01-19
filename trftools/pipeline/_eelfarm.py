@@ -5,6 +5,7 @@ def start_dispatcher(
         notify: str = False,
         debug: bool = False,
         job_queue_length: int = 2,
+        host: str = None,
         port: int = 8000,
 ):
     """A dispatcher provides an experiment level interface to Eelfarm
@@ -21,6 +22,10 @@ def start_dispatcher(
         next job once the current job has been claimed by a worker (this can
         still lead to multiple jobs in memory while the data is being
         transferred to the worker).
+    host
+        Manually specify the host name or IP address (in cases where
+        :func:`socket.gethostbyname` fails with the default, which is
+        :func:`socket.gethostname`).
     port
         Port to use for server.
 
@@ -61,7 +66,7 @@ def start_dispatcher(
     from eelfarm._utils import screen_handler
     from ._dispatcher import Dispatcher
 
-    d = Dispatcher(port=port, job_queue_length=job_queue_length, notify=notify)
+    d = Dispatcher(host, port, job_queue_length, notify)
     # configure logging
     d.logger.addHandler(screen_handler)
     d.logger.setLevel(logging.DEBUG)
