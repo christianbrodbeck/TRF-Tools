@@ -143,19 +143,13 @@ FilterXArg = Literal[True, False, 'continuous']
 class NameTooLong(Exception):
 
     def __init__(self, name):
-        Exception.__init__(
-            self,
-            "Name too long (%i characters), consider adding a shortened model "
-            "name: %s" % (len(name), name))
+        Exception.__init__(self, "Name too long (%i characters), consider adding a shortened model name: %s" % (len(name), name))
 
 
 class FilenameTooLong(Exception):
 
     def __init__(self, path):
-        Exception.__init__(
-            self,
-            "Filename too long (%i characters), consider adding a shortened "
-            "model name: %s" % (len(os.path.basename(path)), path))
+        Exception.__init__(self, "Filename too long (%i characters), consider adding a shortened model name: %s" % (len(os.path.basename(path)), path))
 
 
 def split_model(x):

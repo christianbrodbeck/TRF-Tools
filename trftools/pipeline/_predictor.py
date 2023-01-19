@@ -76,7 +76,7 @@ class FilePredictorBase:
             srate = int_srate if abs(int_srate - srate) < .001 else srate
             x = resample(x, srate)
         elif self.resample is None:
-            raise RuntimeError(f"{path.name} has tstep={x.time.tstep}, not {tstep}")
+            raise RuntimeError(f"{path.name} has tstep={x.time.tstep}, not {tstep}. Set the {self.__class__.__name__} resample parameter to enable automatic resampling.")
         else:
             raise RuntimeError(f"{self.resample=}")
         return x
