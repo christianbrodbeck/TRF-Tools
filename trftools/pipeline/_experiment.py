@@ -99,7 +99,7 @@ from eelbrain._experiment.definitions import FieldCode
 from eelbrain._experiment.epochs import EpochCollection
 from eelbrain._experiment.mne_experiment import DataArg, PMinArg, DefinitionError, FileMissing, TestDims, Variables, guess_y, cache_valid
 from eelbrain._experiment.parc import SubParc
-from eelbrain._data_obj import NDVarArg, legal_dataset_key_re, isuv
+from eelbrain._data_obj import NDVarArg, isuv
 from eelbrain._io.pickle import update_subjects_dir
 from eelbrain._text import ms, n_of
 from eelbrain._types import PathArg
@@ -321,7 +321,7 @@ class TRFExperiment(MneExperiment):
     def _subclass_init(self):
         # predictors
         for key in self.predictors:
-            if not legal_dataset_key_re.match(key):
+            if not key.isidentifier():
                 raise ValueError(f"{key!r}: invalid predictor key")
         # for model test
         self._field_values['test'] += ('',)
