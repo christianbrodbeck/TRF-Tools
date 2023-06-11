@@ -1,7 +1,7 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
 from itertools import chain
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 from eelbrain import load, Categorial, Dataset, Factor, NDVar, UTS, Var, combine, epoch_impulse_predictor, event_impulse_predictor, resample, set_time, set_tmin
 from eelbrain._experiment.definitions import typed_arg
@@ -35,23 +35,35 @@ class EventPredictor:
 
     Parameters
     ----------
-    value : scalar | str
+    value
         Name of a :class:`Var` or :class:`Factor` in the events :class:`Dataset`
         (or expression resulting in one).
-    latency : scalar | str
+    latency
         Latency of the impulse relative to the event in seconds (or expression
         retrieving it from the events dataset).
+    sel
+        Subset of events.
     """
-    def __init__(self, value=1., latency=0.):
+    def __init__(
+            self,
+            value: Union[float, str] = 1.,
+            latency: Union[float, str] = 0.,
+            sel: str = None,
+    ):
         self.value = typed_arg(value, float, str)
         self.latency = typed_arg(latency, float, str)
+        self.sel = typed_arg(sel, str)
 
     def _generate(self, uts: UTS, ds: Dataset, code: Code):
         assert code.stim is None
+        if self.sel:
+            raise NotImplementedError
         return epoch_impulse_predictor((ds.n_cases, uts), self.value, self.latency, code.code, ds)
 
     def _generate_continuous(self, uts: UTS, ds: Dataset, code: Code):
         assert code.stim is None
+        if self.sel:
+            ds = ds.sub(self.sel)
         return event_impulse_predictor(uts, 'T_relative', self.value, self.latency, code.code, ds)
 
 
