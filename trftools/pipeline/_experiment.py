@@ -813,7 +813,7 @@ class TRFExperiment(MneExperiment):
             partition_results: bool = False,
             morph: bool = False,
             **state,
-    ):
+    ) -> Union[BoostingResult, str]:
         """TRF estimated with boosting
 
         Parameters
@@ -866,8 +866,7 @@ class TRFExperiment(MneExperiment):
 
         Returns
         -------
-        res : BoostingResult
-            Estimated model.
+        Estimated model (or path, if ``path_only`` is True).
         """
         data = TestDims.coerce(data, morph=morph)
         x = self._coerce_model(x)
@@ -1095,7 +1094,7 @@ class TRFExperiment(MneExperiment):
         # reshape data
         if partitions is None:
             if not 3 <= ds.n_cases <= 10:
-                raise TypeError(f"partitions=None: can't infer partitions parameter for {ds.n_cases} cases")
+                raise TypeError(f"{partitions=}: can't infer partitions parameter for {ds.n_cases} cases")
         elif partitions < 0:
             partitions = None if partitions == -1 else -partitions
             y = concatenate(y)

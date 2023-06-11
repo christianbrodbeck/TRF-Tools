@@ -28,7 +28,10 @@ def t_stop_ds(ds: Dataset, t: float):
 
 
 class EventPredictor:
-    """Generate an impulse for each epoch
+    """Generate an impulse for each event
+
+    For epoched data, one impulse per epoch;
+    for continuous data, one impulse per event in the event list.
 
     Parameters
     ----------
@@ -367,7 +370,7 @@ class FilePredictor(FilePredictorBase):
 class SessionPredictor(FilePredictorBase):
     """Predictor stored in files corresponding to specific subjects
 
-    In contrast to a :class:`FilePredictor`, which represents a speicific
+    In contrast to a :class:`FilePredictor`, which represents a specific
     stimulus, a :class:`SessionPredictor` represents a whole recording session
     for a specific subject.
 
