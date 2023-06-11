@@ -1,6 +1,7 @@
 import enum
 
 from eelbrain import fmtxt
+from eelbrain.fmtxt import FMTextArg
 from eelbrain._text import ms
 from eelbrain import test as test_, testnd
 from eelbrain._stats.test import star
@@ -102,7 +103,12 @@ class ResultCollection(dict):
                     table.cells(f'  {effect}', ms(tstart), ms(tstop), fmtxt.stat(max_stat), ms(max_time), fmtxt.p(p_), sig)
         return table
 
-    def table(self, title=None, caption=None):
+    def table(
+            self,
+            title: FMTextArg = None,
+            caption: FMTextArg = None,
+            wide: bool = False,
+    ):
         """Table with effects and smallest p-value"""
         is_mass_univariate = self.dependent_type is DependentType.MASS_UNIVARIATE
         sub = 'max' if is_mass_univariate else None
@@ -118,6 +124,22 @@ class ResultCollection(dict):
                     pmin = res.p.min()
                     table.cell(fmtxt.FMText([fmtxt.p(pmin), star(pmin)]))
         elif self.test_type is TestType.MULTI_EFFECT:
+            if wide:
+                ress = list(self.values())
+                effects = ress[0].effects
+                assert all(res.effects == effects for res in ress[1:])
+                table = fmtxt.Table('l' * (1 + len(effects)), title=title, caption=caption)
+                table.cells('Test', *effects)
+                table.midrule()
+                for key, res in self.items():
+                    table.cell(key)
+                    for i, effect in enumerate(res.effects):
+                        if is_mass_univariate:
+                            p = res.p[i].min()
+                        else:
+                            p = res.f_tests[i].p
+                        table.cell(fmtxt.peq(p, stars=True))
+                return table
             table = fmtxt.Table('lllll', title=title, caption=caption)
             table.cells('Test', 'Effect', fmtxt.symbol(self._statistic, sub), fmtxt.symbol('p'), 'sig')
             table.midrule()
