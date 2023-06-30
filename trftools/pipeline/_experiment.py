@@ -2415,6 +2415,18 @@ class TRFExperiment(MneExperiment):
         labels_dst = set(parc_dst.labels)
         assert not labels_1.intersection(labels_2)
         assert labels_1.union(labels_2) == labels_dst
+        # target for backup of merged TRFs
+        trf_sdir = Path(self.get('trf-sdir'))
+        backup_dir = Path(self.get('cache-dir')) / 'trf-backup'
+        # move legacy backup files from old backup scheme
+        files = list(self.glob('trf-file', True))
+        backup_files = [Path(p) for p in files if p.endswith('backup.pickle')]
+        if backup_files:
+            print(f"Moving {len(backup_files)} old backup files")
+            for src_path in backup_files:
+                dst_path = backup_dir / src_path.relative_to(trf_sdir)
+                dst_path.parent.mkdir(parents=True, exist_ok=True)
+                src_path.rename(dst_path)
         # find files
         # '{trf-dir}/{analysis}/{epoch_visit} {test_options}.pickle'
         # mask is in test_options
@@ -2422,8 +2434,6 @@ class TRFExperiment(MneExperiment):
         dst_exist = 0
         trf_dir = Path(self.get('trf-sdir'))
         for path_1 in trf_dir.glob(f'*/*/* {src_1} *.pickle'):
-            if path_1.stem.endswith('.backup'):
-                continue
             path_2 = path_1.parent / path_1.name.replace(f' {src_1} ', f' {src_2} ')
             assert path_2 != path_1
             path_dst = path_1.parent / path_1.name.replace(f' {src_1} ', f' {dst} ')
@@ -2464,8 +2474,10 @@ class TRFExperiment(MneExperiment):
             res = concatenate(trfs, 'source')
             res._set_parc(dst)
             save.pickle(res, path_dst)
-            for path in paths_src:
-                path.rename(path.with_suffix(f'.backup{path.suffix}'))
+            for src_path in paths_src:
+                dst_path = backup_dir / src_path.relative_to(trf_sdir)
+                dst_path.parent.mkdir(parents=True, exist_ok=True)
+                src_path.rename(dst_path)
 
     def invalidate(
             self,
