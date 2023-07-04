@@ -24,16 +24,16 @@ Dispatcher:
 import atexit
 from collections import Counter
 import fnmatch
+import inspect
 import logging
 from collections import deque
 from os.path import commonprefix, exists
 from queue import Queue, Empty
-import shutil
 import sys
 from threading import Lock, Thread
 from time import sleep, time
 
-from eelbrain import fmtxt
+from eelbrain import fmtxt, boosting
 from eelbrain._utils.com import Notifier
 from eelbrain._utils import ask
 from eelfarm.server import JobServer, JobServerTerminated
@@ -52,11 +52,11 @@ def dict_difference(name1, d1, name2, d2):
     diff = {}
     for k in set(d1).union(d2):
         if k not in d1:
-            diff[k] = "only in %s: %r" % (name2, d2[k])
+            diff[k] = f"only in {name2} ({d2[k]!r})"
         elif k not in d2:
-            diff[k] = "only in %s: %r" % (name1, d1[k])
+            diff[k] = f"only in {name1} ({d1[k]!r})"
         elif d1[k] != d2[k]:
-            diff[k] = "%r != %r" % (d1[k], d2[k])
+            diff[k] = f"{name1} != {name2} ({d1[k]!r} != {d2[k]!r})"
     return diff
 
 
@@ -65,9 +65,7 @@ def assert_trf_jobs_equal(new_job, old_job):
     if new_job == old_job:
         return
     problems = []
-    # since job[0] is the key it is equal
-    for name, new, old in zip(('fields', 'field_values', 'params'),
-                              new_job.state, old_job.state):
+    for name, new, old in zip(('fields', 'field_values', 'params'), new_job.state, old_job.state):
         if name == 'field_values':
             continue
         s_diff = dict_difference('new', new, 'old', old)
@@ -75,9 +73,17 @@ def assert_trf_jobs_equal(new_job, old_job):
             for k, v in s_diff.items():
                 if k in TRF_IRRELEVANT_STATE_KEYS:
                     continue
-                problems.append(" state(%s): %s %s" % (name, k, v))
-        if new_job.args != old_job.args:
-            problems.append("args unequal:\n%r\n%r" % (new_job.args, old_job.args))
+                problems.append(f" state({name}) {k}: {v}")
+    if new_job.args != old_job.args:
+        arg_names = list(inspect.signature(boosting).parameters)
+        new = dict(zip(arg_names, new_job.args))
+        old = dict(zip(arg_names, old_job.args))
+        s_diff = dict_difference('new', new, 'old', old)
+        for key, desc in s_diff.items():
+            if key == 'partition_results':
+                if old[k]:
+                    continue
+            problems.append(f"boosting argument {key}: {desc}")
     return problems
 
 
