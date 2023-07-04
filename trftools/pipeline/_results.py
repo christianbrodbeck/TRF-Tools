@@ -17,7 +17,7 @@ class TestType(enum.Enum):
     def for_test(cls, test):
         if isinstance(test, testnd.LMGroup):
             return cls.TWO_STAGE
-        elif isinstance(test, (testnd.MultiEffectNDTest, test_.ANOVA)):
+        elif isinstance(test, testnd.MultiEffectNDTest):
             return cls.MULTI_EFFECT
         elif isinstance(test, testnd.Correlation):
             return cls.CORRELATION
