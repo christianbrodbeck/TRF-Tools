@@ -211,8 +211,9 @@ class TRFExperiment(MneExperiment):
     # maps
     #  - 'audspec' -> stimulus from variable called 'fg'
     #  - 'bg~audspec' -> stimulus from variable called 'bg'
-    stim_var = 'stimulus'
-    predictors = {}
+    stim_var: str = 'stimulus'
+    predictors: Dict[str, Union[EventPredictor, FilePredictor, MakePredictor]] = {}
+    check_trf_x: bool = True  # check that cached TRF model corresponds to experiment model
 
     _values = {
         # Predictors
@@ -975,7 +976,7 @@ class TRFExperiment(MneExperiment):
                 res.n_samples = meg.shape[0] * meg.shape[meg.get_axis('time')]
                 save.pickle(res, dst)
             # check x
-            if not backward and hasattr(res, 'x'):  # not NCRF
+            if not backward and self.check_trf_x and hasattr(res, 'x'):  # not NCRF
                 # res.x are from a Dataset (except variable length epochs)
                 res_keys = [res.x] if isinstance(res.x, str) else res.x
                 res_keys = sorted(Dataset.as_key(x) for x in res_keys)
