@@ -2024,6 +2024,7 @@ class TRFExperiment(MneExperiment):
             parameter: str = None,
             compare_to: Any = None,
             tail: int = None,
+            partition_results: bool = False,
             **state,
     ):
         """Test comparing model fit between two models
@@ -2109,6 +2110,8 @@ class TRFExperiment(MneExperiment):
             condition will use the standard argument value).
         tail
             Tailedness for ``parameter`` test (default 0, i.e. two-tailed).
+        partition_results
+            See :meth:`.load_trf`.
         ...
             State parameters.
 
@@ -2137,7 +2140,7 @@ class TRFExperiment(MneExperiment):
         if isinstance(comparison, StructuredModel):
             if state:
                 self.set(**state)
-            ress = {comp.test_term_name: self.load_model_test(comp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, permutations, metric, smooth, test, return_data, pmin, xhemi, xhemi_mask, make) for comp in comparison.comparisons(cv)}
+            ress = {comp.test_term_name: self.load_model_test(comp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, permutations, metric, smooth, test, return_data, pmin, xhemi, xhemi_mask, make, parameter, compare_to, tail, partition_results) for comp in comparison.comparisons(cv)}
             if return_data:
                 dss = {key: res[0] for key, res in ress.items()}
                 ress = ResultCollection({key: res[1] for key, res in ress.items()})
@@ -2177,7 +2180,7 @@ class TRFExperiment(MneExperiment):
             group = self.get('group')
             vardef = None if test is None else self._tests[test].vars
             x1_permutations = permutations if comparison.x1.has_randomization else 1
-            ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, trfs=False, make=make, vardef=vardef, permutations=x1_permutations)
+            ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, trfs=False, vardef=vardef, permutations=x1_permutations, partition_results=partition_results)
 
             if comparison.x0.terms or parameter is not None:
                 if parameter is not None:
@@ -2185,14 +2188,14 @@ class TRFExperiment(MneExperiment):
                     if parameter not in kwargs:
                         raise ValueError(f'{parameter=}: must be one of {set(kwargs)}')
                     kwargs[parameter] = compare_to
-                    ds0 = self.load_trfs(group, comparison.x1, **kwargs, data=data, backward=backward, trfs=False, make=make, vardef=vardef, permutations=permutations)
+                    ds0 = self.load_trfs(group, comparison.x1, **kwargs, data=data, backward=backward, trfs=False, make=make, vardef=vardef, permutations=permutations, partition_results=partition_results)
                     if comparison.x0.terms:
-                        ds1_0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, trfs=False, make=make, vardef=vardef, permutations=x1_permutations)
+                        ds1_0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, trfs=False, make=make, vardef=vardef, permutations=x1_permutations, partition_results=partition_results)
                         ds1[y] -= ds1_0[y]
-                        ds0_0 = self.load_trfs(group, comparison.x0, **kwargs, data=data, backward=backward, trfs=False, make=make, vardef=vardef, permutations=permutations)
+                        ds0_0 = self.load_trfs(group, comparison.x0, **kwargs, data=data, backward=backward, trfs=False, make=make, vardef=vardef, permutations=permutations, partition_results=partition_results)
                         ds0[y] -= ds0_0[y]
                 else:
-                    ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, trfs=False, make=make, vardef=vardef, permutations=permutations)
+                    ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, trfs=False, make=make, vardef=vardef, permutations=permutations, partition_results=partition_results)
                 # restructure data
                 assert np.all(ds1['subject'] == ds0['subject'])
                 keep = tuple([k for k in ds1 if isuv(ds1[k]) and np.all(ds1[k] == ds0[k])])
@@ -2235,7 +2238,7 @@ class TRFExperiment(MneExperiment):
                 if xhemi_mask:
                     parc = self._xhemi_parc()
                     with self._temporary_state:
-                        base_res = self.load_model_test(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, permutations, metric, smooth, test, pmin=pmin, make=make)
+                        base_res = self.load_model_test(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, permutations, metric, smooth, test, pmin=pmin, make=make, partition_results=partition_results)
                     if isinstance(base_res, MultiEffectNDTest):
                         raise NotImplementedError("xhemi_mask for multi-effect tests")
                     mask_lh, mask_rh = eelbrain.xhemi(base_res.p <= 0.05, parc=parc)
