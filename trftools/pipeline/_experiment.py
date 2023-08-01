@@ -84,6 +84,7 @@ from os.path import exists, getmtime, join, relpath, splitext
 from pathlib import Path
 from pyparsing import ParseException
 import re
+import time
 from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
 import warnings
 
@@ -369,6 +370,7 @@ class TRFExperiment(MneExperiment):
                 self._named_models = load_models(self._model_names_file)
                 self._model_names = {model.sorted_key: name for name, model in self._named_models.items()}
                 self._model_names_mtime = mtime
+        self._last_model_name_refresh = time.time()
 
     def _register_model(self, model: Model) -> str:
         "Register a new model (generate a name)"
@@ -877,7 +879,7 @@ class TRFExperiment(MneExperiment):
         if isinstance(epoch, EpochCollection):
             raise ValueError(f"epoch={epoch.name!r} (use .load_trfs() to load multiple TRFs from a collection epoch)")
         # check cache
-        dst = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward)
+        dst = self._locate_trf(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make)
         if path_only:
             return dst
         elif exists(dst) and cache_valid(getmtime(dst), self._epochs_mtime()):
@@ -963,10 +965,11 @@ class TRFExperiment(MneExperiment):
             cv: bool = False,
             data: DataArg = DATA_DEFAULT,
             backward: bool = False,
+            allow_new: bool = False,  # This is a new TRF (i.e., generate new model names)
             **state):
         "Return path of the corresponding trf-file"
         # FIXME: if filter_x == 'continuous': check whether all x are same type
-        self._set_trf_options(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, state=state)
+        self._set_trf_options(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, state=state, allow_new=allow_new)
 
         path = self.get('trf-file', mkdir=True)
         if len(os.path.basename(path)) > 255:
@@ -1428,7 +1431,7 @@ class TRFExperiment(MneExperiment):
 
         # one model, one epoch
         for _ in self:
-            path = self._locate_trf(*args[:-1])
+            path = self._locate_trf(*args[:-1], allow_new=True)
             if not existing:
                 if os.path.exists(path):
                     continue  # TRF exists for requested mask
@@ -1747,6 +1750,7 @@ class TRFExperiment(MneExperiment):
             by_subject: bool = False,
             public_name: str = None,
             state: dict = None,  # avoid _set_trf_options(**state) because _set_trf_options could catch invalid state parameters like `scale`
+            allow_new: bool = False,  # This is a new TRF (i.e., generate new model names)
     ):
         if metric and not FIT_METRIC_RE.match(metric):
             raise ValueError(f'{metric=}')
@@ -1787,7 +1791,7 @@ class TRFExperiment(MneExperiment):
             assert is_public
             x_name = public_name
         else:
-            x_name = self._x_desc(x, is_public)
+            x_name = self._x_desc(x, is_public, allow_new)
 
         # TRF method
         trf_options = [] if dstrf else ['boosting']
@@ -1958,6 +1962,7 @@ class TRFExperiment(MneExperiment):
             self,
             x: ModelArg,
             is_public: bool = False,
+            allow_new: bool = False,
     ):
         "Description for x"
         if isinstance(x, Model):
@@ -1978,14 +1983,20 @@ class TRFExperiment(MneExperiment):
                     return rand_desc
                 base_name = self._model_names[x.without_randomization.sorted_key]
                 return f'{base_name} ({rand_desc})'
-            else:
+            elif time.time() - self._last_model_name_refresh > 5:
+                self._refresh_model_names()
+                return self._x_desc(x, allow_new=allow_new)
+            elif allow_new:
                 self._register_model(x)
                 return self._x_desc(x)
+            else:
+                raise RuntimeError(f"{x=}: previously unused model")
         elif isinstance(x, Comparison):
             if is_public:
                 return x.name
             else:
-                return x.compose_name(self._x_desc, path=True)
+                x_desc = partial(self._x_desc, allow_new=allow_new)
+                return x.compose_name(x_desc, path=True)
         elif isinstance(x, StructuredModel):
             assert is_public  # all internal names should be Model-based
             if x in self._structured_model_names:
