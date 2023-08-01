@@ -228,8 +228,6 @@ class TRFExperiment(MneExperiment):
     _artifact_rejection_default = ''
 
     models = {}
-    _named_models = {}
-    _model_names = {}
     _empty_test = True
 
     _parc_supersets = {}
@@ -345,10 +343,13 @@ class TRFExperiment(MneExperiment):
         self._structured_model_names = {m: k for k, m in self._structured_models.items()}
         # TODO: detect changes in structured models
         # load cache models:  {str: Model}
+        self._named_models = {}
+        self._model_names = {}
         self._model_names_file = join(self.get('cache-dir', mkdir=True), 'model-names.pickle')
         self._model_names_file_lock = FileLock(self._model_names_file + '.lock')
+        self._model_names_mtime = 0
         with self._model_names_file_lock:
-            self._load_model_names()
+            self._refresh_model_names()
 
         # Parcellations: find parcellations with subset relationship
         self._parc_supersets = defaultdict(set, {k: set(v) for k, v in self._parc_supersets.items()})
@@ -361,18 +362,19 @@ class TRFExperiment(MneExperiment):
                 elif parc.base == src_parc.base and all(l in src_parc.labels for l in parc.labels):
                     self._parc_supersets[key].add(src_key)
 
-    def _load_model_names(self):
+    def _refresh_model_names(self):
         if exists(self._model_names_file):
-            self._named_models = load_models(self._model_names_file)
-        else:
-            self._named_models = {}
-        self._model_names = {model.sorted_key: name for name, model in self._named_models.items()}
+            mtime = os.path.getmtime(self._model_names_file)
+            if mtime != self._model_names_mtime:
+                self._named_models = load_models(self._model_names_file)
+                self._model_names = {model.sorted_key: name for name, model in self._named_models.items()}
+                self._model_names_mtime = mtime
 
     def _register_model(self, model: Model) -> str:
         "Register a new model (generate a name)"
         model = model.without_randomization
         with self._model_names_file_lock:
-            self._load_model_names()
+            self._refresh_model_names()
             if model.sorted_key in self._model_names:
                 return self._model_names[model.sorted_key]
             name = self._generate_model_name(model)
@@ -443,7 +445,7 @@ class TRFExperiment(MneExperiment):
             os.remove(path)
 
         with self._model_names_file_lock:
-            self._load_model_names()
+            self._refresh_model_names()
             model = self._named_models.pop(name)
             del self._model_names[model.sorted_key]
             save_models(self._named_models, self._model_names_file)
