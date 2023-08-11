@@ -257,7 +257,11 @@ class Dispatcher:
                     break
                 jobs_processed += 1
                 # check whether job already exists
-                if any(job.is_same(j) for j in self._user_jobs):
+                try:
+                    if any(job.is_same(j) for j in self._user_jobs):
+                        continue
+                except Exception as error:
+                    self.logger.error(f"Error processing new job:\nJob: {job}\nError: {error}")
                     continue
 
                 # initialize job
