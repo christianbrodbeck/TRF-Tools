@@ -292,7 +292,7 @@ class ModelJob(ExperimentJob):
         if isinstance(reduce_model, float):
             assert 0. < reduce_model < 1.
         elif not isinstance(reduce_model, bool):
-            raise TypeError(f"reduce_model={reduce_model!r}")
+            raise TypeError(f"{reduce_model=}")
         if reduce_model and not isinstance(model, StructuredModel):
             raise ValueError("reduce_model requires incremental model-comparison as base")
 

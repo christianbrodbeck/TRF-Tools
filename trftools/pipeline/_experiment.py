@@ -84,7 +84,7 @@ from os.path import exists, getmtime, join, relpath, splitext
 from pathlib import Path
 from pyparsing import ParseException
 import re
-from typing import Any, Callable, Dict, List, Literal, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
 import warnings
 
 import eelbrain
@@ -1715,9 +1715,37 @@ class TRFExperiment(MneExperiment):
         else:
             return out
 
-    def _set_trf_options(self, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward=False, pmin=None, is_group_result=False, metric=None, scale=None, smooth_source=None, smooth_time=None, is_public=False, test=None, test_options=None, permutations=1, by_subject=False, public_name=None, state=None):
-        # avoid _set_trf_options(**state) because _set_trf_options could catch invalid state
-        # parameters like `scale`
+    def _set_trf_options(
+            self,
+            x: ModelArg,
+            tstart: float,
+            tstop: float,
+            basis: float,
+            error: str,
+            partitions: int,
+            samplingrate: Optional[int],
+            mask: Union[bool, str],
+            delta: float,
+            mindelta: float,
+            filter_x: FilterXArg,
+            selective_stopping: int,
+            cv: bool,
+            data: DataArg,
+            backward: bool = False,
+            pmin=None,
+            is_group_result: bool = False,
+            metric: str = None,
+            scale: str = None,
+            smooth_source: float = None,
+            smooth_time: float = None,
+            is_public: bool = False,
+            test: Union[str, bool] = None,
+            test_options: Union[str, Sequence[str]] = None,
+            permutations: int = 1,
+            by_subject: bool = False,
+            public_name: str = None,
+            state: dict = None,  # avoid _set_trf_options(**state) because _set_trf_options could catch invalid state parameters like `scale`
+    ):
         if metric and not FIT_METRIC_RE.match(metric):
             raise ValueError(f'{metric=}')
         data = TestDims.coerce(data)
@@ -1924,7 +1952,11 @@ class TRFExperiment(MneExperiment):
             raise TypeError(f"{x=}: need comparison")
         return x
 
-    def _x_desc(self, x, is_public=False):
+    def _x_desc(
+            self,
+            x: ModelArg,
+            is_public: bool = False,
+    ):
         "Description for x"
         if isinstance(x, Model):
             if not x:
@@ -1938,7 +1970,7 @@ class TRFExperiment(MneExperiment):
                 xrand_desc = self._x_desc(xrand.without_randomization)
                 rand = {term.shuffle_string for term in xrand.terms}
                 if len(rand) != 1:
-                    raise NotImplementedError(f"{len(rand)} randomization schemes in {x}")
+                    raise NotImplementedError(f"{len(rand)} randomization schemes in {x=}")
                 rand_desc = f'{xrand_desc}{rand.pop()}'
                 if xrand == x:
                     return rand_desc
@@ -1959,9 +1991,9 @@ class TRFExperiment(MneExperiment):
             elif x.public_name:
                 return x.public_name
             else:
-                raise RuntimeError(f"{x} has no public name")
+                raise RuntimeError(f"{x=}: has no public name")
         else:
-            raise TypeError(f"x={x!r}")
+            raise TypeError(f"{x=}")
 
     def load_model_test(
             self,
