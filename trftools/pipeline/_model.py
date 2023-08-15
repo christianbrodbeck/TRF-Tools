@@ -110,7 +110,7 @@ class ModelTerm:
         return f"<ModelTerm: {self.string}>"
 
 
-def _expand_term(term: ModelTerm, named_models: Dict[str, 'StructuredModel']) -> Tuple[ModelTerm, ...]:
+def _expand_term(term: ModelTerm, named_models: Dict[str, StructuredModel]) -> Tuple[ModelTerm, ...]:
     if term.code.endswith('-i+s'):
         base_code = term.code[:-4]
         terms = _expand_term(replace(term, code=base_code), named_models)
@@ -139,13 +139,13 @@ class Model:
             raise DefinitionError(f"{self.name}: duplicate terms {', '.join(duplicates)}")
 
     @cached_property
-    def name(self):
+    def name(self) -> str:
         if not self.terms:
             return '0'
         return ' + '.join(term.string for term in self.terms)
 
     @cached_property
-    def sorted_key(self):
+    def sorted_key(self) -> str:
         return '+'.join(sorted([term.string for term in self.terms]))
 
     @cached_property
@@ -174,20 +174,20 @@ class Model:
     def __len__(self):
         return len(self.terms)
 
-    def __add__(self, other: 'Model') -> 'Model':
+    def __add__(self, other: Model) -> Model:
         shared = self.intersection(other)
         if shared:
             raise DefinitionError(f"{self.name} + {other.name}: shared terms {shared.name}")
         return Model(self.terms + other.terms)
 
-    def __sub__(self, other: 'Model') -> 'Model':
+    def __sub__(self, other: Model) -> Model:
         if not all(term in self.terms for term in other.terms):
             missing = [term.string for term in other.terms if term not in self.terms]
             raise ValueError(f"{self.name} - {other.name}:\nMissing terms: {', '.join(missing)}")
         return Model(tuple([term for term in self.terms if term not in other.terms]))
 
     @classmethod
-    def coerce(cls, x: Union['Model', str]):
+    def coerce(cls, x: Union[Model, str]):
         if isinstance(x, cls):
             return x
         else:
@@ -209,38 +209,38 @@ class Model:
             return self.terms
 
     @cached_property
-    def without_randomization(self) -> 'Model':
+    def without_randomization(self) -> Model:
         if self.has_randomization:
             return Model(self.terms_without_randomization)
         return self
 
     @cached_property
-    def randomized_component(self) -> 'Model':
+    def randomized_component(self) -> Model:
         terms = [term for term in self.terms if term.shuffle]
         if len(terms) == len(self.terms):
             return self
         return Model(tuple(terms))
 
     @cached_property
-    def unrandomized_component(self) -> 'Model':
+    def unrandomized_component(self) -> Model:
         terms = [term for term in self.terms if not term.shuffle]
         if len(terms) == len(self.terms):
             return self
         return Model(tuple(terms))
 
-    def difference(self, other: 'Model') -> 'Model':
+    def difference(self, other: Model) -> Model:
         terms = [term for term in self.terms if term not in other.terms]
         return Model(tuple(terms))
 
-    def intersection(self, other: 'Model') -> 'Model':
+    def intersection(self, other: Model) -> Model:
         terms = [term for term in self.terms if term in other.terms]
         return Model(tuple(terms))
 
-    def initialize(self, named_models: Dict[str, 'StructuredModel']) -> 'Model':
+    def initialize(self, named_models: Dict[str, StructuredModel]) -> Model:
         terms = list(chain.from_iterable(_expand_term(term, named_models) for term in self.terms))
         return Model(tuple(terms))
 
-    def multiple_permutations(self, n: int) -> List['Model']:
+    def multiple_permutations(self, n: int) -> List[Model]:
         """Generate multiple models with different shuffle angles"""
         if not self.has_randomization:
             raise TypeError(f"permutations={n} for model without randomization: {self.name}")
@@ -279,14 +279,14 @@ class Model:
                 t.cell(term.shuffle_string)
         return t
 
-    def with_shuffle(self, index, shuffle, angle) -> 'Model':
+    def with_shuffle(self, index, shuffle, angle) -> Model:
         """Apply shuffle settings to all terms"""
         if self.has_randomization:
             raise RuntimeError("Model already shuffled")
         terms = [term.with_shuffle(index, shuffle, angle) for term in self.terms]
         return Model(tuple(terms))
 
-    def with_shuffled(self, term_to_shuffle: 'Term') -> 'Model':
+    def with_shuffled(self, term_to_shuffle: 'Term') -> Model:
         """Replace one term with a shuffled counterpart"""
         terms = list(self.terms)
         names = [term.string for term in terms]
@@ -296,12 +296,12 @@ class Model:
         terms[index] = term_to_shuffle._model_term_with_shuffle()
         return Model(tuple(terms))
 
-    def with_angle(self, angle: int) -> 'Model':
+    def with_angle(self, angle: int) -> Model:
         """Apply shuffle angle to all shuffled terms"""
         terms = [term.with_shuffle(term.shuffle_index, term.shuffle, angle) for term in self.terms]
         return Model(tuple(terms))
 
-    def without(self, term: str) -> 'Model':
+    def without(self, term: str) -> Model:
         terms = list(self.terms)
         names = [term.string for term in terms]
         if term not in names:
@@ -328,8 +328,8 @@ class ModelExpression:
 
     def initialize(
             self,
-            named_models: Dict[str, 'StructuredModel'],
-    ) -> 'Model':
+            named_models: Dict[str, StructuredModel],
+    ) -> Model:
         "Expand into full model"
         base = self.base.initialize(named_models)
         if not self.subtract:
@@ -487,7 +487,7 @@ class ComparisonSpec:
             self,
             named_models: Dict[str, StructuredModel],
             cv: bool = True,  # cross-validation (ignore shuffle)
-    ) -> Union['Comparison', 'StructuredModel']:
+    ) -> Union['Comparison', StructuredModel]:
         raise NotImplementedError
 
 
@@ -498,7 +498,7 @@ class TermComparisons(ComparisonSpec):
             self,
             named_models: Dict[str, StructuredModel],
             cv: bool = True,  # cross-validation (ignore shuffle)
-    ) -> 'StructuredModel':
+    ) -> StructuredModel:
         assert not self.x.has_randomization
         x = self.x.initialize(named_models)
         # find terms to test

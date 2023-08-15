@@ -330,22 +330,22 @@ class TRFExperiment(MneExperiment):
         elif isinstance(self.stim_var, dict):
             self._stim_var = self.stim_var.copy()
         else:
-            raise TypeError(f"MneExperiment.stim_var={self.stim_var!r}")
+            raise TypeError(f"{self.__class__.__name__}.stim_var={self.stim_var!r}")
         # structured models
         for name in self.models:
             try:
                 model_name_parser.parseString(name, True)
             except ParseException:
-                raise DefinitionError(f"{name!r}: invalid model name")
+                raise DefinitionError(f"Invalid key in {self.__class__.__name__}.models: {name!r}")
             if re.match(r'^[\w\-+~]*-red\d*$', name):
-                raise ValueError(f"{name}: invalid model name (-red* pattern is reservered)")
-
+                raise ValueError(f"Invalid key in {self.__class__.__name__}.models: {name!r} (-red* pattern is reservered)")
         self._structured_models = {k: StructuredModel.coerce(v) for k, v in self.models.items()}
         self._structured_model_names = {m: k for k, m in self._structured_models.items()}
         # TODO: detect changes in structured models
-        # load cache models:  {str: Model}
-        self._named_models = {}
-        self._model_names = {}
+
+        # Model names
+        self._named_models: Dict[str, Model] = {}
+        self._model_names: Dict[str, str] = {}
         self._model_names_file = join(self.get('cache-dir', mkdir=True), 'model-names.pickle')
         self._model_names_file_lock = FileLock(self._model_names_file + '.lock')
         self._model_names_mtime = 0
