@@ -1267,7 +1267,6 @@ class TRFExperiment(MneExperiment):
             with self._temporary_state:
                 for sub_epoch in epoch.collect:
                     ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, None, None, None, permutations, vector_as_norm, trfs, epoch=sub_epoch)
-                    ds[:, 'epoch'] = sub_epoch
                     dss.append(ds)
             ds = combine(dss)
             self._smooth_trfs(data, ds, smooth, smooth_time)
@@ -1365,6 +1364,7 @@ class TRFExperiment(MneExperiment):
         x_keys = [Dataset.as_key(term) for term in x.term_names]
         ds = Dataset(info={'xs': x_keys, 'x_names': x.term_names, 'samplingrate': 1 / tstep, 'partitions': partitions or res_partitions}, name=self._x_desc(x))
         ds['subject'] = Factor([subject], random=True)
+        ds[:, 'epoch'] = epoch.name
         if is_ncrf:
             ds[:, 'mu'] = mu
         else:
