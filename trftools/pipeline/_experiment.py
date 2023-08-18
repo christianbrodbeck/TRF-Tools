@@ -504,7 +504,6 @@ class TRFExperiment(MneExperiment):
             class would retain a reference to this model name and might use it
             again, leading to conflicts later.
         """
-        # FIXME: check model names file mtime any time model names are accessed?
         if files is None:
             files = list(self._find_model_files(name, trfs=True, tests=True))
         if files:
