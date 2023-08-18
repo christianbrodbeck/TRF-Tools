@@ -723,7 +723,7 @@ class Comparison:
 # components
 integer = Word(nums).addParseAction(lambda s,l,t: int(t[0]))
 pyword = Word(alphas+'_', alphanums+'_')
-name = Word(alphas+'_', alphanums+'_-+*:')
+name = Word(alphas+'_', alphanums+'_-')
 
 # shuffling
 dash = Literal('-').suppress()
