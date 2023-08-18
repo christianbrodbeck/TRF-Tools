@@ -72,6 +72,7 @@ With predictor randomization (``cv=False``):
     randomized version of ``y``. Equivalent to``x_model + y > x_model + y$rand``.
 
 """
+import itertools
 from collections import defaultdict
 import datetime
 import fnmatch
@@ -416,6 +417,82 @@ class TRFExperiment(MneExperiment):
             for path in self.glob(temp, True, test_options=pattern):
                 if regex.search(path):
                     yield path
+
+    def _repair_model_names(self):
+        """Infer model names from TRFs"""
+        # TRFs store only legal key version
+        # Check for missing models
+        model_files = defaultdict(list)
+        models = defaultdict(set)
+        glob_files = list(self.glob('trf-file', True))
+        for path in tqdm(glob_files, "Scanning TRF-files"):
+            parameters = self._parse_trf_path(path)
+            key = parameters['model']
+            # store files
+            model_files[key].append(path)
+            # extract model
+            trf = load.unpickle(path)
+            model = Model.from_string(trf.x)
+            models[key].add(model.sorted())
+        # Check for files whose model keys are not listed
+        missing = set(model_files) - set(self._named_models)
+        if missing:
+            self._log.error("Found TRF files for non-existing models:")
+            for model in sorted(missing):
+                n = len(model_files[model])
+                self._log.error(f"  {model}: {n} files")
+            raise NotImplementedError("This cannot be repaired automatically")
+        # Check for model keys that have conflicting models in TRFs
+        conflicts = {key: model_set for key, model_set in models.items() if len(model_set) > 1}
+        if conflicts:
+            for key, model_set in conflicts.items():
+                self._log.error(f"Model {key}: found multiple interpretations in TRF files")
+                for terms in sorted([model.name for model in model_set]):
+                    self._log.error(f"  {terms}")
+            raise NotImplementedError("This cannot be repaired automatically")
+        # Check for models that differ in experiment and in files
+        conflicts = []
+        for key, model_set in models.items():
+            model = next(iter(model_set))
+            exp_model = self._named_models[key]
+            if model.sorted_key != exp_model.dataset_based_key:
+                conflicts.append((key, model, exp_model))
+                self._log.error(f"Model {key}: mismatching definitions")
+                self._log.error(f"  Exp : {exp_model.dataset_based_key}")
+                self._log.error(f"  TRFs: {model.sorted_key}")
+        if conflicts:
+            to_replace = []
+            message = []
+            for key, trf_model, exp_model in conflicts:
+                # Infer dataset key -> term name
+                term_names = {term.string: set() for term in trf_model.terms}
+                for model in self._named_models.values():
+                    for term in model.terms:
+                        term_key = Dataset.as_key(term.string)
+                        if term_key in term_names:
+                            term_names[term_key].add(term.string)
+                if conflicts := {term_key: names for term_key, names in term_names.items() if len(names) != 1}:
+                    self._log.error(f"Cannot repair {key} due to ambiguous term keys:")
+                    for term_key, names in conflicts.items():
+                        self._log.error(f"  {term_key} -> {', '.join(names)}")
+                    continue
+                term_names = {term_key: names.pop() for term_key, names in term_names.items()}
+                new_model = Model.from_string([term_names[term.string] for term in trf_model.terms])
+                to_replace.append((key, exp_model, new_model))
+                self._log.error(f'{key}:')
+                self._log.error(f'  Experiment: {exp_model.sorted().name}')
+                self._log.error(f'  TRF-files:  {new_model.sorted().name}')
+            if to_replace:
+                if ask('Replace experiment models with models inferred from TRFs?', {'yes': 'Replace model names', 'no': 'Abort without changing anything'}, default='no') != 'yes':
+                    self._log.error('No changes made')
+                    return
+                self._log.error('Updating model names...')
+                for key, exp_model, new_model in to_replace:
+                    self._named_models[key] = new_model
+                    self._model_names[new_model.sorted_key] = key
+                with self._model_names_file_lock:
+                    save_models(self._named_models, self._model_names_file)
+                self._log.error('Done.')
 
     def _remove_model(self, name, files=None):
         """Remove a named model and delete all associated files

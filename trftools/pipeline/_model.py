@@ -48,6 +48,7 @@ from collections import abc, Counter
 from dataclasses import dataclass, replace
 from functools import cached_property
 from itertools import chain
+from operator import attrgetter
 from pathlib import Path
 import pickle
 from typing import Dict, Callable, List, Tuple, Sequence, Union
@@ -148,6 +149,9 @@ class Model:
     def sorted_key(self) -> str:
         return '+'.join(sorted([term.string for term in self.terms]))
 
+    def sorted(self) -> Model:
+        return Model(tuple(sorted(self.terms, key=attrgetter('string'))))
+
     @cached_property
     def dataset_based_key(self):
         term_keys = [Dataset.as_key(term.string) for term in self.terms]
@@ -185,6 +189,12 @@ class Model:
             missing = [term.string for term in other.terms if term not in self.terms]
             raise ValueError(f"{self.name} - {other.name}:\nMissing terms: {', '.join(missing)}")
         return Model(tuple([term for term in self.terms if term not in other.terms]))
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def __eq__(self, other):
+        return self.name == other.name
 
     @classmethod
     def coerce(cls, x: Union[Model, str]):
