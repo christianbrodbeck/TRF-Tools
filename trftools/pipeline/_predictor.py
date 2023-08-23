@@ -238,6 +238,10 @@ class FilePredictor(FilePredictorBase):
         file_name = code.nuts_file_name(self.columns)
         x = self._load(tstep, file_name, directory)
         if isinstance(x, Dataset):
+            if tmin is None:
+                tmin = 0
+            if tstep is None:
+                tstep = 0.001
             if n_samples is None:
                 n_samples = int((x.info['tstop'] - tmin) // tstep)
             uts = UTS(tmin, tstep, n_samples)
