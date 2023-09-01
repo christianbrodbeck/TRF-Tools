@@ -450,7 +450,7 @@ class Dispatcher:
             self._user_jobs.remove(job)
 
     def info(self):
-        out = fmtxt.Report(f"{self.server.host} ({self.server.ip})", date='%c')
+        out = fmtxt.Report(f"{self.server.host}:{self.server.port} ({self.server.ip})", date='%c')
         out.append(self.show_workers())
         out.append(fmtxt.linebreak)
         out.append(self.show_jobs(True))
