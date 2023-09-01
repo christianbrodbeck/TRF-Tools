@@ -368,7 +368,7 @@ class FilePredictor(FilePredictorBase):
                 raise code.error(f"NUTS-method={code.nuts_method!r}")
 
         # fill in values
-        ds = ds[ds['time'] < uts.tstop]
+        ds = ds[ds['time'] < uts.tmax + uts.tstep / 2]
         if x_impulse is not None:
             for t, v in ds.zip('time', column_key):
                 x_impulse[t] += v
