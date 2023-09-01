@@ -3112,6 +3112,9 @@ class TRFExperiment(MneExperiment):
         for path in paths:
             os.remove(path)
 
+    def show_model_code(self, model: ModelArg) -> str:
+        self._x_desc(self._coerce_model(model))
+
     def show_model_terms(self, model: ModelArg) -> fmtxt.Table:
         "Table showing terms in a model"
         model_obj = self._coerce_model(model)
