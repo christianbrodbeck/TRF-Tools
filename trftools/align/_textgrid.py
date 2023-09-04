@@ -302,14 +302,14 @@ class TextGrid:
 
     def align_word_dataset(
             self,
-            ds: Dataset,
+            data: Dataset,
             words: FactorArg = 'word',
     ) -> Dataset:
         """Align ``ds`` to the TextGrid
 
         Parameters
         ----------
-        ds
+        data
             Dataset with data to align.
         words
             Words in ``ds`` to use to align to the TextGrid words.
@@ -320,13 +320,13 @@ class TextGrid:
             Dataset with the variables in ``ds`` aligned to the TextGrid,
             including time stamps and TextGrid words.
         """
-        words_ = asfactor(words, ds=ds)
+        words_ = asfactor(words, data=data)
         index = self._align_index(words_, silence=-1, missing=-2)
         out = Dataset({
             'time': Var([r.times[0] for r in self.realizations]),
             'grid_word': Factor([r.graphs for r in self.realizations]),
         }, info={'tstop': self.realizations[-1].tstop})
-        for key, variable in ds.items():
+        for key, variable in data.items():
             if isinstance(variable, (Var, Factor)):
                 values = dict(enumerate(variable))
                 if isinstance(variable, Var):
