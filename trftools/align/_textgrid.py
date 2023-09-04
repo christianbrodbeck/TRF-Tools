@@ -278,6 +278,58 @@ class TextGrid:
                 new.append(realization)
         return TextGrid(new, self.tmin, self.tstep, self.n_samples, self._name)
 
+    def split_realization(
+            self,
+            graphs: str,
+            phones1: Union[str, Sequence[str]],
+            graphs1: str = None,
+            graphs2: str = None,
+    ):
+        """Split a realization into two separate realizations
+
+        Parameters
+        ----------
+        graphs
+            Can be specified in two ways:
+            1) The graphs corresponding to the realization that should be split,
+            with the first and secand part separated by a white space.
+            2) The exact graphs that identify the realization that should be
+            split. while ``graphs1`` and ``graphs2`` specify the graphs of the
+            new realizations after splitting.
+        phones1
+            The phones that belong to the first part after the split (the
+            remaining phones will be assigned to the second part).
+        graphs1
+            The graphs assigned to the first part
+            (only needed with option 2 for ``graphs``).
+        graphs2
+            The graphs assigned to the second part
+            (only needed with option 2 for ``graphs``).
+        """
+        # graphs split
+        if (graphs1 is None) != (graphs2 is None):
+            raise TypeError(f"{graphs1=}, {graphs2=}")
+        if graphs1 is None:
+            graphs1, graphs2 = graphs.split()
+            graphs0 = graphs1 + graphs2
+        else:
+            graphs0 = graphs
+        # phones split
+        if isinstance(phones1, str):
+            phones1 = tuple(phones1.split())
+        n1 = len(phones1)
+
+        new = []
+        for realization in self.realizations:
+            if realization.graphs == graphs0:
+                if realization.phones[:n1] != phones1:
+                    raise ValueError(f"{phones1=} is not the beginning of {realization.phones}")
+                new.append(Realization(phones1, realization.times[:n1], graphs1, realization.times[n1]))
+                new.append(Realization(realization.phones[n1:], realization.times[n1:], graphs2, realization.tstop))
+            else:
+                new.append(realization)
+        return TextGrid(new, self.tmin, self.tstep, self.n_samples, self._name)
+
     def map_phonemes(self, mapping: Dict[str, str]):
         "Replace each phoneme from ``mapping``"
         realizations = [r.map_phonemes(mapping) for r in self.realizations]
