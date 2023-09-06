@@ -405,65 +405,6 @@ class TextGrid:
                     out[key] = Factor([values[i] for i in index], random=variable.random)
         return out
 
-    def align(
-            self,
-            words: Sequence[str],
-            values: Sequence[Any],
-            silence: Any = 0,
-            unknown: str = None,
-    ) -> List[Any]:
-        """Align ``words`` to the textgrid and sort ``values`` accordingly
-
-        Parameters
-        ----------
-        words
-            The words to align (not case-sensitive). Individual words in
-            ``words`` can be skipped, but all words in the TextGrid need to
-            occur exactly in ```words``.
-        values
-            Values corresponding to ``words``.
-        silence
-            Value to append to the output for silence in the TextGrid.
-        unknown
-            String to signify unknown words in ``words`` (able to pair with any
-            word in the TextGrid).
-
-        Returns
-        -------
-        aligned_values
-            Values from ``values`` aligned with the TextGrid's ``realizations``.
-        """
-        n_words = len(words)
-        assert len(values) == n_words
-        grid_words = [r.graphs for r in self.realizations]
-        i_next = last_match_i = last_match_i_grid = 0  # i_next: start of unused words in ``words``
-        out = []
-        for i_grid, grid_word in enumerate(grid_words):
-            if grid_word == ' ':
-                out.append(silence)
-            else:
-                for i in range(i_next, n_words):
-                    word_i = words[i]
-                    if word_i == unknown:
-                        break
-                    elif grid_word == 'CANNOT' and word_i == 'can' and words[i + 1] == 'not':
-                        assert words[i + 2] != 'not' and words[i + 3] != 'not'
-                        break
-                    word_i = word_i.strip("'")
-                    if word_i.upper() == grid_word:
-                        break
-                else:
-                    n = min(9, len(grid_words) - i_grid, len(words) - last_match_i)
-                    ds = Dataset()
-                    ds['grid_words'] = grid_words[last_match_i_grid: last_match_i_grid + n]
-                    ds['words'] = words[last_match_i: last_match_i + n]
-                    raise ValueError(f"Can't align words to {self._name} after word {i_next}:\n{ds}")
-                out.append(values[i])
-                last_match_i = i
-                last_match_i_grid = i_grid
-                i_next = i + 1
-        return out
-
     def _align_index(
             self,
             words: Sequence[str],
