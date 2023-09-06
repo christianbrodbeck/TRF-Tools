@@ -335,6 +335,22 @@ class TextGrid:
         realizations = [r.map_phonemes(mapping) for r in self.realizations]
         return TextGrid(realizations, self.tmin, self.tstep, self.n_samples, self._name)
 
+    def merge_realizations(self, graphs1: str, graphs2: str) -> TextGrid:
+        """Merge two realizations whenever ``graphs2`` immediately follows ``graphs1``"""
+        new = []
+        i = 0
+        i_max = len(self.realizations) - 1
+        while i <= i_max:
+            r1 = self.realizations[i]
+            if r1.graphs == graphs1 and i < i_max and self.realizations[i+1].graphs == graphs2:
+                r2 = self.realizations[i+1]
+                r1 = Realization(r1.phones + r2.phones, r1.times + r2.times, graphs1 + graphs2, r2.tstop)
+                i += 2
+            else:
+                i += 1
+            new.append(r1)
+        return TextGrid(new, self.tmin, self.tstep, self.n_samples, self._name)
+
     def merge_silence(self):
         """Merge consecutive silence realizations"""
         new = []
