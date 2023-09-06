@@ -451,15 +451,14 @@ class TextGrid:
     def _align_index(
             self,
             words: Sequence[str],
-            silence: Any = None,
-            missing: Any = None,
-            search_distance: int = 6,
+            silence: Any = None,  # value for grid item that is silence
+            missing: Any = None,  # value for grid item that is missing from words
+            search_distance: int = 6,  # max number of items to advance per step (in grid and words)
     ) -> Sequence:
         """Index into ``words``"""
-        # search_order
-        j_pairs = list(product(range(search_distance), repeat=2))
-        j_pairs.pop(0)
-        j_pairs.sort(key=lambda x: x[0]**2 + x[1]**2)
+        # search_order (delta_grid, delta_words) where delta is the number of items to skip
+        delta_pairs = list(product(range(search_distance), repeat=2))
+        delta_pairs.sort(key=lambda x: x[0]**2 + x[1]**2)
         # input sequences
         words_ = [word.upper() for word in words]
         n_words = len(words_)
@@ -474,38 +473,35 @@ class TextGrid:
                 out.append(silence)
                 i_grid += 1
                 continue
-            # direct match
-            if grid_words[i_grid] == words_[i_word]:
-                out.append(i_word)
-                i_grid += 1
-                i_word += 1
-                continue
             # grid search for closest match
-            for j_grid, j_word in j_pairs:
-                if grid_words[i_grid + j_grid] == words_[i_word + j_word]:
+            for d_grid, d_word in delta_pairs:
+                if grid_words[i_grid + d_grid] == words_[i_word + d_word]:
                     break
             else:
                 # informative error message
-                start = min([i_grid, i_word, 2])
+                start = min([i_grid, i_word, 2 + search_distance])
                 stop = min([10, n_grid - i_grid, n_words - i_word])
                 ds = Dataset()
-                ds['grid_words'] = grid_words[i_grid - start: i_grid + stop]
+                ds['grid_i'] = Var(range(i_grid - start, i_grid + stop))
+                ds[:, 'desc'] = ''
+                ds[start, 'desc'] = '->'
+                ds['grid_word'] = grid_words[i_grid - start: i_grid + stop]
                 ds['words'] = words[i_word - start: i_word + stop]
-                raise ValueError(f"No match within search_distance {search_distance}:\n{ds}")
-            # need to fill in one value for each skipped grid
+                raise ValueError(f"No match within {search_distance=}:\n{ds}")
+            # need to fill in one value for each skipped grid item
             ii_word = 0
-            for ii_grid in range(j_grid):
+            for ii_grid in range(d_grid):
                 if grid_words[i_grid + ii_grid] == ' ':
                     out.append(silence)
-                elif ii_word < j_word:
+                elif ii_word < d_word:
                     out.append(i_word + ii_word)
                     ii_word += 1
                 else:
                     out.append(missing)
             # append the next match
-            out.append(i_word + j_word)
-            i_grid += j_grid + 1
-            i_word += j_word + 1
+            out.append(i_word + d_word)
+            i_grid += d_grid + 1
+            i_word += d_word + 1
         return out
 
     def get_indexes(
