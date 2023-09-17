@@ -150,6 +150,7 @@ def source_results(
         vmax: float = None,
         cmap: str = None,
         alpha: float = 1.,
+        view: Union[str, Sequence[str]] = 'lateral',
         caption: FMTextArg = None,
 ):
     "Only used for TRFExperiment model-test"
@@ -181,7 +182,7 @@ def source_results(
         for x, res in ress_i.items():
             y = res.masked_difference() if sig else res.difference
             sp.add_ndvar(y, label=x, cmap=cmap, vmax=vmax, alpha=alpha)
-        panel = sp.plot_table(view='lateral', orientation='vertical', **layout.table_args)
+        panel = sp.plot_table(view=view, orientation='vertical', **layout.table_args)
         panels.append(panel)
     doc.append(fmtxt.Figure(panels))
     for panel in panels:

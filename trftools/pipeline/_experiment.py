@@ -2797,6 +2797,7 @@ class TRFExperiment(MneExperiment):
             vmax: float = None,
             cmap: str = None,
             alpha: float = 1.,
+            view: Union[str, Sequence[str]] = 'lateral',
             xhemi: bool = False,
             data: DataArg = DATA_DEFAULT,
             **test_args,
@@ -2831,6 +2832,8 @@ class TRFExperiment(MneExperiment):
             Colormap.
         alpha
             Alpha of the colormap.
+        view
+            Parameter for brain plot.
         xhemi
             Test lateralization.
         data : 'sensor' | 'source'
@@ -2860,7 +2863,7 @@ class TRFExperiment(MneExperiment):
         if ress.dependent_type is DependentType.UNIVARIATE:
             return trf_report.uv_result(ress, ress_hemi, heading, caption)
         elif data.source is True:
-            return trf_report.source_results(ress, ress_hemi, heading, brain_view, axw, surf, cortex, sig, vmax, cmap, alpha, caption)
+            return trf_report.source_results(ress, ress_hemi, heading, brain_view, axw, surf, cortex, sig, vmax, cmap, alpha, view, caption)
         elif data.sensor is True:
             return trf_report.sensor_results(ress, heading, axw, vmax, cmap, caption)
         else:
