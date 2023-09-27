@@ -2251,7 +2251,7 @@ class TRFExperiment(MneExperiment):
         else:
             test_options = None
 
-        self._set_trf_options(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, pmin, test=test_desc, smooth_source=smooth, metric=metric, is_group_result=True, test_options=test_options, permutations=permutations, state=state)
+        self._set_trf_options(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, pmin, True, metric, test=test_desc, smooth_source=smooth, test_options=test_options, permutations=permutations, state=state, allow_new=True)
         dst = self.get('model-test-file', mkdir=True)
         if self._result_file_mtime(dst, data):
             res = load.unpickle(dst)
