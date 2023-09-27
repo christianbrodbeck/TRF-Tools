@@ -1,4 +1,6 @@
 """Convert unicode text to label for force aligning."""
+from __future__ import annotations
+
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
 import fnmatch
@@ -134,7 +136,7 @@ class TextGrid:
             phone_tier: str = 'phone*',
             upper: bool = False,
             backend: Literal['textgrid', 'praatio'] = 'textgrid',
-    ):
+    ) -> TextGrid:
         """Load ``*.TextGrid`` file
 
         Parameters
@@ -158,6 +160,8 @@ class TextGrid:
 
         Notes
         -----
+        Assumes that TextGrid words are all uppercase.
+
         Silence tags are normalized to ``' '`` (single space) for phones as well as words.
         These tags are interpreted as silence: ``'sp', 'sil', 'brth', '', ' '``.
 
@@ -199,7 +203,7 @@ class TextGrid:
         "All phones in the TextGrid"
         return chain.from_iterable(r.phones for r in self.realizations)
 
-    def table(self, t_start: float = None, t_stop: float = None):
+    def table(self, t_start: float = None, t_stop: float = None) -> fmtxt.Table:
         "fmtxt.Table representation"
         if t_start is None:
             t_start = self.tmin
@@ -218,7 +222,7 @@ class TextGrid:
             #     table.cells(i, f'{time:.3f}', word, phone)
         return table
 
-    def split_by_apostrophe(self, exceptions: Sequence[str] = ()):
+    def split_by_apostrophe(self, exceptions: Sequence[str] = ()) -> TextGrid:
         f"""Split words with apostrophe
 
         Language models often represent words containing apostrophe as two
@@ -284,7 +288,7 @@ class TextGrid:
             phones1: Union[str, Sequence[str]],
             graphs1: str = None,
             graphs2: str = None,
-    ):
+    ) -> TextGrid:
         """Split a realization into two separate realizations
 
         Parameters
@@ -330,7 +334,7 @@ class TextGrid:
                 new.append(realization)
         return TextGrid(new, self.tmin, self.tstep, self.n_samples, self._name)
 
-    def map_phonemes(self, mapping: Dict[str, str]):
+    def map_phonemes(self, mapping: Dict[str, str]) -> TextGrid:
         "Replace each phoneme from ``mapping``"
         realizations = [r.map_phonemes(mapping) for r in self.realizations]
         return TextGrid(realizations, self.tmin, self.tstep, self.n_samples, self._name)
@@ -351,7 +355,7 @@ class TextGrid:
             new.append(r1)
         return TextGrid(new, self.tmin, self.tstep, self.n_samples, self._name)
 
-    def merge_silence(self):
+    def merge_silence(self) -> TextGrid:
         """Merge consecutive silence realizations"""
         new = []
         last = False
@@ -363,7 +367,7 @@ class TextGrid:
                 last = r.is_silence()
         return TextGrid(new, self.tmin, self.tstep, self.n_samples, self._name)
 
-    def strip_stress(self):
+    def strip_stress(self) -> TextGrid:
         """Remove stress digits from all phones (``K AA1 R`` -> ``K AA R``)"""
         realizations = [r.strip_stress() for r in self.realizations]
         return TextGrid(realizations, self.tmin, self.tstep, self.n_samples, self._name)
@@ -465,7 +469,7 @@ class TextGrid:
             self,
             feature: str = 'phone',
             stop: bool = True,
-    ):
+    ) -> List[int]:
         """Event boundary indexes (in sample)
 
         Parameters
@@ -543,7 +547,7 @@ class TextGrid:
             stop: int = None,
             segmentation=None,
             silence: bool = False,
-    ):
+    ) -> None:
         """Print text with pronunciation
 
         Parameters

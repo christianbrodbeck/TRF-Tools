@@ -29,6 +29,8 @@ Models can always be specified as combination of pre-defined models and terms,
 joined with ``+``.
 
 
+.. _trf-experiment-comparisons:
+
 ===========
 Comparisons
 ===========
@@ -2121,7 +2123,8 @@ class TRFExperiment(MneExperiment):
         Parameters
         ----------
         x
-            Comparison.
+            Comparison, or dictionary of named comparisons (see
+            :ref:`trf-experiment-comparisons`).
         tstart
             Start of the TRF in s (default 0).
         tstop

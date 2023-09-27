@@ -25,7 +25,7 @@ $ pip install https://github.com/christianbrodbeck/gammatone/archive/fmax.zip
 To later update TRF-Tools to the latest version of the `main` branch, use:
 
 ```bash
-$ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/main.zip --no-cache-dir
+$ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/main.zip
 ```
 
 Sometimes this will not actually replace the old installation (check `pip`'s output, it should say `Successfully installed trftools`). If it does not, uninstall the old version manually and try again:
