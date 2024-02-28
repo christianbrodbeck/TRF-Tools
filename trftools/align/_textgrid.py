@@ -62,14 +62,27 @@ class Realization:
     def duration(self):
         return self.tstop - self.times[0]
 
-    def map_phonemes(self, mapping: Dict[str, Union[str, Tuple[str, ...]]]):
-        "Replace each phoneme from ``mapping``"
+    def map_phones(
+            self,
+            mapping: Dict[str, Union[str, Tuple[str, ...]]],
+    ):
+        """Replace each phoneme from ``mapping``
+
+        Parameters
+        ----------
+        mapping
+            A dictionary mapping each phoneme in the TextGrid to  new phoneme.
+            If a phoneme is mapped to multiple phonemes (e.g.,
+            ``{'AB': ('A', 'B')}``, the duration of the old phoneme is evenly
+             subdivided for the new phoneme. Phonemes that are missing in the
+             dictionary will remain the same.
+        """
         if self.is_silence():
             return self
         phones = []
         times = []
         for i, phone in enumerate(self.phones):
-            target = mapping[phone]
+            target = mapping.get(phone, phone)
             if isinstance(target, str):
                 phones.append(target)
                 times.append(self.times[i])
@@ -334,9 +347,19 @@ class TextGrid:
                 new.append(realization)
         return TextGrid(new, self.tmin, self.tstep, self.n_samples, self._name)
 
-    def map_phonemes(self, mapping: Dict[str, str]) -> TextGrid:
-        "Replace each phoneme from ``mapping``"
-        realizations = [r.map_phonemes(mapping) for r in self.realizations]
+    def map_phones(self, mapping: Dict[str, str]) -> TextGrid:
+        """Replace each phoneme from ``mapping``
+
+        Parameters
+        ----------
+        mapping
+            A dictionary mapping each phoneme in the TextGrid to  new phoneme.
+            If a phoneme is mapped to multiple phonemes (e.g.,
+            ``{'AB': ('A', 'B')}``, the duration of the old phoneme is evenly
+             subdivided for the new phoneme. Phonemes that are missing in the
+             dictionary will remain the same.
+        """
+        realizations = [r.map_phones(mapping) for r in self.realizations]
         return TextGrid(realizations, self.tmin, self.tstep, self.n_samples, self._name)
 
     def merge_realizations(self, graphs1: str, graphs2: str) -> TextGrid:
