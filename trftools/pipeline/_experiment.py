@@ -3077,7 +3077,7 @@ class TRFExperiment(MneExperiment):
                     match = fnmatch.fnmatch(properties['model'], model)
                 if not match:
                     continue
-            elif mask and not fnmatch.fnmatch(properties.get('mask', ''), mask):
+            if mask and not fnmatch.fnmatch(properties.get('mask', ''), mask):
                 continue
             key = tuple([properties.get(k, '') for k in keys])
             ns[key] += 1
