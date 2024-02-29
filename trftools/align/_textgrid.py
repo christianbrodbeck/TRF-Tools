@@ -149,6 +149,7 @@ class TextGrid:
             phone_tier: str = 'phone*',
             upper: bool = False,
             backend: Literal['textgrid', 'praatio'] = 'textgrid',
+            encoding: str = None,
     ) -> TextGrid:
         """Load ``*.TextGrid`` file
 
@@ -170,6 +171,8 @@ class TextGrid:
             Force words to be upper-case.
         backend
             Library to use to read TextGrid.
+        encoding
+            Encoding for opening the ``grid_file``.
 
         Notes
         -----
@@ -185,8 +188,10 @@ class TextGrid:
         """
         grid_file = Path(grid_file)
         if backend == 'textgrid':
-            realizations = textgrid_as_realizations(grid_file, word_tier, phone_tier)
+            realizations = textgrid_as_realizations(grid_file, word_tier, phone_tier, encoding=encoding)
         elif backend == 'praatio':
+            if encoding:
+                raise NotImplementedError(f"{encoding=} with {backend=}: praatio does not support specifying file encoding")
             realizations = realizations_from_praatio(grid_file, word_tier, phone_tier)
         else:
             raise ValueError(f'{backend=}')
@@ -916,14 +921,20 @@ def fix_word_tier(
     grid.write(out)
 
 
-def textgrid_as_realizations(grid, word_tier='word*', phone_tier='phone*', strict=True):
+def textgrid_as_realizations(
+        grid,
+        word_tier='word*',
+        phone_tier='phone*',
+        strict=True,
+        encoding: str = None,
+):
     """Load a TextGrid as a list of Realizations"""
     if isinstance(grid, (str, Path)):
         path = grid
         if isinstance(path, str) and not path.lower().endswith('.textgrid'):
             path += '.TextGrid'
         grid = textgrid.TextGrid(path, strict=strict)
-        grid.read(path)
+        grid.read(path, encoding=encoding)
     words = _load_tier(grid, word_tier)
     phones = _load_tier(grid, phone_tier)
     errors = []
