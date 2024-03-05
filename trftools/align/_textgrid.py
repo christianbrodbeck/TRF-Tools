@@ -127,11 +127,11 @@ class TextGrid:
             t_stop = n_samples * tstep + tmin
             r_last = realizations[-1]
             if r_last.tstop < t_stop:
-                realizations.append(Realization((' ',), (r_last.tstop,), ' ', t_stop))
+                realizations = realizations + [Realization((' ',), (r_last.tstop,), ' ', t_stop)]
 
         self.tmin = tmin
         self.tstep = tstep
-        self.realizations = realizations
+        self.realizations = tuple(realizations)
         self.n_samples = n_samples
         self._name = name
         self._stop = int(round((realizations[-1].tstop - tmin) / tstep))
