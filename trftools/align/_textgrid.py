@@ -221,6 +221,32 @@ class TextGrid:
         "All phones in the TextGrid"
         return chain.from_iterable(r.phones for r in self.realizations)
 
+    def concatenate(
+            self,
+            grid: TextGrid,
+            t0: float = None,
+            name: str = None,
+    ) -> TextGrid:
+        """Concatenate two TextGrid instances
+
+        Parameters
+        ----------
+        grid
+            A second TextGrid instance to append.
+        t0
+            The time-stamp relative to ``self`` to use as t = 0 in ``grid``.
+            The default is ``self.tstop``.
+        name
+            New name for the concatenated TextGrid.
+        """
+        realizations = list(self.realizations)
+        if t0 is None:
+            t0 = self.tstop
+        for r in grid.realizations:
+            times = tuple([t + t0 for t in r.times])
+            realizations.append(Realization(r.phones, times, r.graphs, r.tstop + t0))
+        return TextGrid(realizations, self.tmin, self.tstep, name=name)
+
     def table(self, t_start: float = None, t_stop: float = None) -> fmtxt.Table:
         "fmtxt.Table representation"
         if t_start is None:
