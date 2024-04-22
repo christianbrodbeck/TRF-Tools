@@ -268,26 +268,39 @@ class ModelJob(ExperimentJob):
 
     Parameters
     ----------
-    model : str
+    model
         StructuredModel or comparison (see :class:`TRFExperiment` module docstring).
-    report : bool
+    report
         Schedule a model-test report.
-    experiment : Experiment
+    experiment
         The experiment instance providing access to the data.
-    reduce_model : bool
+    reduce_model
         Reduce the model until it only contains predictors significant at the
         .05 level.
-    parent : UserJob
+    parent
         Parent job (for reduced model jobs).
-    priority : bool
+    priority
         Insert job at the beginning of the queue (default ``False``).
-    reduction_tag : str
+    reduction_tag
         Tag to use for reduced models (to distinguish different reduction
         algorithms, default ``'red'``).
     ...
         Model-test parameters.
     """
-    def __init__(self, model, experiment=None, report=False, reduce_model=False, parent=None, priority=False, reduction_tag='red', metric='z', smooth=False, cv=False, **options):
+    def __init__(
+            self,
+            model: str,
+            experiment: 'TRFExperiment' = None,
+            report: bool = False,
+            reduce_model: bool = False,
+            parent: UserJob = None,
+            priority: bool = False,
+            reduction_tag: str = 'red',
+            metric: str = 'z',
+            smooth: float = False,
+            cv: bool = False,
+            **options,
+    ):
         model = experiment._coerce_comparison(model, cv)
         if isinstance(reduce_model, float):
             assert 0. < reduce_model < 1.

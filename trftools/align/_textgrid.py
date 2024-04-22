@@ -110,7 +110,22 @@ class Realization:
 class TextGrid:
     """TextGrid representation that associates phonemes with words
 
-    Load an existing ``*.TextGrid` file using :meth:`TextGrid.from_file`
+    Parameters
+    ----------
+    realizations
+        The realizations that constitute the TextGrid.
+    tmin
+        The start time when converting the TextGrid to a uniform time series.
+    tstep
+        The time step when converting the TextGrid to a uniform time series.
+    n_samples
+        The number of samples when converting the TextGrid to a uniform time series.
+    name
+        Name for the TextGrid.
+
+    Notes
+    -----
+    Load an existing ``*.TextGrid` file using :meth:`TextGrid.from_file`.
     """
     def __init__(
             self,

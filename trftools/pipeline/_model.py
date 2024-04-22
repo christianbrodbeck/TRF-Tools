@@ -410,7 +410,7 @@ class Term:
 @dataclass(frozen=True)
 class StructuredModel:
     "Model including information about each Term"
-    terms: Tuple[Term]
+    terms: Tuple[Term, ...]
     public_name: str = None
 
     @classmethod
@@ -510,7 +510,6 @@ class TermComparisons(ComparisonSpec):
             cv: bool = True,  # cross-validation (ignore shuffle)
     ) -> StructuredModel:
         assert not self.x.has_randomization
-        x = self.x.initialize(named_models)
         # find terms to test
         terms = []
         for term in self.x.terms:
@@ -706,7 +705,12 @@ class Comparison:
         return f"{name(self.x1)} {op} {x0_only}"
 
     @classmethod
-    def coerce(cls, x, cv=True, named_models={}) -> Union[StructuredModel, Comparison]:
+    def coerce(
+            cls,
+            x,
+            cv: bool = True,
+            named_models: Dict[str, StructuredModel] = {},
+    ) -> Union[StructuredModel, Comparison]:
         if isinstance(x, (cls, StructuredModel)):
             return x
         comp = parse_comparison(x)

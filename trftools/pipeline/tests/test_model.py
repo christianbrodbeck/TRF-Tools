@@ -24,19 +24,15 @@ def test_model():
     assert xy + z == xyz
     assert xyz - z == xy
     assert xy.intersection(yz) == y
+    # subtraction
     xy2 = ModelExpression.from_string("xyz - z").initialize(structured_models)
     assert xy2 == xy
     # duplicate term
     with pytest.raises(DefinitionError):
         Model.coerce("term-1 + term-2 + term-2")
-    # i+s
-    a = ModelExpression.from_string("xyz-i+s").initialize(structured_models)
-    b = ModelExpression.from_string("x-i+s + y-i+s + z-i+s").initialize(structured_models)
-    assert a.sorted_key == b.sorted_key
-    c = ModelExpression.from_string("x + x-step + y + y-step + z + z-step").initialize(structured_models)
-    assert a.sorted_key == c.sorted_key
 
 
+# comparison, cv, x1, x0, name
 test_data = [
     # direct
     ('x + a > x + b', True, 'x + a', 'x + b'),
@@ -51,6 +47,7 @@ test_data = [
     ('x + y + z @ y$shift + z$shift', False, 'x + y + z', 'x + y$shift + z$shift'),
     # add
     ('x +@ y', True, 'x + y', 'x'),
+    ('x +@ y = z', True, 'x + y', 'x + z'),
     ('x + y +@ z', True, 'x + y + z', 'x + y'),
     ('x +@ y$permute', False, 'x + y', 'x + y$permute'),
     # named direct

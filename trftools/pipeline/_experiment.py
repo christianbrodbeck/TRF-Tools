@@ -1,80 +1,52 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
-"""Eelbrain Experiment extension for analyzing continuous response models
-
-=====
-Terms
-=====
-
-Randomization
--------------
-
-- Suffix demarcated by ``$`` for shuffling:  ``audspec8$shift``
-
-
-Multiple streams
-----------------
-
-Prefix demarcated by ~, indicating variable that names stimulus (defaulting
-to ``e.stim_var``).
-
+"""Eelbrain :class:`MneExperiment` extension for analyzing continuous response models
 
 ======
 Models
 ======
 
-Models are built out of terms, each term is specified by a code.
-Shortcuts for models can be defined in :attr:`TRFExperiment.models`
+Predictors are added to the experiment as files in the `predictors` directory. Filenames should follow the following pattern: ``<stimulus>~<key>[-<variety>].pickle``.
 
-Models can always be specified as combination of pre-defined models and terms,
-joined with ``+``.
+ - **``stimulus``** referes to an arbitrary name for the stimulus represented by this file (see also :attr:`TRFExperiment.stim_var`).
+ - **``key``** is the key used for defining this predictor in :attr:`TRFExperiment.predictors`.
+ - **``variety``** is an optional description that allows several predictors using the same entry in :attr:`TRFExperiment.predictors`. That allows, for example, only defining a single ``gammatone`` predictor in :attr:`TRFExperiment.predictors` for different variations of the spectrogram (``gammatone-1``, ``gammatone-8``, ``gammatone-on-1``, etc.).
+
+Predictors are then added to teh pipeline in :class:`TRFExperiment.predictors`. This is a dictionary in which the key is the ``key`` mentioned above, and the value is typically a :class:`FilePredictor` object. For information on how to handle different kinds of predictors see the :class:`FilePredictor` documentation.
+
+When referring to mTRF models, models are sets of terms, each term specifying one predictor variable. For information on how to specify terms for different predictors see the :class:`FilePredictor` documentation. Models can be constructed by combine terms with ``+``, for example:
+
+ - ``x="gammatone-1"`` is a model with a single predictor
+ - ``x="gammatone-1 + gammatone-on-1"`` is a model with two predictor
 
 
 .. _trf-experiment-comparisons:
 
-===========
-Comparisons
-===========
-
-.. Note::
-    Implementation in :mod:`trftools.pipeline._model`.
-
-Examples assume ``x_model`` = ``x1 + x2 + ...`` etc. (in examples with only one
-model ``model`` == ``x_model``).
-
-
 Comparing models
-^^^^^^^^^^^^^^^^
+----------------
 
-Whole models can be compared with comparisons indicating tailedness::
+When referring to model tests, this usually means comparing two different mTRF models. Basic comparisons can be constructed with ``>``/``<`` (one-talied) and ``=`` (two-tailed):
 
-    x_model = y_model
-    x_model > y_model
+ - ``x="gammatone-1 + gammatone-on-1 > gammatone-1"`` tests whether predictive power improves when adding the ``gammatone-on-1`` predictor to a model already containing the ``gammatone-1`` predictor.
+ - ``x="gammatone-1 = gammatone-on-1"`` tests whether the predictive power of ``gammatone-1`` or that of ``gammatone-on-1`` is higher.
 
-Furthermore, shortcuts exist for testing model components. These differ on
-whether model comparison is based on cross-validation or shuffling. With
-cross-validation (``cv=True``):
+To simplify common tests with large models, the following shortcuts exist:
 
-``x_model @ x2``
-    Test the contribution of ``x2`` to ``x_model``. Compare the complete
-    ``x_model`` to ``x_model`` with ``x2`` removed. The right side can contain
-    multiple components, e.g. ``x_model @ x2 + x3``.
-``x_model +@ y``
-    Test the effect of adding ``y`` to ``x_model``, i.e., equivalent to
-    ``x_model + y > x_model``.
-``x_model @ y1 = y2``
-    Equivalent tp ``x_model + y1 = x_model + y2``.
+-------------   -----------------   ----------------------------------------------
+Shortcut        Full                Description
+-------------   -----------------   ----------------------------------------------
+a + b + c @ a   a + b + c > b + c   Contribution of a to the left-hand-side model
+b + c +@ a      a + b + c > b + c   Effect of adding a to the left-hand-side model
+-------------   -----------------   ----------------------------------------------
 
-With predictor randomization (``cv=False``):
+To shorten long models specifications, named sub-models can be specified in :attr:`TRFExperiment.models`. For example, with::
 
-``x_model @ x1$rand``
-    Test the contribution of ``x2`` to ``x_model``. Compare the complete
-    ``x_model`` to ``x_model`` with ``x2`` randomized.
-``x_model +@ y$rand``
-    Test the effect of adding ``y`` to ``x_model``, compared to adding a
-    randomized version of ``y``. Equivalent to``x_model + y > x_model + y$rand``.
+    models = {
+        "auditory": "gammatone-8 + gammatone-on-8",
+    }
+
+The combined auditory model can then be invoked with ``auditory``. For example, the effect of acoustic onsets in the combined auditory model could be tested with ``x="auditory @ gammatone-on-8"``, which would internally expand to ``x="gammatone-8 + gammatone-on-8 @ gammatone-on-8"``.
 
 """
-import itertools
 from collections import defaultdict
 import datetime
 import fnmatch
@@ -93,9 +65,9 @@ import warnings
 
 import eelbrain
 from eelbrain import (
-    fmtxt, load, save, table, plot, testnd, report,
+    fmtxt, load, save, table, plot,
     MultiEffectNDTest, BoostingResult,
-    MneExperiment, Dataset, Datalist, Factor, NDVar, Categorial, UTS,
+    MneExperiment, Dataset, Datalist, Factor, NDVar, UTS,
     morph_source_space, rename_dim, boosting, combine, concatenate,
 )
 from eelbrain.pipeline import TTestOneSample, TTestRelated, TwoStageTest, RawFilter, RawSource
@@ -1075,7 +1047,7 @@ class TRFExperiment(MneExperiment):
             backward: bool = False,
             partition_results: bool = False,
             **state,
-    ) -> Callable:
+    ) -> Optional[Callable]:
         "Return function to create TRF result"
         data = TestDims.coerce(data)
         epoch = self.get('epoch', **state)
@@ -1480,12 +1452,33 @@ class TRFExperiment(MneExperiment):
                     continue
                 ds[key] = ds[key].smooth('time', smooth_time)
 
-    def _locate_missing_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, backward=False, partition_results=False, permutations=1, existing=False, **state):
+    def _locate_missing_trfs(
+            self,
+            x: ModelArg,
+            tstart: float = 0,
+            tstop: float = 0.5,
+            basis: float = 0.050,
+            error: str = 'l1',
+            partitions: int = None,
+            samplingrate: int = None,
+            mask: str = None,
+            delta: float = 0.005,
+            mindelta: float = None,
+            filter_x: FilterXArg = False,
+            selective_stopping: int = 0,
+            cv: bool = False,
+            data: DataArg = DATA_DEFAULT,
+            backward: bool = False,
+            partition_results: bool = False,
+            permutations: int = 1,
+            existing: bool = False,
+            **state,
+    ) -> List[Tuple[str, Tuple[dict, dict], dict]]:
         "Return ``(path, state, args)`` for ._trf_job() for each missing trf-file"
         data = TestDims.coerce(data)
         x = self._coerce_model(x)
         if not x:
-            return ()
+            return []
         if state:
             self.set(**state)
 
@@ -2357,12 +2350,32 @@ class TRFExperiment(MneExperiment):
                 return ds, res
         return res
 
-    def _locate_model_test_trfs(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, partition_results=False, data=DATA_DEFAULT, permutations=1, existing=False, **state):
+    def _locate_model_test_trfs(
+            self,
+            x: Union[StructuredModel, Comparison],
+            tstart: float = 0,
+            tstop: float = 0.5,
+            basis: float = 0.050,
+            error: str = 'l1',
+            partitions: int = None,
+            samplingrate: int = None,
+            mask: str = None,
+            delta: float = 0.005,
+            mindelta: float = None,
+            filter_x: FilterXArg = False,
+            selective_stopping: int = 0,
+            cv: bool = False,
+            partition_results: bool = False,
+            data: DataArg = DATA_DEFAULT,
+            permutations: int = 1,
+            existing: bool = False,
+            **state,
+    ) -> List[Tuple[str, Tuple[dict, dict], dict]]:
         """Find required jobs for a report
 
         Returns
         -------
-        trf_jobs : list
+        trf_jobs
             List of ``(path, state, args)`` tuples for missing TRFs.
         """
         if state:
@@ -2379,18 +2392,44 @@ class TRFExperiment(MneExperiment):
                 self._locate_missing_trfs(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, False, partition_results, permutations, existing))
         return missing
 
-    def make_model_test_report(self, x, tstart=0, tstop=0.5, basis=0.050, error='l1', partitions=None, samplingrate=None, mask=None, delta=0.005, mindelta=None, filter_x=False, selective_stopping=0, cv=False, data=DATA_DEFAULT, permutations=1, metric='z', smooth=None, surf=None, views=None, make=False, path_only=False, public_name=None, test=True, by_subject=False, **state):
+    def make_model_test_report(
+            self,
+            x: ComparisonArg,
+            tstart: float = 0,
+            tstop: float = 0.5,
+            basis: float = 0.050,
+            error: str ='l1',
+            partitions: int = None,
+            samplingrate: float = None,
+            mask: str = None,
+            delta: float = 0.005,
+            mindelta: float = None,
+            filter_x: FilterXArg = False,
+            selective_stopping: int = 0,
+            cv: bool = False,
+            data: DataArg = DATA_DEFAULT,
+            permutations: int = 1,
+            metric: str = 'z',
+            smooth: float = None,
+            surf: str = None,
+            views: Union[str, Sequence[str]] = None,
+            make: bool = False,
+            path_only: bool = False,
+            public_name: str = None,
+            test: bool = True,
+            by_subject: bool = False,
+            **state,
+    ) -> Optional[str]:
         """Generate report for model comparison
 
         Parameters
         ----------
-        ...
-        by_subject : bool
+        by_subject
             Generate a report with each subject's data.
 
         Returns
         -------
-        path : str
+        path
             Path to thre report (only returned with ``path_only=True`` or if the
             report is newly created.
         """
