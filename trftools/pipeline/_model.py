@@ -449,7 +449,7 @@ class StructuredModel:
         parents = {term.parent for term in self.terms}
         return [term for i, term in enumerate(self.terms) if term.parent >= -1 and i not in parents]
 
-    def comparison(self, term: Term, cv: bool = False):
+    def comparison(self, term: Term, cv: bool = True):
         assert term in self.top_level_terms
         if cv:
             return Comparison(self.model, self.model.without(term.string), 1, f'{self.public_name} @ {term.string}')

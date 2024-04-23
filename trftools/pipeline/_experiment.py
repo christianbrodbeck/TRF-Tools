@@ -859,7 +859,7 @@ class TRFExperiment(MneExperiment):
             mindelta: float = None,
             filter_x: FilterXArg = False,
             selective_stopping: int = 0,
-            cv: bool = False,
+            cv: bool = True,
             data: DataArg = DATA_DEFAULT,
             backward: bool = False,
             make: bool = False,
@@ -1012,7 +1012,7 @@ class TRFExperiment(MneExperiment):
             mindelta: float = None,
             filter_x: FilterXArg = False,
             selective_stopping: int = 0,
-            cv: bool = False,
+            cv: bool = True,
             data: DataArg = DATA_DEFAULT,
             backward: bool = False,
             allow_new: bool = False,  # This is a new TRF (i.e., generate new model names)
@@ -1042,7 +1042,7 @@ class TRFExperiment(MneExperiment):
             mindelta: float = None,
             filter_x: FilterXArg = False,
             selective_stopping: int = 0,
-            cv: bool = False,
+            cv: bool = True,
             data: DataArg = DATA_DEFAULT,
             backward: bool = False,
             partition_results: bool = False,
@@ -1199,7 +1199,7 @@ class TRFExperiment(MneExperiment):
             mindelta: float = None,
             filter_x: FilterXArg = False,
             selective_stopping: int = 0,
-            cv: bool = False,
+            cv: bool = True,
             data: DataArg = DATA_DEFAULT,
             backward: bool = False,
             make: bool = False,
@@ -1466,7 +1466,7 @@ class TRFExperiment(MneExperiment):
             mindelta: float = None,
             filter_x: FilterXArg = False,
             selective_stopping: int = 0,
-            cv: bool = False,
+            cv: bool = True,
             data: DataArg = DATA_DEFAULT,
             backward: bool = False,
             partition_results: bool = False,
@@ -1547,7 +1547,7 @@ class TRFExperiment(MneExperiment):
             mindelta: float = None,
             filter_x: FilterXArg = False,
             selective_stopping: int = 0,
-            cv: bool = False,
+            cv: bool = True,
             data: DataArg = DATA_DEFAULT,
             term: str = None,
             terms: Union[str, Sequence[str]] = None,
@@ -2093,7 +2093,7 @@ class TRFExperiment(MneExperiment):
             mindelta: float = None,
             filter_x: FilterXArg = False,
             selective_stopping: int = 0,
-            cv: bool = False,
+            cv: bool = True,
             data: DataArg = DATA_DEFAULT,
             backward: bool = False,
             permutations: int = 1,
@@ -2364,7 +2364,7 @@ class TRFExperiment(MneExperiment):
             mindelta: float = None,
             filter_x: FilterXArg = False,
             selective_stopping: int = 0,
-            cv: bool = False,
+            cv: bool = True,
             partition_results: bool = False,
             data: DataArg = DATA_DEFAULT,
             permutations: int = 1,
@@ -2406,7 +2406,7 @@ class TRFExperiment(MneExperiment):
             mindelta: float = None,
             filter_x: FilterXArg = False,
             selective_stopping: int = 0,
-            cv: bool = False,
+            cv: bool = True,
             data: DataArg = DATA_DEFAULT,
             permutations: int = 1,
             metric: str = 'z',
@@ -2935,7 +2935,7 @@ class TRFExperiment(MneExperiment):
             mindelta: float = None,
             filter_x: FilterXArg = False,
             selective_stopping: int = 0,
-            cv: bool = False,
+            cv: bool = True,
             data: DataArg = DATA_DEFAULT,
             terms: Union[str, Sequence[str]] = None,
             permutations: int = 1,
@@ -3165,7 +3165,7 @@ class TRFExperiment(MneExperiment):
         model_obj = self._coerce_model(model)
         return model_obj.term_table()
 
-    def show_comparison_terms(self, comparison: str, cv: bool = False) -> fmtxt.Table:
+    def show_comparison_terms(self, comparison: str, cv: bool = True) -> fmtxt.Table:
         "Table comparing the terms in the two models"
         comp = self._coerce_comparison(comparison, cv)
         return comp.term_table()

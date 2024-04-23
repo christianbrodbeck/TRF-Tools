@@ -298,7 +298,7 @@ class ModelJob(ExperimentJob):
             reduction_tag: str = 'red',
             metric: str = 'z',
             smooth: float = False,
-            cv: bool = False,
+            cv: bool = True,
             **options,
     ):
         model = experiment._coerce_comparison(model, cv)
