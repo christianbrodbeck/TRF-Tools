@@ -38,8 +38,7 @@ from eelbrain._utils.com import Notifier
 from eelbrain._utils import ask
 from eelfarm.server import JobServer, JobServerTerminated
 
-from . import read_job_file
-from ._jobs import FuncIterJob
+from ._jobs import FuncIterJob, read_job_file
 
 
 MIN_IO_CYCLE_TIME = 5  # I/O thread

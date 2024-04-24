@@ -55,7 +55,7 @@ from glob import glob
 from itertools import chain, repeat
 from operator import attrgetter
 import os
-from os.path import exists, getmtime, join, relpath, splitext
+from os.path import exists, getmtime, join, relpath
 from pathlib import Path
 from pyparsing import ParseException
 import re
@@ -89,7 +89,7 @@ import numpy as np
 from .._ndvar import pad
 from .._numpy_funcs import arctanh
 from ._code import Code
-from ._jobs import TRFsJob, ModelJob
+from ._jobs import TRFsJob
 from ._model import Comparison, Model, ModelExpression, StructuredModel, load_models, model_comparison_table, model_name_parser, save_models
 from ._predictor import EventPredictor, FilePredictor, FilePredictorBase, MakePredictor, SessionPredictor
 from ._results import DependentType, ResultCollection
@@ -653,53 +653,23 @@ class TRFExperiment(MneExperiment):
                         os.unlink(path)
                 self._remove_model(model, files=[])
 
-    def model_job(
-            self,
-            x: str,
-            report: bool = False,
-            reduce_model: bool = False,
-            priority: bool = False,
-            **kwargs,
-    ):
-        """Compute all TRFs needed for a model-test
-
-        Parameters
-        ----------
-        x
-            Model or comparison.
-        report
-            Schedule a model-test report (only available for source space data).
-        reduce_model
-            Iteratively reduce the model until it only contains predictors
-            significant at the .05 level.
-        priority
-            Prioritize job over others.
-        ...
-            For more arguments see :meth:`.load_model_test`.
-
-        See Also
-        --------
-        .trf_job
-        """
-        return ModelJob(x, self, report, reduce_model, priority=priority, **kwargs)
-
     def trf_job(self, x: str, priority: bool = False, **kwargs):
-        """Compute all TRFs with the given model
+        """Create a batch-job for computing TRFs
 
         Parameters
         ----------
         x
-            Model.
+            Model or comparison. If a comparison, compute TRFs for both models
+            that are implied in the comparison.
         priority
-            Prioritize job over others.
+            Prioritize job over other jobs that have been scheduled earlier.
         ...
-            For more arguments see :meth:`.load_trf`.
-
-        See Also
-        --------
-        .model_job
+            For more arguments see :meth:`.load_trf`. For example, use the
+            ``group`` parameter to control for which participants to compute the
+            TRFs.
         """
-        return TRFsJob(x, self, priority, **kwargs)
+        comparison = self._coerce_comparison(x, True)
+        return TRFsJob(comparison, self, priority, **kwargs)
 
     def load_predictor(
             self,

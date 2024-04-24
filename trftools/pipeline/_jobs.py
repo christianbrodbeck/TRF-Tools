@@ -7,16 +7,17 @@ from operator import itemgetter
 import os
 from os.path import relpath, dirname
 import sys
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 import webbrowser
 
 import eelbrain
 from eelbrain import fmtxt, save
 from eelbrain._experiment.test_def import TestDims
+from eelbrain._types import PathArg
 from eelbrain._utils.com import Notifier
 from eelbrain._utils import ScreenHandler
 
-from ._model import StructuredModel, ModelArg
+from ._model import Comparison, StructuredModel
 
 
 def make_jobs(job_file, open_in_browser=False):
@@ -142,7 +143,7 @@ class ExperimentJob(UserJob):
     def __init__(
             self,
             experiment,
-            model: ModelArg,
+            model: Union[Comparison, StructuredModel],
             priority: bool,
             options: Dict[str, Any],
             public_name: str = None,
@@ -151,7 +152,7 @@ class ExperimentJob(UserJob):
         # validate input
         from ._experiment import TRFExperiment
         if not isinstance(experiment, TRFExperiment):
-            raise TypeError(f"experiment={experiment!r}")
+            raise TypeError(f"{experiment=}")
         name = public_name or experiment._x_desc(model, True)
         UserJob.__init__(self, name, priority)
 
@@ -235,19 +236,21 @@ class TRFsJob(ExperimentJob):
     """
     def __init__(
             self,
-            model: ModelArg,
+            comparison: Union[Comparison, StructuredModel],
             experiment=None,
             priority: bool = False,
             **options,
     ):
-        model = experiment._coerce_model(model)
-        ExperimentJob.__init__(self, experiment, model, priority, options)
+        ExperimentJob.__init__(self, experiment, comparison, priority, options)
 
     def init_test_path(self):
         pass
 
     def _init_trf_jobs(self, existing: bool = False):
-        return self.experiment._locate_missing_trfs(self.model, existing=existing, **self.options)
+        if isinstance(self.model, StructuredModel):
+            return self.experiment._locate_missing_trfs(self.model.model, existing=existing, **self.options)
+        else:
+            return self.experiment._locate_model_test_trfs(self.model, existing=existing, **self.options)
 
     def _execute(self):
         self.init_sub_jobs()
@@ -263,6 +266,7 @@ class TRFsJob(ExperimentJob):
         return []
 
 
+# Not currently used; keep it in case automatically reducing models becomes of interest again
 class ModelJob(ExperimentJob):
     """Job for model-comparison
 
@@ -469,7 +473,7 @@ def split_lines(string):
     return (line for line in (line.strip() for line in string) if line and not line.startswith('#'))
 
 
-def read_job_file(filename):
+def read_job_file(filename: PathArg) -> List[TRFsJob]:
     """Read file with job definitions
 
     Returns
