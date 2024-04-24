@@ -5,4 +5,4 @@ from ._numpy_funcs import sin, cos, tan, arcsin, arccos, arctan, sinh, cosh, tan
 from ._sound import gammatone_bank
 from .pipeline._eelfarm import start_dispatcher
 
-__version__ = '5'
+__version__ = '6'
