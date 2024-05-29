@@ -701,6 +701,11 @@ class TRFExperiment(MneExperiment):
             Filter the predictor with the same method as the raw data.
         name
             Reassign the name of the predictor :class:`NDVar`.
+
+
+        See Also
+        --------
+        .load_predictors : load multiple predictors simultaneously
         """
         code = Code.coerce(code)
         try:
@@ -753,7 +758,12 @@ class TRFExperiment(MneExperiment):
         return x
 
     def load_predictors(self, stim, model, tstep=0.01, n_samples=None, tmin=0.):
-        "Multiple predictors corresponding to ``model`` in a list"
+        """Multiple predictors corresponding to ``model`` in a list
+
+        See Also
+        --------
+        .load_predictor : load a single predictor
+        """
         model = self._coerce_model(model)
         out = []
         for term in model.terms:
