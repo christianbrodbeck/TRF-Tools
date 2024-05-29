@@ -243,7 +243,11 @@ class FilePredictor(FilePredictorBase):
             if tstep is None:
                 tstep = 0.001
             if n_samples is None:
-                n_samples = int((x.info['tstop'] - tmin) // tstep)
+                if 'tstop' in x.info:
+                    tstop = x.info['tstop']
+                else:
+                    tstop = x[-1, 'time'] + 0.5
+                n_samples = int((tstop - tmin) // tstep)
             uts = UTS(tmin, tstep, n_samples)
             x = self._ds_to_ndvar(x, uts, code)
             x.info['sampling'] = self._sampling('nuts', code.nuts_method)
