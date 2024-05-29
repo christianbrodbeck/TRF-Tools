@@ -1298,7 +1298,7 @@ class TRFExperiment(MneExperiment):
         if permutations == 1:
             xs = (x,)
         elif not x.has_randomization:
-            raise ValueError(f"permutations={permutations!r} for model without randomization ({x.name})")
+            raise ValueError(f"{permutations=} for model without randomization ({x.name})")
         else:
             xs = x.multiple_permutations(permutations)
 

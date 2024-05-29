@@ -125,7 +125,7 @@ class FilePredictor(FilePredictorBase):
         1. Uniform time series (UTS). A :class:`NDVar` with time dimension
            matching the data.
         2. Non-uniform time series (NUTS). A :class:`Dataset` with columns
-           representing time stamps, event values and optionally even masks.
+           representing time stamps, event values and optionally event masks.
 
     .. warning::
         When changing a file in which a predictor is stored, cached results
@@ -181,7 +181,7 @@ class FilePredictor(FilePredictorBase):
     ^^^^
     NUTS predictors are specified as :class:`Dataset` objects.
     When loading a predictor, :class:`Dataset`
-    predictors are converted to :class:`NDVar` by placing impulses at
+    predictors are converted to uniform time series by placing impulses at
     time-stamps specified in the datasets.
 
     Without the ``columns`` option, the dataset is expected to contain the
