@@ -244,11 +244,11 @@ class FilePredictor(FilePredictorBase):
                 if x.time.tstep == tstep:
                     break
             else:
-                raise IOError(f"{path.name} does not contain {tstep=}")
+                raise IOError(f"Predictor file {path.name} is a list but does not contain a predictor with {tstep=}")
         elif isinstance(x, NDVar):
             x = self._resample(x, tstep)
         elif not isinstance(x, Dataset):
-            raise TypeError(f'{x!r} at {path}')
+            raise TypeError(f'Predictor file {path.name} has invalid type {type(x)}:\n{x!r}')
         return x
 
     def _generate(self, tmin: float, tstep: float, n_samples: int, code: Code, directory: Path):
