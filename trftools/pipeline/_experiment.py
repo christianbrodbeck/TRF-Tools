@@ -180,6 +180,7 @@ class TRFExperiment(MneExperiment):
     """
     predictors: Dict[str, Union[EventPredictor, FilePredictor, MakePredictor]] = {}
 
+    # Eelbrain <0.40 expect these here; 0.40 onwards uses ._generate_templates()
     _values = {
         # Predictors
         'predictor-dir': join('{root}', 'predictors'),
@@ -201,6 +202,11 @@ class TRFExperiment(MneExperiment):
     _empty_test = True
 
     _parc_supersets = {}
+
+    def _generate_templates(self) -> Dict[str, str]:
+        templates = MneExperiment._generate_templates(self)
+        templates.update(self._values)
+        return templates
 
     def _collect_invalid_files(self, invalid_cache, new_state, cache_state):
         rm = MneExperiment._collect_invalid_files(self, invalid_cache, new_state, cache_state)
