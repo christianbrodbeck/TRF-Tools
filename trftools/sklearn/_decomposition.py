@@ -12,7 +12,7 @@ from ._interface import DimArg, NDVarInterface, Wrapper
 # FIXME: adds docs to base class??
 def wrap_init(original_class):
     "Decorator for inheriting documentation"
-    print(f"{original_class} wraps {original_class._skl_class}")
+    # print(f"{original_class} wraps {original_class._skl_class}")
     original_class.__init__ = wraps(original_class._skl_class.__init__)(original_class.__init__)
     return original_class
 
