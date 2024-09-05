@@ -1,0 +1,11 @@
+name: rtd
+channels:
+- conda-forge
+dependencies:
+- python >= 3.8
+- pip
+- setuptools >=17
+- docutils <0.17  # https://stackoverflow.com/a/68008428/166700
+- eelbrain
+- sphinx_rtd_theme
+- sphinx >=3

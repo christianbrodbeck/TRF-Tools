@@ -1,52 +1,5 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
-"""Eelbrain :class:`MneExperiment` extension for analyzing continuous response models
-
-======
-Models
-======
-
-Predictors are added to the experiment as files in the `predictors` directory. Filenames should follow the following pattern: ``<stimulus>~<key>[-<variety>].pickle``.
-
- - **``stimulus``** referes to an arbitrary name for the stimulus represented by this file (see also :attr:`TRFExperiment.stim_var`).
- - **``key``** is the key used for defining this predictor in :attr:`TRFExperiment.predictors`.
- - **``variety``** is an optional description that allows several predictors using the same entry in :attr:`TRFExperiment.predictors`. That allows, for example, only defining a single ``gammatone`` predictor in :attr:`TRFExperiment.predictors` for different variations of the spectrogram (``gammatone-1``, ``gammatone-8``, ``gammatone-on-1``, etc.).
-
-Predictors are then added to teh pipeline in :class:`TRFExperiment.predictors`. This is a dictionary in which the key is the ``key`` mentioned above, and the value is typically a :class:`FilePredictor` object. For information on how to handle different kinds of predictors see the :class:`FilePredictor` documentation.
-
-When referring to mTRF models, models are sets of terms, each term specifying one predictor variable. For information on how to specify terms for different predictors see the :class:`FilePredictor` documentation. Models can be constructed by combine terms with ``+``, for example:
-
- - ``x="gammatone-1"`` is a model with a single predictor
- - ``x="gammatone-1 + gammatone-on-1"`` is a model with two predictor
-
-
-.. _trf-experiment-comparisons:
-
-Comparing models
-----------------
-
-When referring to model tests, this usually means comparing two different mTRF models. Basic comparisons can be constructed with ``>``/``<`` (one-talied) and ``=`` (two-tailed):
-
- - ``x="gammatone-1 + gammatone-on-1 > gammatone-1"`` tests whether predictive power improves when adding the ``gammatone-on-1`` predictor to a model already containing the ``gammatone-1`` predictor.
- - ``x="gammatone-1 = gammatone-on-1"`` tests whether the predictive power of ``gammatone-1`` or that of ``gammatone-on-1`` is higher.
-
-To simplify common tests with large models, the following shortcuts exist:
-
--------------   -----------------   ----------------------------------------------
-Shortcut        Full                Description
--------------   -----------------   ----------------------------------------------
-a + b + c @ a   a + b + c > b + c   Contribution of a to the left-hand-side model
-b + c +@ a      a + b + c > b + c   Effect of adding a to the left-hand-side model
--------------   -----------------   ----------------------------------------------
-
-To shorten long models specifications, named sub-models can be specified in :attr:`TRFExperiment.models`. For example, with::
-
-    models = {
-        "auditory": "gammatone-8 + gammatone-on-8",
-    }
-
-The combined auditory model can then be invoked with ``auditory``. For example, the effect of acoustic onsets in the combined auditory model could be tested with ``x="auditory @ gammatone-on-8"``, which would internally expand to ``x="gammatone-8 + gammatone-on-8 @ gammatone-on-8"``.
-
-"""
+"Eelbrain :class:`MneExperiment` extension for analyzing continuous response models"
 from collections import defaultdict
 import datetime
 import fnmatch
@@ -177,13 +130,54 @@ class ModelDescriber:
 
 
 class TRFExperiment(MneExperiment):
-    # Event variable that identifies stimulus files. To specify multiple
-    # stimuli per event (e.g., foreground and background) use a dictionary
-    # mapping {prefix: stim_var}, e.g. {'': 'fg', 'bg': 'bg', 'mix': 'mix'}
-    # maps
-    #  - 'audspec' -> stimulus from variable called 'fg'
-    #  - 'bg~audspec' -> stimulus from variable called 'bg'
+    """Pipeline for TRF analysis (see also: :class:`eelbrain.MneExperiment`)
+
+    Setup attributes
+    ----------------
+
+    .. autoattribute:: TRFExperiment.stim_var
+
+
+    Initialization
+    --------------
+    """
     stim_var = 'stimulus'
+    """
+    Event variable that identifies stimulus files for loading predictors
+     
+    ``stim_var`` is specified as event dataset column name. For example, with::
+    
+        stim_var = 'stimulus'
+    
+    and the following event dataset::
+    
+        >>> print(alice.load_events())
+        #    i_start   trigger   stimulus  T        SOA      subject   duration
+        -----------------------------------------------------------------------
+        0    1863      1         stim_1    3.726    57.618   S01       58.541  
+        1    30672     5         stim_2    61.344   60.898   S01       61.845  
+        ...
+    
+    The model term ``gammatone-8`` will use the predictor files ``stim_1~gammatone-8`` for the first event, and ``stim_2~gammatone-8`` for the second.
+    
+    To specify multiple stimuli per event use a ``{key: stim_var}`` dictionary. For example, for a cocktail party experiment with two auditory sources (foreground and background)::
+    
+        stim_var = {'': 'fg', 'bg': 'bg', 'mix': 'mix'}
+    
+    with the following event dataset::
+    
+        #    i_start   trigger   T        SOA      subject   fg   bg   mix
+        ------------------------------------------------------------------
+        0    1863      1         3.726    57.618   S01       s1   s3   s13
+        1    30672     5         61.344   60.898   S01       s2   s4   s24
+        ...
+    
+    The "stream" is specified in model terms with ``~``:
+     
+     - 'gammatone' would use predictors based on the ``fg`` column: ``s1~gammatone``, ``s2~gammatone``, ...
+     - 'bg~gammatone' would use predictors based on the ``bg`` column: ``s3~gammatone``, ``s4~gammatone``, ...
+     - 'mix~gammatone' would use predictors based on the ``mix`` column: ``s13~gammatone``, ``s24~gammatone``, ...
+    """
     predictors = {}
 
     _values = {
@@ -2832,7 +2826,7 @@ class TRFExperiment(MneExperiment):
             Crop brain view to pre-specified view, or set arguments for
             :meth:`~eelbrain.plot._brain_object.Brain.set_parallel_view`
             ``(forward [mm], up [mm], scale)`` (default scale is 95 for inflated
-             surface, 75 otherwise).
+            surface, 75 otherwise).
         axw
             Brain axes width.
         surf

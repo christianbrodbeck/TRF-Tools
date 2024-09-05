@@ -162,17 +162,18 @@ class FilePredictor(FilePredictorBase):
     The file-predictor expects to find a file for each stimulus containing the
     predictor at::
 
-        {root}/predictors/{stimulus}~{name}[-{options}].pickle
+        {root}/predictors/{stimulus}~{key}[-{variant}].pickle
 
-    Where ``stimulus`` refers to the name provided by ``stim_var``, ``name``
-    refers to the predictor's name, and the optional ``options`` can be used to
-    distinguish different sub-varieties of the same predictor.
+    Where ``stimulus`` refers to the name provided by ``stim_var``, ``key``
+    refers to the predictor's name (key used in :attr:`TRFExperiment.predictors`),
+    and the optional ``variant`` can be used to
+    distinguish different variants of the same predictor.
 
     UTS
     ^^^
     UTS predictors are stored as :class:`NDVar` objects with time dimension
-    matching the data. The ``-{options}`` part of the filename can be used
-    freely to store different predictors that are managed by the same
+    matching the data. The ``-{variant}`` part of the filename can be used
+    freely to manage multiple predictors with the same
     :class:`FilePredictor` instance. Use the ``resample`` parameter to
     determine how the predictor is resampled to match the samplingrate of the
     data.
@@ -195,17 +196,34 @@ class FilePredictor(FilePredictorBase):
 
     With the ``columns=True`` option, the columns containing the ``value`` and
     ``mask`` values can be specified dynamically in the variable name, as
-    ``{name}-{value-column}`` or ``{name}-{value-column}-{mask-column}``.
+    ``{key}-{value-column}`` or ``{key}-{value-column}-{mask-column}``.
 
-    Supports the following randomization protocols:
+    Examples
+    --------
+    Assume a :class:`Dataset` stored at ``predictors/story~word.pickle``, etc.,
+    with the following columns:
 
-     - ``$permute``: Shuffle the values. If ``mask`` is present in the dataset,
-       only shuffle the cases for which ``mask == True``. An alternative mask,
-       ``ds['mask_key']``, can be specified as ``$[mask_key]permute``.
-     - ``$remask``: Shuffle ``mask``. ``$[mask_key]remask`` can be used to limit
-       shuffling of ``mask`` to cases specified by ``ds['mask_key']``.
-     - ``$shift``: displace the final uniform time-series circularly (i.e.,
-       the impulse times themselves change).
+     - ``time``, indicating the word's onset time
+     - ``frequency``, the word frequency
+     - ``surprisal``, how surprising the word is in its context
+     - ``noun``, ``True`` if the word is a noun, ``False`` otherwise
+
+    This could be added to the experiment as follows:
+
+        predictors = {
+            'word': FilePredictor(columns=True),
+        }
+
+    With this predictor, the following terms could be used for TRF models:
+
+     - ``word``: Unit size impulse at every word onset
+     - ``word-frequency``: An impulse at each word onset reflecting the word's frequency
+     - ``word-frequency-noun``: An impulse at each noun's onset reflecting the noun's frequency
+
+    These terms in turn could be used to construct the following model::
+
+        experiment.load_trfs(x="word + word-frequency + word-surprisal")
+
     """
     def __init__(
             self,
