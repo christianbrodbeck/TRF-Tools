@@ -3134,15 +3134,10 @@ class TRFExperiment(MneExperiment):
     def show_model_code(self, model: ModelArg) -> str:
         self._x_desc(self._coerce_model(model))
 
-    def show_model_terms(self, model: ModelArg) -> fmtxt.Table:
-        "Table showing terms in a model"
-        model_obj = self._coerce_model(model)
-        return model_obj.term_table()
-
-    def show_comparison_terms(self, comparison: str, cv: bool = True) -> fmtxt.Table:
-        "Table comparing the terms in the two models"
-        comp = self._coerce_comparison(comparison, cv)
-        return comp.term_table()
+    def show_model_terms(self, x: str, cv: bool = True) -> fmtxt.Table:
+        "Table showing terms in a model or comparison"
+        obj = self._coerce_comparison(x, cv)
+        return obj.term_table()
 
     def show_models(
             self,
