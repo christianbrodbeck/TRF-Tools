@@ -23,8 +23,9 @@ Setup
 
 For a complete example, see the `Alice repository <https://github.com/Eelbrain/Alice/tree/pipeline/pipeline>`_.
 
-To get started, set up your experiment as for the `MNE-Experiment pipeline <https://eelbrain.readthedocs.io/en/stable/experiment.html>`_, but instead of :class:`eelbrain.MneExperiment`, use :class:`TRFExperiment` as baseclass for your experiment. For an existing experiment, the base class can simply be replaced, because :class:`TRFExperiment` retains all functionality of :class:`eelbrain.MneExperiment`.
+To get started, set up your experiment as for the `MNE-Experiment pipeline <https://eelbrain.readthedocs.io/en/stable/experiment.html>`_, but instead of :class:`eelbrain.pipeline.MneExperiment`, use :class:`TRFExperiment` as baseclass for your experiment. The :class:`TRFExperiment` uses :class:`~eelbrain.pipeline.MneExperiment` mechanisms to preprocess data up to the epoch stage.
 
+For an existing experiment, the base class can simply be replaced, because :class:`TRFExperiment` retains all functionality of :class:`~eelbrain.pipeline.MneExperiment`.
 
 ^^^^^^^^^^
 Predictors
@@ -91,3 +92,16 @@ To simplify common tests with large models, the following shortcuts exist:
      - ``b + c +@ a``
      - ``a + b + c > b + c``
      - Effect of adding ``a`` to the left-hand-side model
+
+
+^^^^^^^^^^^^^^^^^^^^^
+Batch estimating TRFs
+^^^^^^^^^^^^^^^^^^^^^
+
+The pipeline computes and caches TRFs whenever they are requested through one of the methods for accessing results. However, it is often more expedient to estimate multiple TRF models before performing an analysis. This can be done by creating a list of TRF jobs, as in the `Alice jobs.py <https://github.com/Eelbrain/Alice/blob/pipeline/pipeline/jobs.py>`_ example. These TRFs can then be pre-computed by running the following command in a terminal:
+
+.. code-block:: bash
+
+    $ trf-tools-make-jobs jobs.py
+
+When running this command, TRFs that have already been cached will be skipped automatically, so there is no need to remove previous jobs from `jobs.py`. For example, when adding new subjects to a dataset, this command can be used to compute all TRFs for the new subjects. The pipeline also performs a cache check for every TRF, so this is a convenient way to re-create all TRFs after, for example, changing a preprocessing parameter.

@@ -141,7 +141,7 @@ class TRFExperiment(MneExperiment):
     Initialization
     --------------
     """
-    stim_var = 'stimulus'
+    stim_var: str = 'stimulus'
     """
     Event variable that identifies stimulus files for loading predictors
      
@@ -178,7 +178,7 @@ class TRFExperiment(MneExperiment):
      - 'bg~gammatone' would use predictors based on the ``bg`` column: ``s3~gammatone``, ``s4~gammatone``, ...
      - 'mix~gammatone' would use predictors based on the ``mix`` column: ``s13~gammatone``, ``s24~gammatone``, ...
     """
-    predictors = {}
+    predictors: Dict[str, Union[EventPredictor, FilePredictor, MakePredictor]] = {}
 
     _values = {
         # Predictors
