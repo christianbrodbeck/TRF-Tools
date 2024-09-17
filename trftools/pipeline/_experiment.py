@@ -66,6 +66,7 @@ NCRF_RE = re.compile(r'(ncrf)(?:-([\w\d]+))?$')
 
 ComparisonArg = Union[str, Comparison, StructuredModel]
 ModelArg = Union[str, Model]
+ModelOrComparisonArg = Union[str, Model, Comparison, StructuredModel]
 FilterXArg = Literal[True, False, 'continuous']
 
 
@@ -883,8 +884,9 @@ class TRFExperiment(MneExperiment):
             to reconstruct ``x`` using the 500 ms response following it,
             set ``backward=True, tstart=-0.500, tstop=0``.
         make
-            If the TRF does not exists, make it (the default is to raise an
-            IOError).
+            If the TRF does not exist, estimate it
+            (the default is to raise an IOError; this is because estimating new TRFs
+            can take a substantial amount of time).
         path_only
             Return the path instead of loading the TRF.
         partition_results
@@ -1235,8 +1237,9 @@ class TRFExperiment(MneExperiment):
             to reconstruct ``x`` using the 500 ms response following it,
             set ``backward=True, tstart=-0.500, tstop=0``.
         make
-            If a TRF does not exists, make it (the default is to raise an
-            IOError).
+            If some of the TRFs do not exist, estimate those TRFs
+            (the default is to raise an IOError; this is because estimating new TRFs
+            can take a substantial amount of time).
         scale : 'original'
             Rescale TRFs to the scale of the source data (default is the scale
             based on normalized predictors and responses).
@@ -1587,10 +1590,10 @@ class TRFExperiment(MneExperiment):
             When testing against a partially permuted model, average the result
             of ``permutations`` different permutations as baseline model.
         make
-            If the test does not exists, make it (the default is to raise an
+            If the test does not exist, make it (the default is to raise an
             IOError).
         make_trfs
-            If a TRF does not exists, make it (the default is to raise an
+            If a TRF does not exist, make it (the default is to raise an
             IOError).
         scale : 'original'
             Rescale TRFs to the scale of the source data (default is the scale
@@ -1631,7 +1634,7 @@ class TRFExperiment(MneExperiment):
             inv = self.get('inv')
             is_vector_data = inv.startswith('vec')
         elif xhemi:
-            raise ValueError(f"xhemi={xhemi!r} for data={data.string!r}")
+            raise ValueError(f"{xhemi=} for data={data.string!r}")
         else:
             is_vector_data = False
         # determine whether baseline model is needed:
@@ -1654,19 +1657,19 @@ class TRFExperiment(MneExperiment):
                 term_names = [term_i.string for term_i in model.terms]
                 term_list = [term_i for term_i in term_names if fnmatch.fnmatch(term_i, terms)]
                 if not term_list:
-                    raise ValueError(f"terms={terms!r}: not matching TRF among {', '.join(term_names)}")
+                    raise ValueError(f"{terms=}: not matching TRF among {', '.join(term_names)}")
                 terms = term_list
             else:
                 terms = list(terms)
         elif terms is None:
             terms = [term]
         else:
-            raise TypeError(f"term={term!r}, terms={terms!r}")
+            raise TypeError(f"{term=}, {terms=}")
         return_one = term is not None
 
         if xhemi:
             if xhemi_smooth % 0.001:
-                raise ValueError(f'xhemi_smooth={xhemi_smooth!r}; parameter in [m] needs to be integer number of [mm]')
+                raise ValueError(f'{xhemi_smooth=}; parameter in [m] needs to be integer number of [mm]')
             test_options = (f'xhemi-abs-{xhemi_smooth * 1000:.0f}',)
         else:
             test_options = ()
@@ -1767,7 +1770,7 @@ class TRFExperiment(MneExperiment):
 
     def _set_trf_options(
             self,
-            x: ModelArg,
+            x: ModelOrComparisonArg,
             tstart: float,
             tstop: float,
             basis: float,
@@ -2005,7 +2008,7 @@ class TRFExperiment(MneExperiment):
 
     def _x_desc(
             self,
-            x: ModelArg,
+            x: ModelOrComparisonArg,
             is_public: bool = False,
             allow_new: bool = False,
     ):
@@ -2154,8 +2157,9 @@ class TRFExperiment(MneExperiment):
             When doing ``xhemi`` test, mask data with region that is significant
             in at least one hemisphere.
         make
-            If the test does not exists, make it (the default is to raise an
-            IOError).
+            If the TRFs required for the test do not exist, estimate those TRFs
+            (the default is to raise an IOError; this is because estimating new TRFs
+            can take a substantial amount of time).
         parameter
             Instead of comparing two models, use ``parameter`` and
             ``compare_to`` to compare the fit of the same model when using
@@ -2403,8 +2407,8 @@ class TRFExperiment(MneExperiment):
 
         Returns
         -------
-        path
-            Path to thre report (only returned with ``path_only=True`` or if the
+        str
+            Path to the report (only returned with ``path_only=True`` or if the
             report is newly created.
         """
         data = TestDims.coerce(data)
