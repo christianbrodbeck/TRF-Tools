@@ -1530,7 +1530,6 @@ class TRFExperiment(MneExperiment):
             terms: Union[str, Sequence[str]] = None,
             permutations: int = 1,
             make: bool = False,
-            make_trfs: bool = False,
             scale: str = None,
             smooth: float = None,
             smooth_time: float = None,
@@ -1590,9 +1589,6 @@ class TRFExperiment(MneExperiment):
             When testing against a partially permuted model, average the result
             of ``permutations`` different permutations as baseline model.
         make
-            If the test does not exist, make it (the default is to raise an
-            IOError).
-        make_trfs
             If a TRF does not exist, make it (the default is to raise an
             IOError).
         scale : 'original'
@@ -1696,19 +1692,15 @@ class TRFExperiment(MneExperiment):
                 if res.samples >= samples or res.samples == -1:
                     if data.source:
                         update_subjects_dir(res, self.get('mri-sdir'), 2)
-                elif not make:
-                    raise IOError(f"Test has {res[x].samples} samples, {samples} samples requested; set make=True to make with {samples} samples.")
                 else:
                     res = None
-            elif not make:
-                raise IOError(f"TRF-test {relpath(dst, self.get('root'))} does not exist; set make=True to compute it.")
             else:
                 res = None
 
             # load data
             if trf_ds is None and (res is None or return_data):
                 if xhemi:
-                    trf_ds, trf_res = self.load_trf_test(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, term_i, None, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, test=test, return_data=True)
+                    trf_ds, trf_res = self.load_trf_test(model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, term_i, None, permutations, make, scale, smooth, smooth_time, pmin, test=test, return_data=True)
                     if test is True:
                         ds_out = Dataset(info=trf_ds.info)
                         ds_out['subject'] = trf_ds['subject'].tile(2)
@@ -1720,7 +1712,7 @@ class TRFExperiment(MneExperiment):
                     lms = {y: [] for y in terms}
                     ds_out = []
                     for subject in self.iter():
-                        ds = self.load_trfs(1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations)
+                        ds = self.load_trfs(1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations)
                         for term_j in terms:
                             key = Dataset.as_key(term_j)
                             lms[term_j].append(test_obj.make_stage_1(key, ds, subject))
@@ -1729,7 +1721,7 @@ class TRFExperiment(MneExperiment):
                     if return_data:
                         ds_out = combine(ds_out)
                 else:
-                    trf_ds = ds_out = self.load_trfs(-1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make_trfs, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations, vector_as_norm=True)
+                    trf_ds = ds_out = self.load_trfs(-1, model, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, scale=scale, smooth=smooth, smooth_time=smooth_time, vardef=test_obj.vars, permutations=permutations, vector_as_norm=True)
             # do test
             if res is None:
                 key = Dataset.as_key(term_i)
@@ -2918,7 +2910,6 @@ class TRFExperiment(MneExperiment):
             terms: Union[str, Sequence[str]] = None,
             permutations: int = 1,
             make: bool = False,
-            make_trfs: bool = False,
             scale: str = None,
             smooth: float = None,
             smooth_time: float = None,
@@ -2928,7 +2919,7 @@ class TRFExperiment(MneExperiment):
             **state,
     ) -> fmtxt.Section:
         """Show mass-univariate test of TRFs"""
-        ress = self.load_trf_test(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, None, terms, permutations, make, make_trfs, scale, smooth, smooth_time, pmin, samples, test, **state)
+        ress = self.load_trf_test(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, None, terms, permutations, make, scale, smooth, smooth_time, pmin, samples, test, **state)
         return trf_report.source_trfs(ress, heading, brain_view, axw, surf, cortex, vmax, xlim, times, cmap, labels, rasterize)
 
     def show_contamination(self, threshold=2e-12, separate=False, absolute=False, samplingrate=None, asds=False, **state):
