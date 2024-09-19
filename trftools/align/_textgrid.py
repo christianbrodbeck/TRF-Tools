@@ -51,7 +51,7 @@ class Realization:
     times: Tuple[float, ...]  # phone onset times
     graphs: str
     tstop: float
-    pronunciation: str = field(init=False)
+    pronunciation: str = field(init=False, repr=False)
 
     def __post_init__(self):
         if len(self.phones) == 0:
