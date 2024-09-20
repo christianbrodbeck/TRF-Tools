@@ -44,6 +44,14 @@ Predictors are then added to the pipeline in :class:`TRFExperiment.predictors`. 
         'word': FilePredictor(columns=True),
     }
 
+Assuming a stimulus called ``story``, this would match the following predictor files:
+
+ - ``{root}/predictors/story~gammatone-1.pickle``: :class:`NDVar` UTS predictor, which can be invoked with model term ``gammatone-1`` (see :ref:`pipeline-models`)
+ - ``{root}/predictors/story~gammatone-8.pickle``: as above, but invoked with model term ``gammatone-8``
+ - ``{root}/predictors/story~word.pickle``: a :class:`Dataset` representing one or multiple NUTS predictors (through different columns in the dataset). The specific model term would include a column name, for example, a model term ``word-surprisal`` would use the values of the ``"surprisal"`` column in the dataset (see :class:`FilePredictor`).
+
+
+.. _pipeline-models:
 
 ^^^^^^
 Models
@@ -69,7 +77,7 @@ The combined auditory model can then be invoked with ``auditory``. For example, 
 Comparisons
 ^^^^^^^^^^^
 
-When referring to model tests, this usually means comparing two different mTRF models. Basic comparisons can be constructed with ``>``/``<`` (one-tailed) and ``=`` (two-tailed):
+When referring to model tests, this usually means comparing two different mTRF models. Basic comparisons can be constructed with ``>``, ``<`` (one-tailed) and ``=`` (two-tailed):
 
  - ``x="gammatone-1 + gammatone-on-1 > gammatone-1"`` tests whether predictive power improves when adding the ``gammatone-on-1`` predictor to a model already containing the ``gammatone-1`` predictor.
  - ``x="gammatone-1 = gammatone-on-1"`` tests whether the predictive power of ``gammatone-1`` or that of ``gammatone-on-1`` is higher.
