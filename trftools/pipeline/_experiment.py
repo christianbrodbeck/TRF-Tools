@@ -876,8 +876,8 @@ class TRFExperiment(MneExperiment):
             Stop boosting each predictor separately.
         cv
             Cross-validation.
-        data : 'sensor' | 'source'
-            Analyze source- or sensor space data.
+        data : 'source' | 'meg' | 'eeg'
+            Analyze source-space data (default) or sensor space data.
         backward
             Fit a backward model (reconstruct the stimulus from the brain response).
             Note that in this case latencies are relative to the brain response time:
@@ -893,6 +893,8 @@ class TRFExperiment(MneExperiment):
             Keep results for each test-partition (TRFs and model evaluation).
         morph
             Morph source space data to the FSAverage brain.
+        ...
+            State parameters.
 
         Returns
         -------
@@ -1229,8 +1231,8 @@ class TRFExperiment(MneExperiment):
             Stop boosting each predictor separately.
         cv
             Use cross-validation.
-        data : 'sensor' | 'source'
-            Analyze source- or sensor space data.
+        data : 'source' | 'meg' | 'eeg'
+            Analyze source-space data (default) or sensor space data.
         backward
             Fit a backward model (reconstruct the stimulus from the brain response).
             Note that in this case latencies are relative to the brain response time:
@@ -1575,8 +1577,8 @@ class TRFExperiment(MneExperiment):
             Stop boosting each predictor separately.
         cv
             Use cross-validation.
-        data : 'sensor' | 'source'
-            Analyze source- or sensor space data.
+        data : 'source' | 'meg' | 'eeg'
+            Analyze source-space data (default) or sensor space data.
         term
             TRF to test (by default all TRFs in the model).
             Mutually exclusive with the ``terms`` parameter.
@@ -2114,8 +2116,8 @@ class TRFExperiment(MneExperiment):
             Stop boosting each predictor separately.
         cv
             Use cross-validation.
-        data : 'sensor' | 'source'
-            Analyze source- or sensor space data.
+        data : 'source' | 'meg' | 'eeg'
+            Analyze source-space data (default) or sensor space data.
         backward
             Fit a backward model (reconstruct the stimulus from the brain response).
             Note that in this case latencies are relative to the brain response time:
@@ -2845,8 +2847,8 @@ class TRFExperiment(MneExperiment):
             Parameter for brain plot.
         xhemi
             Test lateralization.
-        data : 'sensor' | 'source'
-            Analyze source- or sensor space data.
+        data : 'source' | 'meg' | 'eeg'
+            Analyze source-space data (default) or sensor space data.
         ...
             Additional parameters for :meth:`.load_model_test`.
 
