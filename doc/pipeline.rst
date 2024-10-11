@@ -71,6 +71,35 @@ To shorten long models specifications, named sub-models can be specified in :att
 The combined auditory model can then be invoked with ``auditory``. For example, the effect of acoustic onsets in the combined auditory model could be tested with ``x="auditory @ gammatone-on-8"``, which would internally expand to ``x="gammatone-8 + gammatone-on-8 @ gammatone-on-8"``.
 
 
+Stimuli
+-------
+
+In order to load the correct predictors for a model term, the pipeline also needs to know what stimulus was presented in each trial.
+For this, use the :attr:`TRFExperiment.stim_var` attribute to determine which event column is used as stimulus name.
+
+
+Multiple stimuli per trial
+--------------------------
+To look up the stimlus in an event column other than the one specified in :attr:`TRFExperiment.stim_var`, simply specify the relevant column in the model term.
+For example, assume a selective attention task in which two speakers talk simultaneousy.
+The attended speaker ('fg') and the unattended speaker ('bg') can each be considered one stimulus.
+In addition, the acoustic mixture of the two speakers may be considered a third stimulus ('mix').
+Events may look like this::
+
+    #    i_start   trigger   T        SOA      subject   fg   bg   mix
+    ------------------------------------------------------------------
+    0    1863      1         3.726    57.618   S01       s1   s3   s13
+    1    30672     5         61.344   60.898   S01       s2   s4   s24
+    ...
+
+
+The default stimulus could be specified in ``TRFExperiment.stim_var = 'fg'``. Other stimuli (or "streams") could be specified in model terms with ``~``:
+
+ - 'gammatone' would use predictors based on the ``fg`` column: ``s1~gammatone``, ``s2~gammatone``, ...
+ - 'bg~gammatone' would use predictors based on the ``bg`` column: ``s3~gammatone``, ``s4~gammatone``, ...
+ - 'mix~gammatone' would use predictors based on the ``mix`` column: ``s13~gammatone``, ``s24~gammatone``, ...
+
+
 .. _trf-experiment-comparisons:
 
 ^^^^^^^^^^^
