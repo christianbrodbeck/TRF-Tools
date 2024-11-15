@@ -76,6 +76,16 @@ Stimuli
 
 In order to load the correct predictors for a model term, the pipeline also needs to know what stimulus was presented in each trial.
 For this, use the :attr:`TRFExperiment.stim_var` attribute to determine which event column is used as stimulus name.
+The default is ``TRFExperiment.stim_var = 'stimulus'``.
+Thus, given the following events::
+
+    #    i_start   trigger   T        SOA      subject   stimulus
+    -------------------------------------------------------------
+    0    1863      1         3.726    57.618   S01       s1
+    1    30672     5         61.344   60.898   S01       s2
+    ...
+
+Using the term 'gammatone' in a model would find predictor files based on the ``stimulus`` column: ``s1~gammatone.pickle``, ``s2~gammatone.pickle``, ...
 
 
 Multiple stimuli per trial
@@ -95,9 +105,9 @@ Events may look like this::
 
 The default stimulus could be specified in ``TRFExperiment.stim_var = 'fg'``. Other stimuli (or "streams") could be specified in model terms with ``~``:
 
- - 'gammatone' would use predictors based on the ``fg`` column: ``s1~gammatone``, ``s2~gammatone``, ...
- - 'bg~gammatone' would use predictors based on the ``bg`` column: ``s3~gammatone``, ``s4~gammatone``, ...
- - 'mix~gammatone' would use predictors based on the ``mix`` column: ``s13~gammatone``, ``s24~gammatone``, ...
+ - 'gammatone' would find predictors based on the default ``fg`` column: ``s1~gammatone.pickle``, ``s2~gammatone.pickle``, ...
+ - 'bg~gammatone' would find predictors based on the ``bg`` column: ``s3~gammatone.pickle``, ``s4~gammatone.pickle``, ...
+ - 'mix~gammatone' would find predictors based on the ``mix`` column: ``s13~gammatone.pickle``, ``s24~gammatone.pickle``, ...
 
 
 .. _trf-experiment-comparisons:
