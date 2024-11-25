@@ -1981,11 +1981,32 @@ class TRFExperiment(MneExperiment):
             x: ComparisonArg,
             cv: bool,
     ) -> Union[Comparison, StructuredModel]:
+        # May return a StructuredModel because that includes information about how to test each term
         if isinstance(x, str):
             return Comparison.coerce(x, cv, self._structured_models)
         elif not isinstance(x, (StructuredModel, Comparison)):
             raise TypeError(f"{x=}: need comparison")
         return x
+
+    def _coerce_model_or_comparison(
+            self,
+            x: Union[ComparisonArg, Model, str],
+            cv: bool,
+    ) -> Union[Model, StructuredModel, Comparison]:
+        # Combination of the two above, preferring simpler types
+        if isinstance(x, str):
+            if x in self._structured_models:
+                return self._structured_models[x]
+            elif x in self._named_models:
+                return self._named_models[x]
+            comparison = Comparison.coerce(x, True, self._structured_models)
+            if isinstance(comparison, StructuredModel):
+                return comparison.model
+            return comparison
+        elif isinstance(x, (Model, StructuredModel, Comparison)):
+            return x
+        else:
+            raise TypeError(f"{x=}: need model or comparison")
 
     def _x_desc(
             self,
@@ -3120,7 +3141,7 @@ class TRFExperiment(MneExperiment):
 
     def show_model_terms(self, x: str, cv: bool = True) -> fmtxt.Table:
         "Table showing terms in a model or comparison"
-        obj = self._coerce_comparison(x, cv)
+        obj = self._coerce_model_or_comparison(x, cv)
         return obj.term_table()
 
     def show_models(
