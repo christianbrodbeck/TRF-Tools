@@ -2565,8 +2565,20 @@ class TRFExperiment(MneExperiment):
             src_1: str,  # parcellation to merge
             src_2: str,  # parcellation to merge
             dst: str,  # name of the parcellation forming the union of src_1 and src_2
+            verbose: bool = False,
     ):
         """Merge results from two complementary parcellations
+
+        Parameters
+        ----------
+        src_1
+            Name of the parcellation to merge.
+        src_2
+            Name of the parcellation to merge.
+        dst
+            Name of the new (combined) parcellation.
+        verbose
+            Print file names as files are being processed.
 
         Notes
         -----
@@ -2641,6 +2653,10 @@ class TRFExperiment(MneExperiment):
         # merge
         mri_sdir = self.get('mri-sdir')
         for path_dst, paths_src in combine.items():
+            if verbose:
+                for path in paths_src:
+                    print(f"src: {path}")
+                print(f"dst: {path_dst}")
             trfs = [load.unpickle(path) for path in paths_src]
             for trf in trfs:
                 update_subjects_dir(trf, mri_sdir, 4)
