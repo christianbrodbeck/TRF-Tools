@@ -497,8 +497,11 @@ class TRFExperiment(MneExperiment):
         model
             Model for which to load predictors.
         filter_x
-            Filter predictors. Name of a raw pipe, or ``True`` to use current
-            raw setting; default ``False``).
+            Filter predictors with the same filter as the M/EEG data.
+            ``filter_x=True`` to filter all predictors; ``filter_x=False``
+            ``filter_x='continuous'`` to filter time-continuous predictors, but
+            not discrete predictors (see :class:`FilePredictor` ``sampling``
+            parameter).
         y
             :class:`UTS` or :class:`NDVar` to match time axis to.
         """
@@ -523,7 +526,11 @@ class TRFExperiment(MneExperiment):
         code
             Predictor to add. Suffix demarcated by ``$`` for shuffling.
         filter_x
-            Filter the predictors with the same method as the raw data.
+            Filter predictors with the same filter as the M/EEG data.
+            ``filter_x=True`` to filter all predictors; ``filter_x=False``
+            ``filter_x='continuous'`` to filter time-continuous predictors, but
+            not discrete predictors (see :class:`FilePredictor` ``sampling``
+            parameter).
         y
             :class:`UTS` or :class:`NDVar` to match time axis to.
         """
@@ -680,7 +687,11 @@ class TRFExperiment(MneExperiment):
         tmin
             First sample time stamp (default is all abailable data).
         filter_x
-            Filter the predictor with the same method as the raw data.
+            Filter predictors with the same filter as the M/EEG data.
+            ``filter_x=True`` to filter all predictors; ``filter_x=False``
+            ``filter_x='continuous'`` to filter time-continuous predictors, but
+            not discrete predictors (see :class:`FilePredictor` ``sampling``
+            parameter).
         name
             Reassign the name of the predictor :class:`NDVar`.
 
@@ -858,7 +869,11 @@ class TRFExperiment(MneExperiment):
         mindelta
             Boosting parameter.
         filter_x
-            Filter ``x`` with the last filter of the pipeline for ``y``.
+            Filter ``x`` with the same filter as the M/EEG data.
+            ``filter_x=True`` to filter all predictors; ``filter_x=False``
+            ``filter_x='continuous'`` to filter time-continuous predictors, but
+            not discrete predictors (see :class:`FilePredictor` ``sampling``
+            parameter).
         selective_stopping
             Stop boosting each predictor separately.
         cv
@@ -1213,7 +1228,11 @@ class TRFExperiment(MneExperiment):
         mindelta
             Boosting parameter.
         filter_x
-            Filter ``x`` with the last filter of the pipeline for ``y``.
+            Filter ``x`` with the same filter as the M/EEG data.
+            ``filter_x=True`` to filter all predictors; ``filter_x=False``
+            ``filter_x='continuous'`` to filter time-continuous predictors, but
+            not discrete predictors (see :class:`FilePredictor` ``sampling``
+            parameter).
         selective_stopping
             Stop boosting each predictor separately.
         cv
@@ -1559,7 +1578,11 @@ class TRFExperiment(MneExperiment):
         mindelta
             Boosting parameter.
         filter_x
-            Filter ``x`` with the last filter of the pipeline for ``y``.
+            Filter ``x`` with the same filter as the M/EEG data.
+            ``filter_x=True`` to filter all predictors; ``filter_x=False``
+            ``filter_x='continuous'`` to filter time-continuous predictors, but
+            not discrete predictors (see :class:`FilePredictor` ``sampling``
+            parameter).
         selective_stopping
             Stop boosting each predictor separately.
         cv
@@ -2119,7 +2142,11 @@ class TRFExperiment(MneExperiment):
         mindelta
             Boosting parameter.
         filter_x
-            Filter ``x`` with the last filter of the pipeline for ``y``.
+            Filter ``x`` with the same filter as the M/EEG data.
+            ``filter_x=True`` to filter all predictors; ``filter_x=False``
+            ``filter_x='continuous'`` to filter time-continuous predictors, but
+            not discrete predictors (see :class:`FilePredictor` ``sampling``
+            parameter).
         selective_stopping
             Stop boosting each predictor separately.
         cv

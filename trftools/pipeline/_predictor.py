@@ -154,8 +154,8 @@ class FilePredictor(FilePredictorBase):
         Whether to expect a continuous or a discrete predictor (usually an
         :class:`NDVar` or a :class:`Dataset`, respectively). Used to decide
         whether to filter this predictor with ``filter_x='continuous'``.
-        Note: ``discrete`` predictors with ``*-step`` suffix will always be
-        trated as continuous (i.e. filtered).
+        Note: ``'discrete'`` predictors with ``*-step`` suffix will always be
+        trated as continuous.
 
     Notes
     -----
