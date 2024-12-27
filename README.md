@@ -21,3 +21,9 @@ To later update TRF-Tools to the latest version of the `main` branch, use:
 ```bash
 $ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/main.zip
 ```
+
+To see what version you have currently installed, run:
+
+```bash
+$ python -c "import trftools; print(trftools.__version__)"
+```
