@@ -106,3 +106,5 @@ venv.bak/
 
 # project-specific
 trftools/dictionaries/data
+
+.idea/
