@@ -1,6 +1,11 @@
 .. py:module:: roi
 .. currentmodule:: trftools.roi
 
+***
+ROI
+***
+The :mod:`roi` module contains functions for working with anatomical ROIs.
+
 ^^^^^^^^^^^^^^^^
 Module Reference
 ^^^^^^^^^^^^^^^^
