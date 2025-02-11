@@ -8,6 +8,7 @@ For installation instructions see the `GitHub README <https://github.com/christi
     :maxdepth: 2
 
     pipeline
+    roi
 
 
 .. seealso::

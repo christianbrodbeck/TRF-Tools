@@ -69,7 +69,7 @@ def mask_roi(
         key: str,
         src: Union[SourceSpace, Path, str],
 ) -> (NDVar, NDVar):  # lh, rh
-    """Boolean ROI
+    """Create a boolean ROI based on anatomical labels
 
     Parameters
     ----------
@@ -88,8 +88,8 @@ def mask_roi(
     splitting the label.
 
     The label name can be one of the pre-defined collections defined in
-    ``ROIS`` at the tp of this script, e.g. ``STG``. It can also be the name
-    of an aparc label, e.g. ``middletemporal``.
+    ``ROIS`` at the top of this script, e.g. ``STG``.
+    It can also be the name of an aparc label, e.g. ``middletemporal``.
 
     Splitting instructions is based on number of parts, followed by the parts
     to use (with zero-based index, from posterior to anterior).

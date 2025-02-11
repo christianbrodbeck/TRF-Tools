@@ -13,3 +13,6 @@ build:
 
 conda:
   environment: "env-readthedocs.yml"
+
+sphinx:
+  configuration: doc/conf.py
