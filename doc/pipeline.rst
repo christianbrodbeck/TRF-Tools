@@ -50,6 +50,9 @@ Assuming a stimulus called ``story``, this would match the following predictor f
  - ``{root}/predictors/story~gammatone-8.pickle``: as above, but invoked with model term ``gammatone-8``
  - ``{root}/predictors/story~word.pickle``: a :class:`Dataset` representing one or multiple NUTS predictors (through different columns in the dataset). The specific model term would include a column name, for example, a model term ``word-surprisal`` would use the values of the ``"surprisal"`` column in the dataset (see :class:`FilePredictor`).
 
+.. Warning::
+   When you change the contents of a predictor file, this will **not** be automatically detected.
+   In order to remove cached results that incorporated the outdated predictor, use :meth:`TRFExperiment.invalidate`.
 
 .. _pipeline-models:
 
