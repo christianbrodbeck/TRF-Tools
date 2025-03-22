@@ -746,7 +746,9 @@ class TRFExperiment(MneExperiment):
                 for pipe in reversed(pipes):
                     x = pipe.filter_ndvar(x, pad='edge')
 
-        if name is not None:
+        if name is None:
+            x.name = code.string
+        else:
             x.name = name
         return x
 
