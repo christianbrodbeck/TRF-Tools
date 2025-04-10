@@ -97,6 +97,32 @@ def mask_roi(
     (parts 0 and 1).
 
     Multiple such definitions can be combined with ``+``, e.g. ``STG+STS``.
+
+    Examples
+    --------
+    Swarmplot for an ROI, assuming ``e`` is an instance of
+    :class:`~trftools.pipeline.TRFExperiment`::
+
+        import seaborn
+        from eelbrain import *
+        import trftools.roi
+
+        data = e.load_trfs(-1, 'gammatone-8', **WHOLEBRAIN_PARAMETERS)
+        lh_roi, rh_roi = trftools.roi.mask_roi('STG301', data['det'].source)
+
+        # Extract mean for left and right hemisphere
+        dss = []
+        for hemi, roi in [['lh', lh_roi], ['rh', rh_roi]]:
+            ds = data['subject',]
+            ds['y'] = data['det'].mean(roi)
+            ds[:, 'hemi'] = hemi
+            dss.append(ds)
+        roi_data = combine(dss)
+
+        # Swarmplot
+        df = roi_data.as_dataframe()
+        fig = seaborn.swarmplot(df, y='y', x='hemi')
+
     """
     if isinstance(src, str) or isinstance(src, Path):
         src = SourceSpace.from_file(src, 'fsaverage', 'ico-4', 'aparc')
