@@ -4,7 +4,7 @@ from eelbrain import NDVar, SourceSpace, complete_source_space, concatenate, mor
 def symmetric_mask(
         mask: NDVar,
 ) -> NDVar:
-    """Make a surface source space mask symmetric
+    """Make a surface source space mask symmetric.
 
     Parameters
     ----------
