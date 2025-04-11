@@ -13,9 +13,7 @@ def symmetric_mask(
 
     Returns
     -------
-    symmetric_mask : NDVar
-        Symmetric mask based on the union of the left and right hemispheres
-        in ``mask``.
+    Symmetric mask based on the union of the left and right hemispheres in ``mask``.
 
     Examples
     --------
