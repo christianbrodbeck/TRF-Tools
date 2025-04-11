@@ -11,6 +11,12 @@ def symmetric_mask(
     mask
         Binary mask on FSAverage.
 
+    Returns
+    -------
+    symmetric_mask : NDVar
+        Symmetric mask based on the union of the left and right hemispheres
+        in ``mask``.
+
     Examples
     --------
     Symmetric functional ROI from a test result::
