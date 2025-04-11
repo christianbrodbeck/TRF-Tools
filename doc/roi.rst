@@ -15,4 +15,4 @@ Module Reference
 
     mask_roi
     mne_label
-
+    symmetric_mask
