@@ -18,7 +18,7 @@ def symmetric_mask(
         froi_source = result.p <= 0.05
         froi_symmetric = symmetric_mask(froi_source)
     """
-    source = mask.get_dim('souce')
+    source = mask.get_dim('source')
     assert isinstance(source, SourceSpace)
     assert source.subject == 'fsaverage'
     fsa_vertices = source.vertices
