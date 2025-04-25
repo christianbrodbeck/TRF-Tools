@@ -480,12 +480,21 @@ class StructuredModel:
 
     def term_table(self):
         "Table describing the structured model terms"
-        table = fmtxt.Table('rrll')
-        table.cells('#', 'dep', 'term', 'randomization')
+        show_shuffle = any(term.shuffle != Term.shuffle for term in self.terms)
+        show_parent = any(term.parent >=0 for term in self.terms)
+        table = fmtxt.Table('rl' + 'l' * show_shuffle + 'r' * show_parent)
+        table.cells('#', 'term')
+        if show_shuffle:
+            table.cell('randomization')
+        if show_parent:
+            table.cell('parent')
         table.midrule()
         for i, term in enumerate(self.terms):
-            dep = term.parent if term.parent >=0 else ''
-            table.cells(i, dep, term.string, f'${term.shuffle}')
+            table.cells(i, term.string)
+            if show_shuffle:
+                table.cell(f'${term.shuffle}')
+            if show_parent:
+                table.cell(term.parent if term.parent >=0 else '')
         return table
 
 
