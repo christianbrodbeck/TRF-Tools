@@ -71,16 +71,18 @@ When referring to mTRF models, models are sets of terms, each term specifying on
 To shorten long models specifications, named sub-models can be specified in :attr:`TRFExperiment.models`. For example, with::
 
     models = {
-        "auditory": "gammatone-8 + gammatone-on-8",
+        "auditory-gammatone": "gammatone-8 + gammatone-on-8",
     }
 
 The combined auditory model can then be invoked with ``auditory``. For example, the effect of acoustic onsets in the combined auditory model could be tested with ``x="auditory @ gammatone-on-8"``, which would internally expand to ``x="gammatone-8 + gammatone-on-8 @ gammatone-on-8"``.
 
 Use :meth:`TRFExperiment.show_model_terms` to list all terms in a model, e.g.::
 
-    >>> e.show_model_terms("auditory")
-    gammatone-8
-    gammatone-on-8
+    >>> alice.show_model_terms("auditory-gammatone")
+    #   term
+    ------------------
+    0   gammatone-8
+    1   gammatone-on-8
 
 
 Stimuli
@@ -151,6 +153,14 @@ To simplify common tests with large models, the following shortcuts exist:
      - ``b + c +@ a``
      - ``a + b + c > b + c``
      - Effect of adding ``a`` to the left-hand-side model
+
+Use :meth:`TRFExperiment.show_model_terms` to list the terms in the two models involved in a comparison::
+
+    >>> alice.show_model_terms("auditory-gammatone @ gammatone-8")
+    x1               x0
+    -------------------------------
+    gammatone-8
+    gammatone-on-8   gammatone-on-8
 
 
 ^^^^^^^^^^^^^^^^^^^^^

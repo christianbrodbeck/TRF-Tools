@@ -131,7 +131,7 @@ class ModelDescriber:
 
 
 class TRFExperiment(MneExperiment):
-    """Pipeline for TRF analysis (see also: :class:`eelbrain.MneExperiment`)
+    """Pipeline for TRF analysis (see also: :class:`eelbrain.pipeline.MneExperiment`)
 
     Setup attributes
     ----------------
@@ -293,7 +293,6 @@ class TRFExperiment(MneExperiment):
                 raise ValueError(f"Invalid key in {self.__class__.__name__}.models: {name!r} (-red* pattern is reservered)")
         self._structured_models = {k: StructuredModel.coerce(v) for k, v in self.models.items()}
         self._structured_model_names = {m: k for k, m in self._structured_models.items()}
-        # TODO: detect changes in structured models
 
         # Model names
         self._named_models: Dict[str, Model] = {}
@@ -3185,7 +3184,15 @@ class TRFExperiment(MneExperiment):
         self._x_desc(self._coerce_model(model))
 
     def show_model_terms(self, x: str, cv: bool = True) -> fmtxt.Table:
-        "Table showing terms in a model or comparison"
+        """Table showing terms in a model or comparison
+
+        Parameters
+        ----------
+        x
+            Model or comparison for which to show terms.
+        cv
+            Whether to use cross-validation for interpreting comparisons.
+        """
         obj = self._coerce_model_or_comparison(x, cv)
         return obj.term_table()
 
