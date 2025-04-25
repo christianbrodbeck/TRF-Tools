@@ -101,7 +101,7 @@ def mask_roi(
     Examples
     --------
     Swarmplot for an ROI, assuming ``e`` is an instance of
-    :class:`TRFExperiment`::
+    :class:`~trftools.pipeline.TRFExperiment`::
 
         import seaborn
         from eelbrain import *
