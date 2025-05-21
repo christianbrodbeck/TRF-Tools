@@ -29,6 +29,7 @@ setup(
     keywords="MEG EEG Eelbrain",
     url="https://github.com/christianbrodbeck/TRF-Tools",
     install_requires=[
+        "eelbrain >=0.41",
         "textgrid >=1.5",
         "filelock",
         "appdirs",

@@ -27,7 +27,7 @@ from eelbrain.pipeline import TTestOneSample, TTestRelated, TwoStageTest, RawFil
 from eelbrain._experiment.definitions import FieldCode
 from eelbrain._experiment.epochs import EpochCollection
 from eelbrain._experiment.mne_experiment import DataArg, PMinArg, DefinitionError, FileMissingError, TestDims, Variables, guess_y, cache_valid
-from eelbrain._experiment.parc import SubParc
+from eelbrain._experiment.parc import CombinationParc, SubParc
 from eelbrain._data_obj import NDVarArg, isuv
 from eelbrain._io.pickle import update_subjects_dir
 from eelbrain._text import ms, n_of
@@ -307,11 +307,13 @@ class TRFExperiment(MneExperiment):
         self._parc_supersets = defaultdict(set, {k: set(v) for k, v in self._parc_supersets.items()})
         # automatic
         sub_parcs = {k: v for k, v in self._parcs.items() if isinstance(v, SubParc)}
-        for key, parc in sub_parcs.items():
+        for key, parc in self._parcs.items():
+            if not isinstance(parc, (SubParc, CombinationParc)):
+                continue
             for src_key, src_parc in sub_parcs.items():
                 if src_key == key:
                     continue
-                elif parc.base == src_parc.base and all(l in src_parc.labels for l in parc.labels):
+                elif parc.base == src_parc.base and all(l in src_parc.labels for l in parc._base_labels()):
                     self._parc_supersets[key].add(src_key)
 
     def _refresh_model_names(self):
