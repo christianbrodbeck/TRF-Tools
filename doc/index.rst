@@ -9,6 +9,7 @@ For installation instructions see the `GitHub README <https://github.com/christi
 
     pipeline
     roi
+    utils
 
 
 .. seealso::
