@@ -34,10 +34,10 @@ from eelbrain._text import ms, n_of
 from eelbrain._types import PathArg
 from eelbrain._utils.mne_utils import is_fake_mri
 from eelbrain._utils.notebooks import tqdm
-from eelbrain._utils.numpy_utils import newaxis
 from eelbrain._utils import ask
 from filelock import FileLock
 import numpy as np
+from numpy import newaxis
 
 from .._ndvar import pad
 from .._numpy_funcs import arctanh
@@ -741,7 +741,7 @@ class TRFExperiment(MneExperiment):
                     pipes.append(pipe)
                 pipe = pipe.source
             with warnings.catch_warnings():
-                warnings.filterwarnings('ignore', 'filter_length \(', RuntimeWarning)
+                warnings.filterwarnings('ignore', 'filter_length ', RuntimeWarning)
                 for pipe in reversed(pipes):
                     x = pipe.filter_ndvar(x, pad='edge')
 
