@@ -8,6 +8,7 @@ Utilities
 ^^^^^^^^^^^^
 Dictionaries
 ^^^^^^^^^^^^
+The :mod:`dictionaries` module contains functions for retrieving and manipulating linguistic data, including SUBTLEX corpus statistics and pronunciation dictionaries.
 
 .. autosummary::
    :toctree: generated
@@ -20,3 +21,19 @@ Dictionaries
     read_subtlex
     read_subtlex_pos
     fix_apostrophe_pronounciations
+
+
+.. py:module:: roi
+.. currentmodule:: trftools.roi
+
+^^^
+ROI
+^^^
+The :mod:`roi` module contains functions for working with anatomical ROIs.
+
+.. autosummary::
+   :toctree: generated
+
+    mask_roi
+    mne_label
+    symmetric_mask
