@@ -2,6 +2,11 @@
 Utilities
 *********
 
+^^^^^^^^
+TextGrid
+^^^^^^^^
+A class for working with Praat TextGrid forced alignment files.
+
 .. currentmodule:: trftools
 .. autosummary::
    :toctree: generated
