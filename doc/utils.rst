@@ -2,6 +2,12 @@
 Utilities
 *********
 
+.. currentmodule:: trftools
+.. autosummary::
+   :toctree: generated
+
+    TextGrid
+
 .. py:module:: dictionaries
 .. currentmodule:: trftools.dictionaries
 
