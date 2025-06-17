@@ -34,7 +34,7 @@ TEXT_SUB = {
     'VERANDAHS': 'VERANDAS',
     'VIGOUR': 'VIGOR',
 }
-# Apostrophy
+# Apostrophe
 for pair in product(('I', 'YOU', 'HE', 'SHE', 'WE', 'THEY'), ('LL', 'D')):
     TEXT_SUB["'".join(pair)] = ' '.join(pair)
 for neg in ('CAN', 'DON', 'ISN', 'AREN', 'WEREN', 'MUSTN'):
