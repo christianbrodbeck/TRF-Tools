@@ -282,10 +282,10 @@ class TextGrid:
         return table
 
     def split_by_apostrophe(self, exceptions: Sequence[str] = ()) -> TextGrid:
-        f"""Split words with apostrophe
+        """Split words with apostrophe
 
         Language models often represent words containing apostrophe as two
-        words, for example:
+        tokens, for example:
 
          - he's ->  he 's
          - isn't -> is n't
@@ -576,9 +576,9 @@ class TextGrid:
         codes : {str: int}
             Mapping tokens in ``tokens`` to row indexes.
         location : 'fill' | 'onset' | 'offset'
-            Wehere to place the value relative to the interval.
+            Where to place the value relative to the interval.
         weights : sequency of float (optional)
-            Assign a weight to each entry of ``tokens`` (default is 1)
+            Assign a weight to each entry of ``tokens`` (default is 1).
         index : str
             Feature for boundary location:
              - 'phone': phonemes
@@ -605,10 +605,6 @@ class TextGrid:
                 out[codes[value], index] = weight
 
         return out
-
-    @staticmethod
-    def categories_to_codes(values, codes, weights=None):
-        return _categories_to_codes(values, codes, weights)
 
     def print(
             self,
