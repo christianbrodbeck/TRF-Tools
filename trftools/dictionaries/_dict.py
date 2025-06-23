@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Collection, Dict, Generator, Union
+from typing import Any, Collection, Dict, Generator, Sequence, Union
 
 from ._arpabet import STRIP_STRESS_MAP
 from ._utils import download
@@ -87,7 +87,10 @@ def read_dict(
     return out
 
 
-def combine_dicts(dicts):
+def combine_dicts(
+        dicts: Sequence[Dict[Any, set]],
+) -> Dict[str: set]:
+    """Merge multiple dictionaries with :class:`set` values"""
     out = defaultdict(set)
     for d in dicts:
         for key, values in d.items():
@@ -95,7 +98,9 @@ def combine_dicts(dicts):
     return out
 
 
-def split_apostrophe(dic):
+def split_apostrophe(
+        dic: Dict[str: set],
+) -> Dict[str: set]:
     "Split words with apostrophe into two words (To match SUBTLEX)"
     out = defaultdict(set)
     for key, values in dic.items():

@@ -3285,6 +3285,17 @@ class TRFExperiment(MneExperiment):
         return t
 
     def show_predictors(self, pattern: str = None):
+        """List predictors that have been added to the :class:`TRFExperiment`
+
+        Parameters
+        ----------
+        pattern
+            :mod:`fnmatch` pattern for showing a subset of predictors.
+
+        See Also
+        --------
+        :attr:`.predictors` : adding predictors to the :class:`TRFExperiment`
+        """
         for prefix_ in sorted(self.predictors):
             predictor = self.predictors[prefix_]
             # Non-file-based
