@@ -125,7 +125,7 @@ class TextGrid:
 
     Notes
     -----
-    Load an existing ``*.TextGrid` file using :meth:`TextGrid.from_file`.
+    Load an existing ``*.TextGrid`` file using :meth:`TextGrid.from_file`.
     """
     def __init__(
             self,
