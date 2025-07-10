@@ -54,6 +54,7 @@ Eelfarm
 ^^^^^^^
 Estimate TRFs on multiple computers
 
+.. currentmodule:: trftools
 .. autosummary::
    :toctree: generated
 
