@@ -1,5 +1,7 @@
 import logging
 
+from ._dispatcher import Dispatcher
+
 
 def start_dispatcher(
         notify: str = False,
@@ -66,7 +68,6 @@ def start_dispatcher(
     initialized again.
     """
     from eelfarm._utils import screen_handler
-    from ._dispatcher import Dispatcher
 
     d = Dispatcher(host, port, job_queue_length, notify)
     # configure logging

@@ -36,7 +36,6 @@ from time import sleep, time
 from eelbrain import fmtxt, boosting
 from eelbrain._utils.com import Notifier
 from eelbrain._utils import ask
-from eelfarm.server import JobServer, JobServerTerminated
 
 from ._jobs import FuncIterJob, read_job_file
 
@@ -106,6 +105,8 @@ class Dispatcher:
             job_queue_length: int = 2,
             notify: str = False,
     ):
+        from eelfarm.server import JobServer
+
         self.server = JobServer(host, port, job_queue_length)
         self.e_lock = Lock()  # access to experiment
         self.logger = logging.getLogger('eelfarm.dispatcher')
@@ -236,6 +237,8 @@ class Dispatcher:
         self._request_queue.put(FuncIterJob(name, job_factory, priority))
 
     def _local_io(self):
+        from eelfarm.server import JobServerTerminated
+
         n_exceptions = n_trf_exceptions = 0
         while True:
             cycle_start_time = time()
