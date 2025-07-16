@@ -59,3 +59,4 @@ Estimate TRFs on multiple computers
    :toctree: generated
 
     start_dispatcher
+    ~pipeline._dispatcher.Dispatcher
