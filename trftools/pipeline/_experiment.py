@@ -26,7 +26,7 @@ from eelbrain import (
 from eelbrain.pipeline import TTestOneSample, TTestRelated, TwoStageTest, RawFilter, RawSource
 from eelbrain._experiment.definitions import FieldCode
 from eelbrain._experiment.epochs import EpochCollection
-from eelbrain._experiment.mne_experiment import DataArg, PMinArg, DefinitionError, FileMissing, TestDims, Variables, guess_y, cache_valid
+from eelbrain._experiment.mne_experiment import DataArg, PMinArg, DefinitionError, FileMissingError, TestDims, Variables, guess_y, cache_valid
 from eelbrain._experiment.parc import SubParc
 from eelbrain._data_obj import NDVarArg, isuv
 from eelbrain._io.pickle import update_subjects_dir
@@ -1514,7 +1514,7 @@ class TRFExperiment(MneExperiment):
     def _assert_fsaverage_sym_exists(self):
         fsa_sym_dir = Path(self.get('mri-sdir')) / 'fsaverage_sym'
         if not fsa_sym_dir.exists():
-            raise FileMissing("The fsaverage_sym brain is needed for xhemi tests and is missing from the MRI directory")
+            raise FileMissingError("The fsaverage_sym brain is needed for xhemi tests and is missing from the MRI directory")
 
     def _xhemi_parc(self):
         parc = self.get('parc')
