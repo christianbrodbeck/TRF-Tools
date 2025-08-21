@@ -806,12 +806,19 @@ class TRFExperiment(MneExperiment):
         if not data.source:
             return trf
         if data.morph:
+            # Make sure common brain source space exists
             common_brain = self.get('common_brain')
             with self._temporary_state:
                 self.make_src(mrisubject=common_brain)
                 if parc:
                     self.make_annot(parc=parc, mrisubject=common_brain)
-            trf._morph(common_brain)
+            # Cached morph matrix
+            if is_fake_mri(self.get('mri-dir')):
+                source_morph = None
+            else:
+                source_morph = self.load_source_morph()
+            # Apply morph
+            trf._morph(common_brain, source_morph=source_morph)
         if to_parc:
             self.make_annot(parc=to_parc)
             trf._set_parc(to_parc)
