@@ -169,12 +169,12 @@ class TRFExperiment(MneExperiment):
         # TRF
         'trf-sdir': join('{cache-dir}', 'trf'),
         'trf-dir': join('{trf-sdir}', '{subject}'),
-        'trf-file': join('{trf-dir}', '{analysis}', '{epoch_visit} {test_options}.pickle'),
-        'trf-test-file': join('{cache-dir}', 'trf-test', '{analysis} {group}', '{folder}', '{test_desc}.pickle'),
+        'trf-file': join('{trf-dir}', '{analysis}', '{epoch_basename} {test_options}.pickle'),
+        'trf-test-file': join('{cache-dir}', 'trf-test', '{analysis} {group}', '{folder}', '{epoch_basename} {test} {test_options}.pickle'),
         # model comparisons
-        'model-test-file': join('{cache-dir}', 'model-test', '{analysis} {group}', '{folder}', '{test_desc}.pickle'),
+        'model-test-file': join('{cache-dir}', 'model-test', '{analysis} {group}', '{folder}', '{epoch_basename} {test} {test_options}.pickle'),
         'model-res-dir': join('{root}', 'results-models'),
-        'model-report-file': join('{model-res-dir}', '{analysis} {group}', '{folder}', '{test_desc}.html'),
+        'model-report-file': join('{model-res-dir}', '{analysis} {group}', '{folder}', '{epoch_basename} {test} {test_options}.html'),
         # predictors
         'predictor-cache-dir': join('{cache-dir}', 'predictors'),
     }
@@ -2623,7 +2623,7 @@ class TRFExperiment(MneExperiment):
                 dst_path.parent.mkdir(parents=True, exist_ok=True)
                 src_path.rename(dst_path)
         # find files
-        # '{trf-dir}/{analysis}/{epoch_visit} {test_options}.pickle'
+        # '{trf-dir}/{analysis}/{epoch_basename} {test_options}.pickle'
         # mask is in test_options
         combine = {}
         dst_exist = 0
