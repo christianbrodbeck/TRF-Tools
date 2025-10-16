@@ -7,24 +7,24 @@ Includes a TRF extension of the Eelbrain MneExperiment pipeline, documented [her
 
 TRF-Tools should be installed into a recent 
 [Eelbrain](https://eelbrain.readthedocs.io/) 
-environment (see [Installing Eelbrain](https://eelbrain.readthedocs.io/en/stable/installing.html)),
-for example:
+environment (see [Installing Eelbrain](https://eelbrain.readthedocs.io/en/stable/installing.html)).
+
+For BIDS `Pipeline` functionality, use the following environment:
 
 ```Bash
-$ mamba env create --file=https://github.com/Eelbrain/Alice/raw/main/environment.yml
+$ mamba env create --file=https://github.com/christianbrodbeck/TRF-Tools/raw/bids/env-bids.yml
 ```
 
-Then, activate the new environment and install TRF-Tools directly from GitHub:
+Then, activate the new environment:
 
 ```Bash
-$ mamba activate eelbrain
-$ pip install https://github.com/christianbrodbeck/TRF-Tools/archive/main.zip
+$ mamba activate bids
 ```
 
-To later update TRF-Tools to the latest version of the `main` branch, use:
+To later update TRF-Tools to the latest version of the `bids` branch, use:
 
 ```bash
-$ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/main.zip
+$ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/bids.zip
 ```
 
 To see what version you have currently installed, run:
