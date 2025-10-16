@@ -1,5 +1,5 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
-"Eelbrain :class:`MneExperiment` extension for analyzing continuous response models"
+"Eelbrain :class:`Pipeline` extension for analyzing continuous response models"
 from collections import defaultdict
 import datetime
 import fnmatch
@@ -20,7 +20,7 @@ import eelbrain
 from eelbrain import (
     fmtxt, load, save, table, plot,
     MultiEffectNDTest, BoostingResult,
-    MneExperiment, Dataset, Datalist, Factor, NDVar, UTS,
+    Pipeline, Dataset, Datalist, Factor, NDVar, UTS,
     morph_source_space, rename_dim, boosting, combine, concatenate,
 )
 from eelbrain.pipeline import TTestOneSample, TTestRelated, TwoStageTest, RawFilter, RawSource
@@ -130,8 +130,8 @@ class ModelDescriber:
         return ' + '.join(terms)
 
 
-class TRFExperiment(MneExperiment):
-    """Pipeline for TRF analysis (see also: :class:`eelbrain.pipeline.MneExperiment`)
+class TRFExperiment(Pipeline):
+    """Pipeline for TRF analysis (see also: :class:`eelbrain.pipeline.Pipeline`)
 
     Setup attributes
     ----------------
@@ -186,7 +186,7 @@ class TRFExperiment(MneExperiment):
     _parc_supersets = {}
 
     def _collect_invalid_files(self, invalid_cache, new_state, cache_state):
-        rm = MneExperiment._collect_invalid_files(self, invalid_cache, new_state, cache_state)
+        rm = Pipeline._collect_invalid_files(self, invalid_cache, new_state, cache_state)
 
         # stimuli
         for var, subject in invalid_cache['variable_for_subject']:
@@ -256,18 +256,18 @@ class TRFExperiment(MneExperiment):
         if NCRF_RE.match(inv):
             return inv
         else:
-            return MneExperiment._eval_inv(inv)
+            return Pipeline._eval_inv(inv)
 
     def _post_set_inv(self, _, inv):
         if NCRF_RE.match(inv):
             inv = '*'
-        MneExperiment._post_set_inv(self, _, inv)
+        Pipeline._post_set_inv(self, _, inv)
 
     @staticmethod
     def _update_inv_cache(fields):
         if NCRF_RE.match(fields['inv']):
             return fields['inv']
-        return MneExperiment._update_inv_cache(fields)
+        return Pipeline._update_inv_cache(fields)
 
     def _subclass_init(self):
         # predictors

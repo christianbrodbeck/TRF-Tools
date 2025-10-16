@@ -1,7 +1,7 @@
 # TRF-Tools
 Tools for data analysis with multivariate temporal response functions (mTRFs).
 This repository mostly contains tools that extend Eelbrain but are not deemed stable enough to be included in the main release.
-Includes a TRF extension of the Eelbrain MneExperiment pipeline, documented [here](https://trf-tools.readthedocs.io/). 
+Includes a TRF extension of the Eelbrain `Pipeline`, documented [here](https://trf-tools.readthedocs.io/). 
 
 ## Installing
 

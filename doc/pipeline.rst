@@ -26,9 +26,9 @@ Setup
     - For TRF-Tools installation instructions see the `GitHub README <https://github.com/christianbrodbeck/TRF-Tools>`_.
     - For a complete example of a TRF-Experiment with data, see the `pipeline section of the Alice repository <https://github.com/Eelbrain/Alice/tree/main/pipeline>`_.
 
-To get started, set up your experiment as for the `MNE-Experiment pipeline <https://eelbrain.readthedocs.io/en/stable/experiment.html>`_, but instead of :class:`eelbrain.pipeline.MneExperiment`, use :class:`TRFExperiment` as baseclass for your experiment. The :class:`TRFExperiment` uses :class:`~eelbrain.pipeline.MneExperiment` mechanisms to preprocess data up to the epoch stage.
+To get started, set up your experiment as for the `MNE-Experiment pipeline <https://eelbrain.readthedocs.io/en/stable/experiment.html>`_, but instead of :class:`eelbrain.pipeline.Pipeline`, use :class:`TRFExperiment` as baseclass for your experiment. The :class:`TRFExperiment` uses :class:`~eelbrain.pipeline.Pipeline` mechanisms to preprocess data up to the epoch stage.
 
-For an existing experiment, the base class can simply be replaced, because :class:`TRFExperiment` retains all functionality of :class:`~eelbrain.pipeline.MneExperiment`.
+For an existing experiment, the base class can simply be replaced, because :class:`TRFExperiment` retains all functionality of :class:`~eelbrain.pipeline.Pipeline`.
 
 ^^^^^^^^^^
 Predictors
