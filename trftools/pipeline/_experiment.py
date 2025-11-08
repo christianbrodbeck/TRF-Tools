@@ -153,7 +153,7 @@ class TRFExperiment(Pipeline):
     and the following event dataset::
     
         >>> print(alice.load_events())
-        #    i_start   trigger   stimulus  T        SOA      subject   duration
+        #    i_start   trigger   stimulus  time     SOA      subject   duration
         -----------------------------------------------------------------------
         0    1863      1         stim_1    3.726    57.618   S01       58.541  
         1    30672     5         stim_2    61.344   60.898   S01       61.845  
@@ -560,7 +560,7 @@ class TRFExperiment(Pipeline):
             if not is_variable_time:
                 raise NotImplementedError(f"SessionPredictor for fixed duration epochs")
             x = self.load_predictor(code, filter_x=filter_x, name=code.key)
-            onset_times = ds['T'] - ds[0, 'T']
+            onset_times = ds['time'] - ds[0, 'time']
             ds[code.key] = predictor._epoch_for_data(x, time, onset_times)
             return
 
