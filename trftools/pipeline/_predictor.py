@@ -407,15 +407,19 @@ class FilePredictor(FilePredictorBase):
 
 
 class SessionPredictor(FilePredictorBase):
-    """Predictor stored in files corresponding to specific subjects
+    """Predictor with time axis corresponding to experiment time
+
+    .. note::
+       Not BIDS compatible
 
     In contrast to a :class:`FilePredictor`, which represents a specific
     stimulus, a :class:`SessionPredictor` represents a whole recording session
     for a specific subject.
 
-    Filename should be ``{subject} {session}~{code}.pickle`` or, if the
-    experiment includes multiple visits,
-    ``{subject} {session} {visit}~{code}.pickle``.
+    Session-predictors need to provide a different predictor file for each
+    subject, because the experiment timeline may differ between subjects.
+
+    Predictors should be saved as ``{subject} {session}~{code}.pickle``.
     """
     def _load(self, tstep: Optional[float], filename: str, directory: Path) -> NDVar:
         path = directory / f'{filename}.pickle'

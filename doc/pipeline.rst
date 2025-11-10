@@ -16,6 +16,7 @@ Module Reference
     TRFExperiment
     FilePredictor
     EventPredictor
+    SessionPredictor
 
 ^^^^^
 Setup
