@@ -409,9 +409,18 @@ class FilePredictor(FilePredictorBase):
 class SessionPredictor(FilePredictorBase):
     """Predictor with time axis corresponding to experiment time
 
-    .. note::
-       Not BIDS compatible
+    .. warning::
+       Not BIDS compatible yet
 
+    Parameters
+    ----------
+    resample
+        See :class:`FilePredictor`.
+    sampling
+        See :class:`FilePredictor`.
+
+    Notes
+    -----
     In contrast to a :class:`FilePredictor`, which represents a specific
     stimulus, a :class:`SessionPredictor` represents a whole recording session
     for a specific subject.
