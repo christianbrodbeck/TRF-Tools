@@ -34,7 +34,7 @@ For an existing experiment, the base class can simply be replaced, because :clas
 Predictors
 ^^^^^^^^^^
 
-Predictors are added to the experiment as files in the ``{root}/predictors`` directory. Filenames should follow this pattern: ``{stimulus}~{key}[-{variant}].pickle``.
+Predictors are added to the experiment as files in the ``{root}/derivatives/predictors`` directory. Filenames should follow this pattern: ``{stimulus}~{key}[-{variant}].pickle``.
 
  - ``stimulus`` referes to an arbitrary name for the stimulus represented by this file (see :attr:`TRFExperiment.stim_var`).
  - ``key`` is the key used for defining this predictor in :attr:`TRFExperiment.predictors`.
@@ -49,9 +49,9 @@ Predictors are then added to the pipeline in :class:`TRFExperiment.predictors`. 
 
 Assuming a stimulus called ``story``, this would match the following predictor files:
 
- - ``{root}/predictors/story~gammatone-1.pickle``: :class:`NDVar` UTS predictor, which can be invoked with model term ``gammatone-1`` (see :ref:`pipeline-models`)
- - ``{root}/predictors/story~gammatone-8.pickle``: as above, but invoked with model term ``gammatone-8``
- - ``{root}/predictors/story~word.pickle``: a :class:`Dataset` representing one or multiple NUTS predictors (through different columns in the dataset). The specific model term would include a column name, for example, a model term ``word-surprisal`` would use the values of the ``"surprisal"`` column in the dataset (see :class:`FilePredictor`).
+ - ``predictors/story~gammatone-1.pickle``: :class:`NDVar` UTS predictor, which can be invoked with model term ``gammatone-1`` (see :ref:`pipeline-models`)
+ - ``predictors/story~gammatone-8.pickle``: as above, but invoked with model term ``gammatone-8``
+ - ``predictors/story~word.pickle``: a :class:`Dataset` representing one or multiple NUTS predictors (through different columns in the dataset). The specific model term would include a column name, for example, a model term ``word-surprisal`` would use the values of the ``"surprisal"`` column in the dataset (see :class:`FilePredictor`).
 
 .. Warning::
    When you change the contents of a predictor file, this will **not** be automatically detected.

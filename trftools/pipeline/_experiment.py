@@ -165,7 +165,7 @@ class TRFExperiment(Pipeline):
 
     _values = {
         # Predictors
-        'predictor-dir': join('{root}', 'predictors'),
+        'predictor-dir': join('{deriv-dir}', 'predictors'),
         # TRF
         'trf-sdir': join('{cache-dir}', 'trf'),
         'trf-dir': join('{trf-sdir}', '{subject}'),
@@ -173,7 +173,7 @@ class TRFExperiment(Pipeline):
         'trf-test-file': join('{cache-dir}', 'trf-test', '{analysis} {group}', '{folder}', '{epoch_basename} {test} {test_options}.pickle'),
         # model comparisons
         'model-test-file': join('{cache-dir}', 'model-test', '{analysis} {group}', '{folder}', '{epoch_basename} {test} {test_options}.pickle'),
-        'model-res-dir': join('{root}', 'results-models'),
+        'model-res-dir': join('{deriv-dir}', 'results-models'),
         'model-report-file': join('{model-res-dir}', '{analysis} {group}', '{folder}', '{epoch_basename} {test} {test_options}.html'),
         # predictors
         'predictor-cache-dir': join('{cache-dir}', 'predictors'),
