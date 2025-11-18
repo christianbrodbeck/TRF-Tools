@@ -13,7 +13,7 @@ from pathlib import Path
 from pyparsing import ParseException
 import re
 import time
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Sequence, Tuple, Union
 import warnings
 
 import eelbrain
@@ -349,7 +349,12 @@ class TRFExperiment(Pipeline):
                 return name
         raise RuntimeError("Ran out of model names...")
 
-    def _find_model_files(self, name: str, trfs: bool = False, tests: bool = False) -> List[str]:
+    def _find_model_files(
+            self,
+            name: str,
+            trfs: bool = False,
+            tests: bool = False,
+    ) -> Iterator[str]:
         """Find all files associated with a model
 
         Will not find ``model (name$shift)``
@@ -2688,8 +2693,9 @@ class TRFExperiment(Pipeline):
         Parameters
         ----------
         regressor
-            Regressor that became invalid; can contain ``*`` and ``?`` for
-            pattern matching.
+            Regressor that became invalid. Can be a key in :attr:`.predictors`,
+            or a pattern matching one or more regressor names,
+            using ``*`` and ``?`` for pattern matching (see examples).
         backup
             Instead of deleting invalidated files, copy them to this directory.
             Can be an absolute path, or relative to experiment root. ``True`` to
@@ -2698,6 +2704,21 @@ class TRFExperiment(Pipeline):
         Notes
         -----
         Deletes TRFs and tests. Corresponding predictor files are not affected.
+
+        Examples
+        --------
+        The examples assume ``e`` is a :class:`TRFExperiment` instance.
+        Invalidate all ``gammatone`` predictors::
+
+        >>> e.invalidate('gammatone')
+
+        Invalidate a single predictor::
+
+        >>> e.invalidate('gammatone-8')
+
+        Invalidate multiple predictors using a wild card::
+
+        >>> e.invalidate('gammatone-*')
         """
         # patterns
         if regressor in self.predictors:

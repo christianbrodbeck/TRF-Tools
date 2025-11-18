@@ -5,4 +5,4 @@ from ._numpy_funcs import sin, cos, tan, arcsin, arccos, arctan, sinh, cosh, tan
 from .align import TextGrid
 from .pipeline._eelfarm import start_dispatcher
 
-__version__ = '20a1'
+__version__ = '20a2'

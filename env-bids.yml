@@ -5,7 +5,7 @@ channels:
 - conda-forge
 - conda-forge/label/eelbrain_dev
 dependencies:
-- eelbrain >= 0.42.0a1
+- eelbrain >= 0.42.0a3
 - pip
 - ipython
 - jupyter
