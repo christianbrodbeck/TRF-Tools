@@ -1,10 +1,11 @@
 name: rtd
 channels:
 - conda-forge
+- conda-forge/label/eelbrain_dev
 dependencies:
 - python >= 3.8
 - pip
 - setuptools >=17
-- eelbrain
+- eelbrain >= 0.42.0a3
 - sphinx_rtd_theme
 - sphinx >=6
