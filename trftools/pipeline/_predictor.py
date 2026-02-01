@@ -162,7 +162,7 @@ class FilePredictor(FilePredictorBase):
     The file-predictor expects to find a file for each stimulus containing the
     predictor at::
 
-        {root}/predictors/{stimulus}~{key}[-{variant}].pickle
+        {root}/derivatives/predictors/{stimulus}~{key}[-{variant}].pickle
 
     Where ``stimulus`` refers to the name provided by ``stim_var``, ``key``
     refers to the predictor's name (key used in :attr:`TRFExperiment.predictors`),

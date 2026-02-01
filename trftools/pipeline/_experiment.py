@@ -1,5 +1,5 @@
 # Author: Christian Brodbeck <christianbrodbeck@nyu.edu>
-"Eelbrain :class:`MneExperiment` extension for analyzing continuous response models"
+"Eelbrain :class:`Pipeline` extension for analyzing continuous response models"
 from collections import defaultdict
 import datetime
 import fnmatch
@@ -13,14 +13,14 @@ from pathlib import Path
 from pyparsing import ParseException
 import re
 import time
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Sequence, Tuple, Union
 import warnings
 
 import eelbrain
 from eelbrain import (
     fmtxt, load, save, table, plot,
     MultiEffectNDTest, BoostingResult,
-    MneExperiment, Dataset, Datalist, Factor, NDVar, UTS,
+    Pipeline, Dataset, Datalist, Factor, NDVar, UTS,
     morph_source_space, rename_dim, boosting, combine, concatenate,
 )
 from eelbrain.pipeline import TTestOneSample, TTestRelated, TwoStageTest, RawFilter, RawSource
@@ -130,8 +130,8 @@ class ModelDescriber:
         return ' + '.join(terms)
 
 
-class TRFExperiment(MneExperiment):
-    """Pipeline for TRF analysis (see also: :class:`eelbrain.pipeline.MneExperiment`)
+class TRFExperiment(Pipeline):
+    """Pipeline for TRF analysis (see also: :class:`eelbrain.pipeline.Pipeline`)
 
     Setup attributes
     ----------------
@@ -153,7 +153,7 @@ class TRFExperiment(MneExperiment):
     and the following event dataset::
     
         >>> print(alice.load_events())
-        #    i_start   trigger   stimulus  T        SOA      subject   duration
+        #    i_start   trigger   stimulus  time     SOA      subject   duration
         -----------------------------------------------------------------------
         0    1863      1         stim_1    3.726    57.618   S01       58.541  
         1    30672     5         stim_2    61.344   60.898   S01       61.845  
@@ -165,16 +165,16 @@ class TRFExperiment(MneExperiment):
 
     _values = {
         # Predictors
-        'predictor-dir': join('{root}', 'predictors'),
+        'predictor-dir': join('{deriv-dir}', 'predictors'),
         # TRF
         'trf-sdir': join('{cache-dir}', 'trf'),
         'trf-dir': join('{trf-sdir}', '{subject}'),
-        'trf-file': join('{trf-dir}', '{analysis}', '{epoch_visit} {test_options}.pickle'),
-        'trf-test-file': join('{cache-dir}', 'trf-test', '{analysis} {group}', '{folder}', '{test_desc}.pickle'),
+        'trf-file': join('{trf-dir}', '{analysis}', '{epoch_basename} {test_options}.pickle'),
+        'trf-test-file': join('{cache-dir}', 'trf-test', '{analysis} {group}', '{folder}', '{epoch_basename} {test} {test_options}.pickle'),
         # model comparisons
-        'model-test-file': join('{cache-dir}', 'model-test', '{analysis} {group}', '{folder}', '{test_desc}.pickle'),
-        'model-res-dir': join('{root}', 'results-models'),
-        'model-report-file': join('{model-res-dir}', '{analysis} {group}', '{folder}', '{test_desc}.html'),
+        'model-test-file': join('{cache-dir}', 'model-test', '{analysis} {group}', '{folder}', '{epoch_basename} {test} {test_options}.pickle'),
+        'model-res-dir': join('{deriv-dir}', 'results-models'),
+        'model-report-file': join('{model-res-dir}', '{analysis} {group}', '{folder}', '{epoch_basename} {test} {test_options}.html'),
         # predictors
         'predictor-cache-dir': join('{cache-dir}', 'predictors'),
     }
@@ -186,7 +186,7 @@ class TRFExperiment(MneExperiment):
     _parc_supersets = {}
 
     def _collect_invalid_files(self, invalid_cache, new_state, cache_state):
-        rm = MneExperiment._collect_invalid_files(self, invalid_cache, new_state, cache_state)
+        rm = Pipeline._collect_invalid_files(self, invalid_cache, new_state, cache_state)
 
         # stimuli
         for var, subject in invalid_cache['variable_for_subject']:
@@ -256,18 +256,18 @@ class TRFExperiment(MneExperiment):
         if NCRF_RE.match(inv):
             return inv
         else:
-            return MneExperiment._eval_inv(inv)
+            return Pipeline._eval_inv(inv)
 
     def _post_set_inv(self, _, inv):
         if NCRF_RE.match(inv):
             inv = '*'
-        MneExperiment._post_set_inv(self, _, inv)
+        Pipeline._post_set_inv(self, _, inv)
 
     @staticmethod
     def _update_inv_cache(fields):
         if NCRF_RE.match(fields['inv']):
             return fields['inv']
-        return MneExperiment._update_inv_cache(fields)
+        return Pipeline._update_inv_cache(fields)
 
     def _subclass_init(self):
         # predictors
@@ -349,7 +349,12 @@ class TRFExperiment(MneExperiment):
                 return name
         raise RuntimeError("Ran out of model names...")
 
-    def _find_model_files(self, name: str, trfs: bool = False, tests: bool = False) -> List[str]:
+    def _find_model_files(
+            self,
+            name: str,
+            trfs: bool = False,
+            tests: bool = False,
+    ) -> Iterator[str]:
         """Find all files associated with a model
 
         Will not find ``model (name$shift)``
@@ -560,7 +565,7 @@ class TRFExperiment(MneExperiment):
             if not is_variable_time:
                 raise NotImplementedError(f"SessionPredictor for fixed duration epochs")
             x = self.load_predictor(code, filter_x=filter_x, name=code.key)
-            onset_times = ds['T'] - ds[0, 'T']
+            onset_times = ds['time'] - ds[0, 'time']
             ds[code.key] = predictor._epoch_for_data(x, time, onset_times)
             return
 
@@ -2623,7 +2628,7 @@ class TRFExperiment(MneExperiment):
                 dst_path.parent.mkdir(parents=True, exist_ok=True)
                 src_path.rename(dst_path)
         # find files
-        # '{trf-dir}/{analysis}/{epoch_visit} {test_options}.pickle'
+        # '{trf-dir}/{analysis}/{epoch_basename} {test_options}.pickle'
         # mask is in test_options
         combine = {}
         dst_exist = 0
@@ -2688,8 +2693,9 @@ class TRFExperiment(MneExperiment):
         Parameters
         ----------
         regressor
-            Regressor that became invalid; can contain ``*`` and ``?`` for
-            pattern matching.
+            Regressor that became invalid. Can be a key in :attr:`.predictors`,
+            or a pattern matching one or more regressor names,
+            using ``*`` and ``?`` for pattern matching (see examples).
         backup
             Instead of deleting invalidated files, copy them to this directory.
             Can be an absolute path, or relative to experiment root. ``True`` to
@@ -2698,6 +2704,21 @@ class TRFExperiment(MneExperiment):
         Notes
         -----
         Deletes TRFs and tests. Corresponding predictor files are not affected.
+
+        Examples
+        --------
+        The examples assume ``e`` is a :class:`TRFExperiment` instance.
+        Invalidate all ``gammatone`` predictors::
+
+        >>> e.invalidate('gammatone')
+
+        Invalidate a single predictor::
+
+        >>> e.invalidate('gammatone-8')
+
+        Invalidate multiple predictors using a wild card::
+
+        >>> e.invalidate('gammatone-*')
         """
         # patterns
         if regressor in self.predictors:
