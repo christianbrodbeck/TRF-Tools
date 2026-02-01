@@ -1,11 +1,11 @@
 # Environment for TRF analysis (BIDS pipeline)
-# usage: $ mamba env create --file=env-bids.yml
-name: bids
+# usage: $ mamba env create --file=env-trf.yml
+name: trf
 channels:
 - conda-forge
 - conda-forge/label/eelbrain_dev
 dependencies:
-- eelbrain >= 0.42.0a3
+- eelbrain >= 0.42.0a4
 - pip
 - ipython
 - jupyter
@@ -14,4 +14,4 @@ dependencies:
 - seaborn
 - pip:
   - gammatone
-  - https://github.com/christianbrodbeck/TRF-Tools/archive/refs/heads/bids.zip
+  - "https://github.com/christianbrodbeck/TRF-Tools/archive/refs/heads/main.zip"
