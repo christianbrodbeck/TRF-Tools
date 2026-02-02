@@ -48,3 +48,15 @@ The :mod:`roi` module contains functions for working with anatomical ROIs.
     mask_roi
     mne_label
     symmetric_mask
+
+^^^^^^^
+Eelfarm
+^^^^^^^
+Estimate TRFs on multiple computers
+
+.. currentmodule:: trftools
+.. autosummary::
+   :toctree: generated
+
+    start_dispatcher
+    ~pipeline._dispatcher.Dispatcher
