@@ -160,6 +160,24 @@ class TRFExperiment(Pipeline):
         ...
     
     The model term ``gammatone-8`` will use the predictor files ``stim_1~gammatone-8`` for the first event, and ``stim_2~gammatone-8`` for the second.
+    
+    To specify multiple stimuli per event use a ``{key: stim_var}`` dictionary. For example, for a cocktail party experiment with two auditory sources (foreground and background)::
+
+        stim_var = {'': 'fg', 'bg': 'bg', 'mix': 'mix'}
+
+    with the following event dataset::
+
+        #    i_start   trigger   T        SOA      subject   fg   bg   mix
+        ------------------------------------------------------------------
+        0    1863      1         3.726    57.618   S01       s1   s3   s13
+        1    30672     5         61.344   60.898   S01       s2   s4   s24
+        ...
+
+    The "stream" is specified in model terms with ``~``:
+
+     - 'gammatone' would use predictors based on the ``fg`` column: ``s1~gammatone``, ``s2~gammatone``, ...
+     - 'bg~gammatone' would use predictors based on the ``bg`` column: ``s3~gammatone``, ``s4~gammatone``, ...
+     - 'mix~gammatone' would use predictors based on the ``mix`` column: ``s13~gammatone``, ``s24~gammatone``, ...
     """
     predictors: Dict[str, Union[EventPredictor, FilePredictor, MakePredictor]] = {}
 
