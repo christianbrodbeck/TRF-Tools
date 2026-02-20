@@ -2687,6 +2687,7 @@ class TRFExperiment(Pipeline):
             self,
             regressor: str,
             backup: Union[bool, PathArg] = False,
+            verbose: bool = False,
     ):
         """Remove cache and result files when input data becomes invalid
 
@@ -2700,6 +2701,8 @@ class TRFExperiment(Pipeline):
             Instead of deleting invalidated files, copy them to this directory.
             Can be an absolute path, or relative to experiment root. ``True`` to
             use ``eelbrain-cache-backup``.
+        verbose
+            Display terms and models that are affected.
 
         Notes
         -----
@@ -2738,6 +2741,9 @@ class TRFExperiment(Pipeline):
                 elif reg_re_term.match(term.string):
                     terms.add(term.string)
                     models.add(name)
+        if verbose:
+            print(f"Terms: {', '.join(sorted(terms))}")
+            print(f"Models: {', '.join(sorted(models))}")
         files = set()  # avoid duplicate paths when model name contains regressor name
         counts = defaultdict(lambda: 0)
         for name in models:
