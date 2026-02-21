@@ -135,6 +135,7 @@ When referring to model tests, this usually means comparing two different mTRF m
 
  - ``x="gammatone-1 + gammatone-on-1 > gammatone-1"`` tests whether predictive power improves when adding the ``gammatone-on-1`` predictor to a model already containing the ``gammatone-1`` predictor.
  - ``x="gammatone-1 = gammatone-on-1"`` tests whether the predictive power of ``gammatone-1`` or that of ``gammatone-on-1`` is higher.
+ - ``x="gammatone-1 > 0"`` tests whether the predictive power of ``gammatone-1`` is higher than zero.
 
 To simplify common tests with large models, the following shortcuts exist:
 
