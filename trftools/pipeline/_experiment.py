@@ -2967,6 +2967,8 @@ class TRFExperiment(Pipeline):
         ress_hemi = None
         if isinstance(x, dict):
             ress = ResultCollection({k: self.load_model_test(m, **test_args) for k, m in x.items()})
+            if any(isinstance(res, ResultCollection) for res in ress.values()):
+                raise ValueError(f"{x=} contains a contrast that yielded multiple tests; to compare a model against 0, use 'model > 0'")
             if xhemi:
                 ress_hemi = ResultCollection({k: self.load_model_test(m, xhemi=True, **test_args) for k, m in x.items()})
         else:
