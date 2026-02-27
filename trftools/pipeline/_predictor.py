@@ -391,7 +391,7 @@ class FilePredictor(FilePredictorBase):
 
         # fill in values
         dt = uts.tstep / 2
-        ds = ds[uts.tmin - dt < ds['time'] < uts.tmax + dt]
+        ds = ds[(ds['time'] > uts.tmin - dt) & (ds['time'] < uts.tmax + dt)]
         if x_impulse is not None:
             for t, v in ds.zip('time', column_key):
                 x_impulse[t] += v
