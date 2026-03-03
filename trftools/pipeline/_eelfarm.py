@@ -1,5 +1,7 @@
 import logging
 
+from ._dispatcher import Dispatcher
+
 
 def start_dispatcher(
         notify: str = False,
@@ -13,14 +15,16 @@ def start_dispatcher(
     Parameters
     ----------
     notify
-        Email addresss to notify when jobs are done.
+        Email address to notify when jobs are done.
     debug
         Log debug messages from HTML server.
     job_queue_length
         Number of jobs that will be kept in memory in a queue while waiting for
-        a worker. With the minimum (0) The dispatcher will only start loading the
+        a worker. Pre-loading more jobs allows faster dispatching when workers
+        request jobs, but also requires more memory.
+        With the minimum (0) The dispatcher will only start loading the
         next job once the current job has been claimed by a worker (this can
-        still lead to multiple jobs in memory while the data is being
+        still lead to multiple jobs in memory, while the data is being
         transferred to the worker).
     host
         Manually specify the host name or IP address (in cases where
@@ -36,7 +40,7 @@ def start_dispatcher(
 
     Examples
     --------
-    Start a dispatcher and add some jobs
+    Start a dispatcher and add some jobs::
 
         import trftools
 
@@ -44,18 +48,18 @@ def start_dispatcher(
         d.add_jobs_from_file('project/pipline/jobs.py')
 
     Eelfarm workers with the host's IP will now start processing these jobs.
-    Display information about job status:
+    Display information about job status::
 
         d.info()
 
-    You can cancel jobs, using model patterns with asterisks. For exaple, to
-    cancel all jobs that start with ``'gammatone +'``, use:
+    You can cancel jobs, using model patterns with asterisks. For example, to
+    cancel all jobs that start with ``'gammatone + '``, use::
 
         d.cancel_jobs('gammatone + *')
 
     This will stop generating jobs (but if jobs were already sent to the eelfarm
-    worker they can't be stopped without killing the worker.
-    To stop the dispatcher properly (without losing jobs):
+    worker they cannot be stopped without killing the worker).
+    To stop the dispatcher properly (without losing jobs)::
 
         d.shutdown()
 
@@ -64,7 +68,6 @@ def start_dispatcher(
     initialized again.
     """
     from eelfarm._utils import screen_handler
-    from ._dispatcher import Dispatcher
 
     d = Dispatcher(host, port, job_queue_length, notify)
     # configure logging
