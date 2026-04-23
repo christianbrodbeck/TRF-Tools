@@ -5,8 +5,8 @@ Includes a TRF extension of the Eelbrain MneExperiment pipeline, documented [her
 
 ## Installing
 
-TRF-Tools should be installed into a recent 
-[Eelbrain](https://eelbrain.readthedocs.io/) 
+TRF-Tools should be installed into a stable 
+[Eelbrain (0.41)](https://eelbrain.readthedocs.io/) 
 environment (see [Installing Eelbrain](https://eelbrain.readthedocs.io/en/stable/installing.html)),
 for example:
 
@@ -18,13 +18,13 @@ Then, activate the new environment and install TRF-Tools directly from GitHub:
 
 ```Bash
 $ mamba activate eelbrain
-$ pip install https://github.com/christianbrodbeck/TRF-Tools/archive/main.zip
+$ pip install https://github.com/christianbrodbeck/TRF-Tools/archive/legacy.zip
 ```
 
 To later update TRF-Tools to the latest version of the `main` branch, use:
 
 ```bash
-$ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/main.zip
+$ pip install -U https://github.com/christianbrodbeck/TRF-Tools/archive/legacy.zip
 ```
 
 To see what version you have currently installed, run:
