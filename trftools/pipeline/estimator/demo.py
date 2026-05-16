@@ -1,6 +1,6 @@
 from pathlib import Path
 from eelbrain import load, combine
-from eelbrain.pipeline import RawFilter, PrimaryEpoch, LabelVar
+from eelbrain.pipeline import RawFilter, RawICA, RawApplyICA, RawMaxwell, RawSource, PrimaryEpoch, LabelVar
 
 from trftools.pipeline import TRFExperiment, FilePredictor
 from trftools.pipeline.estimator import BoostingEstimator, NCRFEstimator
@@ -45,7 +45,15 @@ class AppleSeed(TRFExperiment):
     subject_re = r"sub-[A-Za-z0-9]+"  # BIDS subjects, e.g. sub-01 or sub-R2677
     sessions = ["Appleseed"]  # must match BIDS task name in filenames
 
-    raw = {"0.5-20": RawFilter("raw", 0.5, 20, cache=False)}
+    raw = {
+        "raw": RawSource(connectivity="auto"),
+        "tsss": RawMaxwell("raw", st_duration=10.0, ignore_ref=True, st_correlation=0.9, st_only=True),
+        "1-40": RawFilter("tsss", 1, 40),
+        "ica": RawICA("1-40", "Appleseed", n_components=0.99),
+        "tsss-ica": RawApplyICA("tsss", "ica", cache=False),
+        "0.5-20": RawFilter("tsss-ica", 0.5, 20, cache=False),
+    }
+    defaults = {"epoch": "Appleseed", "raw": "0.5-20"}
 
     # At least one epoch required for load_trf. Task name must match BIDS (e.g. task-Appleseed in filenames).
     epochs = {
@@ -53,7 +61,6 @@ class AppleSeed(TRFExperiment):
         # Minimal covariance epoch for source-space/NCRF demos.
         "cov": PrimaryEpoch("Appleseed", None, tmin=-0.100, tmax=0.0, samplingrate=100),
     }
-    defaults = {"epoch": "Appleseed"}
 
     # Predictor must exist as derivatives/predictors/{stimulus}~acoustic_envelop.pickle
     predictors = {
@@ -140,5 +147,5 @@ def run_ncrf_demo():
 
 
 if __name__ == "__main__":
+    run_boosting_demo()
     run_ncrf_demo()
-    # run_boosting_demo()
