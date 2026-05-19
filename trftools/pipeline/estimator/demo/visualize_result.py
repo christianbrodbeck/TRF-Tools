@@ -2,7 +2,7 @@
 
 Examples
 --------
-python trftools/pipeline/estimator/visualize_result.py \
+python trftools/pipeline/estimator/demo/visualize_result.py \
     "/Users/yanyuwoo/Downloads/sub-R2349_split-01_meg nobl 0-500 100Hz acoustic_envelop boosting h50 l1 seg cv.pickle"
 
 The script accepts Eelbrain/TRF-Tools result pickles and Dataset pickles. It is
