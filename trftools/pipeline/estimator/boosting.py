@@ -8,6 +8,7 @@ Use in experiment definition:
     estimators = {
         'boosting': BoostingEstimator(basis=0.050),
         'boosting-l2': BoostingEstimator(error='l2', partitions=5),
+        'boosting-backward': BoostingEstimator(backward=True),
     }
     # Then: e.load_trf('acoustic_envelop', 0, 0.5, estimator='boosting')
 
@@ -35,6 +36,7 @@ class BoostingEstimator(Estimator):
         test: bool = True,
         selective_stopping: int = 0,
         partition_results: bool = False,
+        backward: bool = False,
     ):
         self.delta = delta
         self.mindelta = mindelta
@@ -44,6 +46,7 @@ class BoostingEstimator(Estimator):
         self.test = test
         self.selective_stopping = selective_stopping
         self.partition_results = partition_results
+        self.backward = backward
 
     def parameters_for_partial(self) -> dict[str, object]:
         return {
@@ -55,4 +58,5 @@ class BoostingEstimator(Estimator):
             "test": self.test,
             "selective_stopping": self.selective_stopping,
             "partition_results": self.partition_results,
+            "backward": self.backward,
         }

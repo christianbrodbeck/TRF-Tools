@@ -225,6 +225,7 @@ class TRFExperiment(Pipeline):
         kwargs['basis'] = effective.get('basis', kwargs.get('basis'))
         kwargs['partitions'] = effective.get('partitions', kwargs.get('partitions'))
         kwargs['cv'] = effective.get('test', kwargs.get('cv'))
+        kwargs['backward'] = effective.get('backward', kwargs.get('backward'))
         kwargs['selective_stopping'] = effective.get('selective_stopping', kwargs.get('selective_stopping'))
         kwargs['partition_results'] = effective.get('partition_results', kwargs.get('partition_results'))
         return kwargs
@@ -991,6 +992,7 @@ class TRFExperiment(Pipeline):
             basis=basis,
             partitions=partitions,
             cv=cv,
+            backward=backward,
             selective_stopping=selective_stopping,
             partition_results=partition_results,
         )
@@ -1000,6 +1002,7 @@ class TRFExperiment(Pipeline):
         basis = effective['basis']
         partitions = effective['partitions']
         cv = effective['cv']
+        backward = effective['backward']
         selective_stopping = effective['selective_stopping']
         partition_results = effective['partition_results']
         # check epoch
