@@ -1,17 +1,11 @@
-# Base class for TRF estimators
-from typing import Any, Dict
+from typing import Any
 
-# Abstract strategy interface
+
 class Estimator:
-    """Base for TRF estimator configs. Subclasses override parameters_for_partial()."""
+    """Base for TRF estimator configs."""
 
-    name: str = ""
-
-    def parameters_for_partial(self) -> Dict[str, Any]:
-        """
-        Return kwargs for partial(fitter, ..., **kwargs).
-        Subclasses override this to return their estimator-specific parameters.
-        """
+    def parameters_for_partial(self) -> dict[str, Any]:
+        """Return kwargs for partial(fitter, ..., **kwargs)."""
         return {}
 
     def normalize_trf_args(self, experiment, data, mask, state):
