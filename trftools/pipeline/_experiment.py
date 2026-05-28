@@ -183,6 +183,7 @@ class TRFExperiment(Pipeline):
      - 'mix~gammatone' would use predictors based on the ``mix`` column: ``s13~gammatone``, ``s24~gammatone``, ...
     """
     predictors: Dict[str, Union[EventPredictor, FilePredictor, MakePredictor]] = {}
+    estimators: Dict[str, Estimator] = {}
 
     _values = {
         # Predictors
@@ -206,26 +207,17 @@ class TRFExperiment(Pipeline):
 
     _parc_supersets = {}
 
-    def _resolve_estimator(self, estimator: Union[str, Estimator, None]) -> Union[Estimator, None]:
-        """Resolve estimator name to an Estimator instance (or None)."""
-        if estimator is None:
-            return None
-        if isinstance(estimator, str):
-            estimators = getattr(self, 'estimators', None)
-            if not isinstance(estimators, dict):
-                raise ValueError("estimator='...' requires experiment.estimators dict")
-            est = estimators.get(estimator)
-            if est is None:
-                raise ValueError(f"estimator={estimator!r} not in {list(estimators.keys())}")
-            estimator = est
-        if not isinstance(estimator, Estimator):
-            raise ValueError(f"estimator must be str or Estimator, got {type(estimator)!r}")
-        return estimator
+    def _resolve_estimator(self, estimator: str) -> Estimator:
+        """Resolve estimator name to an Estimator instance."""
+        if not isinstance(estimator, str):
+            raise TypeError(f"estimator must be str, got {type(estimator)!r}")
+        est = self.estimators.get(estimator)
+        if est is None:
+            raise ValueError(f"estimator={estimator!r} not in {list(self.estimators.keys())}")
+        return est
 
-    def _apply_estimator_params(self, estimator: Union[Estimator, None], **kwargs) -> Dict[str, Any]:
+    def _apply_estimator_params(self, estimator: Estimator, **kwargs) -> Dict[str, Any]:
         """Apply estimator params on top of explicit args and return updated kwargs."""
-        if estimator is None:
-            return kwargs
         effective = dict(estimator.parameters_for_partial())
         kwargs['delta'] = effective.get('delta', kwargs.get('delta'))
         kwargs['mindelta'] = effective.get('mindelta', kwargs.get('mindelta'))
@@ -326,6 +318,16 @@ class TRFExperiment(Pipeline):
         return Pipeline._update_inv_cache(fields)
 
     def _subclass_init(self):
+        # estimators
+        if not isinstance(self.estimators, dict):
+            raise TypeError(f"{self.__class__.__name__}.estimators={self.estimators!r}")
+        for key, estimator in self.estimators.items():
+            if not isinstance(key, str):
+                raise TypeError(f"{self.__class__.__name__}.estimators key {key!r}")
+            if not isinstance(estimator, Estimator):
+                raise TypeError(f"{self.__class__.__name__}.estimators[{key!r}]={estimator!r}")
+        self._register_field('estimator', sorted(self.estimators), repr=True)
+
         # predictors
         for key in self.predictors:
             if not key.isidentifier():
@@ -910,7 +912,6 @@ class TRFExperiment(Pipeline):
             path_only: bool = False,
             partition_results: bool = False,
             morph: bool = False,
-            estimator: Union[str, Estimator, None] = None,
             **state,
     ) -> Union[BoostingResult, str]:
         """TRF estimated with boosting
@@ -967,13 +968,11 @@ class TRFExperiment(Pipeline):
             Keep results for each test-partition (TRFs and model evaluation).
         morph
             Morph source space data to the FSAverage brain.
-        estimator : str | Estimator | None
-            Named estimator key from ``experiment.estimators`` (e.g. ``'boosting'``),
-            or an :class:`~trftools.pipeline.estimator.Estimator` instance. If given,
-            its parameters override the explicit delta/basis/partitions/cv/... arguments
-            and determine the cache path and fitting call.
         ...
             State parameters.
+
+            estimator
+                Named estimator key from ``experiment.estimators``.
 
         Returns
         -------
@@ -981,10 +980,9 @@ class TRFExperiment(Pipeline):
         """
         data = TestDims.coerce(data, morph=morph)
         x = self._coerce_model(x)
-        # Resolve estimator (str -> instance) and apply effective params
-        estimator = self._resolve_estimator(estimator)
-        if estimator is not None:
-            data, mask, state = estimator.normalize_trf_args(self, data, mask, state)
+        estimator_name = self.get('estimator', **state)
+        estimator = self._resolve_estimator(estimator_name)
+        data, mask, state = estimator.normalize_trf_args(self, data, mask, state)
         effective = self._apply_estimator_params(
             estimator,
             delta=delta,
@@ -1058,7 +1056,7 @@ class TRFExperiment(Pipeline):
         elif mask in self._parc_supersets:
             for super_parc in self._parc_supersets[mask]:
                 try:
-                    res = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, cv, data, backward, partition_results=partition_results)
+                    res = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, cv, data, backward, partition_results=partition_results, estimator=estimator_name)
                 except IOError:
                     pass
                 else:
