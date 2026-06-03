@@ -40,7 +40,7 @@ from eelbrain._utils import ask
 from filelock import FileLock
 import numpy as np
 from numpy import newaxis
-from trftools.pipeline.estimator import Estimator
+from trftools.pipeline.estimator import Estimator, NCRFEstimator
 
 from .._ndvar import pad
 from .._numpy_funcs import arctanh
@@ -207,7 +207,7 @@ class TRFExperiment(Pipeline):
 
     _parc_supersets = {}
 
-    def _resolve_estimator(self, estimator: str) -> Estimator:
+    def _get_estimator(self, estimator: str) -> Estimator:
         """Resolve estimator name to an Estimator instance."""
         if not isinstance(estimator, str):
             raise TypeError(f"estimator must be str, got {type(estimator)!r}")
@@ -908,7 +908,6 @@ class TRFExperiment(Pipeline):
             selective_stopping: int = 0,
             cv: bool = True,
             data: DataArg = DATA_DEFAULT,
-            backward: bool = False,
             make: bool = False,
             path_only: bool = False,
             partition_results: bool = False,
@@ -954,11 +953,6 @@ class TRFExperiment(Pipeline):
             Cross-validation.
         data : 'source' | 'meg' | 'eeg'
             Analyze source-space data (default) or sensor space data.
-        backward
-            Fit a backward model (reconstruct the stimulus from the brain response).
-            Note that in this case latencies are relative to the brain response time:
-            to reconstruct ``x`` using the 500 ms response following it,
-            set ``backward=True, tstart=-0.500, tstop=0``.
         make
             If the TRF does not exist, estimate it
             (the default is to raise an IOError; this is because estimating new TRFs
@@ -982,7 +976,7 @@ class TRFExperiment(Pipeline):
         data = TestDims.coerce(data, morph=morph)
         x = self._coerce_model(x)
         estimator_name = self.get('estimator', **state)
-        estimator = self._resolve_estimator(estimator_name)
+        estimator = self._get_estimator(estimator_name)
         data, mask, state = estimator.normalize_trf_args(self, data, mask, state)
         effective = self._apply_estimator_params(
             estimator,
@@ -992,7 +986,7 @@ class TRFExperiment(Pipeline):
             basis=basis,
             partitions=partitions,
             cv=cv,
-            backward=backward,
+            backward=False,
             selective_stopping=selective_stopping,
             partition_results=partition_results,
         )
@@ -1059,7 +1053,7 @@ class TRFExperiment(Pipeline):
         elif mask in self._parc_supersets:
             for super_parc in self._parc_supersets[mask]:
                 try:
-                    res = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, cv, data, backward, partition_results=partition_results, estimator=estimator_name)
+                    res = self.load_trf(x, tstart, tstop, basis, error, partitions, samplingrate, super_parc, delta, mindelta, filter_x, selective_stopping, cv, data, partition_results=partition_results, estimator=estimator_name)
                 except IOError:
                     pass
                 else:
@@ -1071,7 +1065,7 @@ class TRFExperiment(Pipeline):
             raise IOError(f"TRF {relpath(dst, self.get('root'))} does not exist (model {model_desc!r}); set make=True to compute it.")
 
         self._log.info("Computing TRF:  %s %s %s %s", self.get('subject'), data.string, '->' if backward else '<-', x.name)
-        func = self._trf_job(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, partition_results, estimator=estimator, **state)
+        func = self._trf_job(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, partition_results, estimator=estimator_name, **state)
         if func is None:
             res = load.unpickle(dst)  # _trf_job() created a link from an equivalent result (NCRF)
         else:
@@ -1127,10 +1121,11 @@ class TRFExperiment(Pipeline):
             data: DataArg = DATA_DEFAULT,
             backward: bool = False,
             partition_results: bool = False,
-            estimator: Estimator = None,
+            estimator: str = None,
             **state,
     ) -> Optional[Callable]:
         "Return function to create TRF result"
+        estimator_obj = self._get_estimator(estimator)
         data = TestDims.coerce(data)
         epoch = self.get('epoch', **state)
         assert not isinstance(self._epochs[epoch], EpochCollection)
@@ -1138,7 +1133,9 @@ class TRFExperiment(Pipeline):
         if not x:
             return
 
-        if estimator is not None and getattr(estimator, 'name', None) == 'ncrf':
+        if isinstance(estimator_obj, NCRFEstimator):
+            if backward:
+                raise ValueError("NCRFEstimator does not support backward models")
             return self._trf_job_ncrf_estimator(
                 x,
                 tstart,
@@ -1155,6 +1152,8 @@ class TRFExperiment(Pipeline):
             m = NCRF_RE.match(inv)
             if m:
                 data = TestDims('sensor')
+                if backward:
+                    raise ValueError("NCRF does not support backward models")
             else:
                 morph = is_fake_mri(self.get('mri-dir'))
                 data = TestDims.coerce(data, morph=morph)
@@ -1276,8 +1275,7 @@ class TRFExperiment(Pipeline):
                 else:
                     y = y.sub(sensor=cov.ch_names)
             from ncrf import fit_ncrf
-            if estimator is not None:
-                ncrf_args = {**ncrf_args, **estimator.parameters_for_partial()}
+            ncrf_args = {**ncrf_args, **estimator_obj.parameters_for_partial()}
             ncrf_args.setdefault('normalize', True)
             ncrf_args.setdefault('in_place', True)
             return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, **ncrf_args)
@@ -1302,9 +1300,10 @@ class TRFExperiment(Pipeline):
             samplingrate: int,
             filter_x: FilterXArg,
             data: DataArg,
-            estimator: Estimator,
+            estimator: str,
     ) -> Callable:
         "Return NCRF fit job for estimator-driven entry points."
+        estimator_obj = self._get_estimator(estimator)
         ds = self.load_epochs(samplingrate=samplingrate, data=data)
         y = ds[data.y_name]
         is_variable_time = isinstance(y, Datalist)
@@ -1349,7 +1348,7 @@ class TRFExperiment(Pipeline):
 
         from ncrf import fit_ncrf
 
-        ncrf_args = {'mu': 'auto', **estimator.parameters_for_partial()}
+        ncrf_args = {'mu': 'auto', **estimator_obj.parameters_for_partial()}
         ncrf_args.setdefault('normalize', True)
         ncrf_args.setdefault('in_place', True)
         return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, **ncrf_args)
@@ -1371,7 +1370,6 @@ class TRFExperiment(Pipeline):
             selective_stopping: int = 0,
             cv: bool = True,
             data: DataArg = DATA_DEFAULT,
-            backward: bool = False,
             make: bool = False,
             scale: str = None,
             smooth: float = None,
@@ -1429,11 +1427,6 @@ class TRFExperiment(Pipeline):
             Use cross-validation.
         data : 'source' | 'meg' | 'eeg'
             Analyze source-space data (default) or sensor space data.
-        backward
-            Fit a backward model (reconstruct the stimulus from the brain response).
-            Note that in this case latencies are relative to the brain response time:
-            to reconstruct ``x`` using the 500 ms response following it,
-            set ``backward=True, tstart=-0.500, tstop=0``.
         make
             If some of the TRFs do not exist, estimate those TRFs
             (the default is to raise an IOError; this is because estimating new TRFs
@@ -1479,7 +1472,7 @@ class TRFExperiment(Pipeline):
         if group is not None:
             dss = []
             for _ in self.iter(group=group, progress_bar="Load TRFs"):
-                ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, None, None, vardef, permutations, vector_as_norm, trfs)
+                ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make, scale, None, None, vardef, permutations, vector_as_norm, trfs)
                 dss.append(ds)
             ds = combine(dss, to_list=True)
             self._smooth_trfs(data, ds, smooth, smooth_time)
@@ -1491,7 +1484,7 @@ class TRFExperiment(Pipeline):
             dss = []
             with self._temporary_state:
                 for sub_epoch in epoch.collect:
-                    ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, scale, None, None, None, permutations, vector_as_norm, trfs, epoch=sub_epoch)
+                    ds = self.load_trfs(1, x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make, scale, None, None, None, permutations, vector_as_norm, trfs, epoch=sub_epoch)
                     dss.append(ds)
             ds = combine(dss)
             self._smooth_trfs(data, ds, smooth, smooth_time)
@@ -1517,7 +1510,7 @@ class TRFExperiment(Pipeline):
         # load result(s)
         h = r = z = r1 = z1 = residual = det = tstep = res_partitions = mu = None
         for x_ in xs:
-            res = self.load_trf(x_, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, morph=True)
+            res = self.load_trf(x_, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make=make, morph=True)
             # Fit metrics
             if tstep is None:  # (first iteration)
                 if is_ncrf:
@@ -1656,13 +1649,16 @@ class TRFExperiment(Pipeline):
             return []
         if state:
             self.set(**state)
+        estimator_name = self.get('estimator')
 
         out = []
-        args = (x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, partition_results)
+        locate_args = (x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward)
+        recursion_args = (*locate_args, partition_results)
+        job_args = (*locate_args, partition_results, estimator_name)
 
         # multiple permutations
         if permutations > 1 and x.has_randomization:
-            args = args[1:]
+            args = recursion_args[1:]
             for xi in x.multiple_permutations(permutations):
                 out.extend(self._locate_missing_trfs(xi, *args, existing=existing))
             return out
@@ -1672,12 +1668,12 @@ class TRFExperiment(Pipeline):
         if isinstance(epoch, EpochCollection):
             with self._temporary_state:
                 for epoch_ in epoch.collect:
-                    out.extend(self._locate_missing_trfs(*args, existing=existing, epoch=epoch_))
+                    out.extend(self._locate_missing_trfs(*recursion_args, existing=existing, epoch=epoch_))
             return out
 
         # one model, one epoch
         for _ in self:
-            path = self._locate_trf(*args[:-1], allow_new=True)
+            path = self._locate_trf(*locate_args, allow_new=True)
             if not existing:
                 if os.path.exists(path):
                     continue  # TRF exists for requested mask
@@ -1690,7 +1686,7 @@ class TRFExperiment(Pipeline):
                         break
                 if super_exists:
                     continue
-            out.append((path, self._copy_state(), args))
+            out.append((path, self._copy_state(), job_args))
         return out
 
     def _assert_fsaverage_sym_exists(self):
@@ -2287,7 +2283,6 @@ class TRFExperiment(Pipeline):
             selective_stopping: int = 0,
             cv: bool = True,
             data: DataArg = DATA_DEFAULT,
-            backward: bool = False,
             permutations: int = 1,
             metric: str = 'z',
             smooth: float = None,
@@ -2343,11 +2338,6 @@ class TRFExperiment(Pipeline):
             Use cross-validation.
         data : 'source' | 'meg' | 'eeg'
             Analyze source-space data (default) or sensor space data.
-        backward
-            Fit a backward model (reconstruct the stimulus from the brain response).
-            Note that in this case latencies are relative to the brain response time:
-            to reconstruct ``x`` using the 500 ms response following it,
-            set ``backward=True, tstart=-0.500, tstop=0``.
         permutations
             When testing against a partially permuted model, average the result
             of ``permutations`` different permutations as baseline model.
@@ -2417,12 +2407,15 @@ class TRFExperiment(Pipeline):
             raise TypeError(f"{tail=}: argument only applies to parameter-tests")
         else:
             test_desc = True if test is None else test
+        estimator_name = self.get('estimator', **state)
+        estimator = self._get_estimator(estimator_name)
+        backward = self._apply_estimator_params(estimator, backward=False)['backward']
 
         # Load multiple tests for a comparison group
         if isinstance(comparison, StructuredModel):
             if state:
                 self.set(**state)
-            ress = {comp.test_term_name: self.load_model_test(comp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, permutations, metric, smooth, test, return_data, pmin, xhemi, xhemi_mask, make, parameter, compare_to, tail, partition_results) for comp in comparison.comparisons(cv)}
+            ress = {comp.test_term_name: self.load_model_test(comp, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, metric, smooth, test, return_data, pmin, xhemi, xhemi_mask, make, parameter, compare_to, tail, partition_results) for comp in comparison.comparisons(cv)}
             if return_data:
                 dss = {key: res[0] for key, res in ress.items()}
                 ress = ResultCollection({key: res[1] for key, res in ress.items()})
@@ -2462,7 +2455,7 @@ class TRFExperiment(Pipeline):
             group = self.get('group')
             vardef = None if test is None else self._tests[test].vars
             x1_permutations = permutations if comparison.x1.has_randomization else 1
-            ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, make, trfs=False, vardef=vardef, permutations=x1_permutations, partition_results=partition_results)
+            ds1 = self.load_trfs(group, comparison.x1, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, make, trfs=False, vardef=vardef, permutations=x1_permutations, partition_results=partition_results)
 
             if comparison.x0.terms or parameter is not None:
                 if parameter is not None:
@@ -2470,14 +2463,14 @@ class TRFExperiment(Pipeline):
                     if parameter not in kwargs:
                         raise ValueError(f'{parameter=}: must be one of {set(kwargs)}')
                     kwargs[parameter] = compare_to
-                    ds0 = self.load_trfs(group, comparison.x1, **kwargs, data=data, backward=backward, trfs=False, make=make, vardef=vardef, permutations=permutations, partition_results=partition_results)
+                    ds0 = self.load_trfs(group, comparison.x1, **kwargs, data=data, trfs=False, make=make, vardef=vardef, permutations=permutations, partition_results=partition_results)
                     if comparison.x0.terms:
-                        ds1_0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, trfs=False, make=make, vardef=vardef, permutations=x1_permutations, partition_results=partition_results)
+                        ds1_0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, trfs=False, make=make, vardef=vardef, permutations=x1_permutations, partition_results=partition_results)
                         ds1[y] -= ds1_0[y]
-                        ds0_0 = self.load_trfs(group, comparison.x0, **kwargs, data=data, backward=backward, trfs=False, make=make, vardef=vardef, permutations=permutations, partition_results=partition_results)
+                        ds0_0 = self.load_trfs(group, comparison.x0, **kwargs, data=data, trfs=False, make=make, vardef=vardef, permutations=permutations, partition_results=partition_results)
                         ds0[y] -= ds0_0[y]
                 else:
-                    ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, trfs=False, make=make, vardef=vardef, permutations=permutations, partition_results=partition_results)
+                    ds0 = self.load_trfs(group, comparison.x0, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, trfs=False, make=make, vardef=vardef, permutations=permutations, partition_results=partition_results)
                 # restructure data
                 assert np.all(ds1['subject'] == ds0['subject'])
                 keep = tuple([k for k in ds1 if isuv(ds1[k]) and np.all(ds1[k] == ds0[k])])
@@ -2520,7 +2513,7 @@ class TRFExperiment(Pipeline):
                 if xhemi_mask:
                     parc = self._xhemi_parc()
                     with self._temporary_state:
-                        base_res = self.load_model_test(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, backward, permutations, metric, smooth, test, pmin=pmin, make=make, partition_results=partition_results)
+                        base_res = self.load_model_test(comparison, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, metric, smooth, test, pmin=pmin, make=make, partition_results=partition_results)
                     if isinstance(base_res, MultiEffectNDTest):
                         raise NotImplementedError("xhemi_mask for multi-effect tests")
                     mask_lh, mask_rh = eelbrain.xhemi(base_res.p <= 0.05, parc=parc)
@@ -2642,7 +2635,29 @@ class TRFExperiment(Pipeline):
             return
         self._log.info("Make TRF-report: %s", relpath(dst, self.get('model-res-dir')))
 
-        ds, res = self.load_model_test(x, tstart, tstop, basis, error, partitions, samplingrate, mask, delta, mindelta, filter_x, selective_stopping, cv, data, permutations, metric, smooth, test, True, 'tfce', make=make)
+        ds, res = self.load_model_test(
+            x,
+            tstart,
+            tstop,
+            basis,
+            error,
+            partitions,
+            samplingrate,
+            mask,
+            delta,
+            mindelta,
+            filter_x,
+            selective_stopping,
+            cv,
+            data,
+            permutations,
+            metric,
+            smooth,
+            test,
+            True,
+            'tfce',
+            make=make,
+        )
 
         if isinstance(x, StructuredModel):
             comparisons = x.comparisons(cv)
