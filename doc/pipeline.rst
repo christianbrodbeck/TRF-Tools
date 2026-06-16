@@ -6,6 +6,13 @@ Pipeline
 ********
 The :mod:`pipeline` module provides an extension of the Eelbrain `MNE-Experiment pipeline <https://eelbrain.readthedocs.io/en/latest/experiment.html>`_ for mTRF analysis.
 
+.. note::
+    The main branch of TRF-Tools works with BIDS format datasets and requires a recent alpha version of Eelbrain
+    (see the `GitHub README file <https://github.com/christianbrodbeck/TRF-Tools>`_).
+    To use the pipeline with legacy format datasets, use the
+    `legacy branch <https://github.com/christianbrodbeck/TRF-Tools/tree/legacy>`_.
+
+
 ^^^^^^^^^^^^^^^^
 Module Reference
 ^^^^^^^^^^^^^^^^
