@@ -12,13 +12,16 @@ from os.path import exists, getmtime, join, relpath
 from pathlib import Path
 from pyparsing import ParseException
 import re
+import sys
 import time
 import types
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Sequence, Tuple, Union
-import sys
 import warnings
 
 import eelbrain
+from filelock import FileLock
+import numpy as np
+from numpy import newaxis
 from eelbrain import (
     fmtxt, load, save, table, plot,
     MultiEffectNDTest, BoostingResult,
@@ -37,14 +40,11 @@ from eelbrain._types import PathArg
 from eelbrain._utils.mne_utils import is_fake_mri
 from eelbrain._utils.notebooks import tqdm
 from eelbrain._utils import ask
-from filelock import FileLock
-import numpy as np
-from numpy import newaxis
-from trftools.pipeline.estimator import Estimator, NCRFEstimator
 
 from .._ndvar import pad
 from .._numpy_funcs import arctanh
 from ._code import Code
+from .estimator import Estimator, NCRFEstimator
 from ._jobs import TRFsJob
 from ._model import Comparison, Model, ModelExpression, StructuredModel, load_models, model_comparison_table, model_name_parser, save_models
 from ._predictor import EventPredictor, FilePredictor, FilePredictorBase, MakePredictor, SessionPredictor
@@ -2405,23 +2405,7 @@ class TRFExperiment(Pipeline):
             return
         self._log.info("Make TRF-report: %s", relpath(dst, self.get('model-res-dir')))
 
-        ds, res = self.load_model_test(
-            x,
-            tstart,
-            tstop,
-            samplingrate,
-            mask,
-            filter_x,
-            data,
-            permutations,
-            metric,
-            smooth,
-            test,
-            True,
-            'tfce',
-            make=make,
-            estimator=estimator_name,
-        )
+        ds, res = self.load_model_test(x, tstart, tstop, samplingrate, mask, filter_x, data, permutations, metric, smooth, test, True, 'tfce', make=make, estimator=estimator_name)
 
         if isinstance(x, StructuredModel):
             comparisons = x.comparisons(cv)
