@@ -1207,8 +1207,7 @@ class TRFExperiment(Pipeline):
         # reshape data
         if partitions is None:
             if not 3 <= ds.n_cases <= 10:
-                # Default when estimator doesn't set partitions (e.g. NCRF with sensor space) or many cases
-                partitions = min(5, max(2, ds.n_cases // 2))
+                raise TypeError(f"{partitions=}: can't infer partitions parameter for {ds.n_cases} cases")
         elif partitions < 0:
             partitions = None if partitions == -1 else -partitions
             y = concatenate(y)
