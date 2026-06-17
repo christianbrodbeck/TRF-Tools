@@ -1114,69 +1114,15 @@ class TRFExperiment(Pipeline):
 
         if data.source:
             inv = self.get('inv')
-            m = NCRF_RE.match(inv)
-            if m:
-                data = TestDims('sensor')
-                if backward:
-                    raise ValueError("NCRF does not support backward models")
-            else:
-                morph = is_fake_mri(self.get('mri-dir'))
-                data = TestDims.coerce(data, morph=morph)
+            if NCRF_RE.match(inv):
+                raise ValueError("NCRF inverse solutions require an NCRFEstimator")
+            morph = is_fake_mri(self.get('mri-dir'))
+            data = TestDims.coerce(data, morph=morph)
         else:
-            inv = m = None
-
-        # NCRF: Cross-validations
-        ncrf_args = {'mu': 'auto'}
-        if m:
-            ncrf_tag = m.group(2) or ''  # group 2 is None when not present
-        else:
-            ncrf_tag = ''
-
-        if ncrf_tag.isdigit():
-            ncrf_args['mu'] = float(ncrf_tag) / 10000
-        elif ncrf_tag == '50it':
-            ncrf_args['n_iter'] = 50
-        elif ncrf_tag == 'no_champ':
-            ncrf_args.update(n_iter=1, n_iterf=1000, n_iterc=0)
-        elif ncrf_tag:
-            # find best mu from previous cross-validations
-            with self._temporary_state:
-                cv = self.load_trf(x, tstart, tstop, samplingrate, mask, filter_x, inv=m.group(1))
-
-            if ncrf_tag == 'l2':
-                ncrf_args['mu'] = cv.cv_mu('l2')
-            elif ncrf_tag == 'l2mu':
-                ncrf_args['mu'] = cv.cv_mu('l2/mu')
-            elif ncrf_tag == 'cv2':
-                grade = 10
-                cv_results = sorted(cv._cv_results, key=attrgetter('mu'))
-                best_cv = min(cv_results, key=attrgetter('cross_fit'))
-                i = cv_results.index(best_cv)
-                ncrf_args['mu'] = np.logspace(np.log10(cv_results[i-1].mu), np.log10(cv_results[i+1].mu), grade+2)[1:-1]
-            else:
-                raise RuntimeError(f'inv={inv!r}')
-            # check whether fit with mu exists
-            if ncrf_tag.startswith('l2'):
-                src_inv = None
-                if ncrf_args['mu'] == cv.mu:
-                    src_inv = 'dstrf'
-                elif inv == 'dstrf-l2mu':
-                    with self._temporary_state:
-                        l2_trf = self.load_trf(x, tstart, tstop, samplingrate, mask, filter_x, inv='dstrf-l2')
-                    if ncrf_args['mu'] == l2_trf.mu:
-                        src_inv = 'dstrf-l2'
-                # if fit with mu exists, link it
-                if src_inv is not None:
-                    with self._temporary_state:
-                        src = self._locate_trf(x, tstart, tstop, samplingrate, mask, filter_x, data, inv=src_inv)
-                        dst = self._locate_trf(x, tstart, tstop, samplingrate, mask, filter_x, data, inv=inv)
-                    os.link(src, dst)
-                    return
+            inv = None
 
         # load data
-        if m:
-            ds = self.load_epochs(samplingrate=samplingrate, data=data)
-        elif data.source is True:
+        if data.source is True:
             # FIXME: in TRF-path, use mri-subject rather than mri value
             ds = self.load_epochs_stc(baseline=False, mask=mask, samplingrate=samplingrate, morph=data.morph)
         elif data.sensor:
@@ -1192,17 +1138,6 @@ class TRFExperiment(Pipeline):
             code = Code.coerce(term)
             self.add_predictor(ds, code, filter_x, data.y_name)
             xs.append(ds[code.key])
-
-        # determine partitions for NCRF
-        if m:
-            assert partitions is None
-            if is_variable_time:
-                partitions = 1
-            elif (y.time.nsamples * y.time.tstep) / tstop < 30:
-                # make sure chunk size is at least 30 TRFs
-                partitions = -1
-            else:
-                partitions = 1
 
         # reshape data
         if partitions is None:
@@ -1224,25 +1159,6 @@ class TRFExperiment(Pipeline):
             names = [x_.name for x_ in xs]
             if len(set(names)) < len(names):
                 raise ValueError(f"Multiple predictors with same name: {', '.join(names)}")
-            if m and is_variable_time:
-                # [[u1, u2], [v1, v2]] -> [[u1, v1], [u2, v2]]
-                xs = list(zip(*xs))
-
-        if m:
-            y0 = y[0] if is_variable_time else y
-            fwd = self.load_fwd(ndvar=True)
-            cov = self.load_cov()
-            # NCRF assumes data has subset of sensors in covariance
-            if set(y0.sensor.names).difference(cov.ch_names):
-                if is_variable_time:
-                    y = [yi.sub(sensor=cov.ch_names) for yi in y]
-                else:
-                    y = y.sub(sensor=cov.ch_names)
-            from ncrf import fit_ncrf
-            ncrf_args = {**ncrf_args, **estimator_obj.parameters_for_partial()}
-            ncrf_args.setdefault('normalize', True)
-            ncrf_args.setdefault('in_place', True)
-            return partial(fit_ncrf, y, xs, fwd, cov, tstart, tstop, **ncrf_args)
         boosting_args = {
             'delta': delta,
             'mindelta': mindelta,
