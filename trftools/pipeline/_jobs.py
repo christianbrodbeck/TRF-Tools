@@ -302,9 +302,11 @@ class ModelJob(ExperimentJob):
             reduction_tag: str = 'red',
             metric: str = 'z',
             smooth: float = False,
-            cv: bool = True,
             **options,
     ):
+        estimator_name = experiment.get('estimator', **options)
+        estimator = experiment._get_estimator(estimator_name)
+        cv = experiment._get_estimator_fit_params(estimator)['cv']
         model = experiment._coerce_comparison(model, cv)
         if isinstance(reduce_model, float):
             assert 0. < reduce_model < 1.
@@ -324,7 +326,6 @@ class ModelJob(ExperimentJob):
         else:
             public_name = None
 
-        options['cv'] = cv
         ExperimentJob.__init__(self, experiment, model, priority, options, public_name, report)
         self._test_options = {'metric': metric, 'smooth': smooth}
         self._reduction_tag = reduction_tag
