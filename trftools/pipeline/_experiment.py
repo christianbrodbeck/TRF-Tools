@@ -213,7 +213,7 @@ class TRFExperiment(Pipeline):
             raise TypeError(f"estimator must be str, got {type(estimator)!r}")
         est = self.estimators.get(estimator)
         if est is None:
-            raise ValueError(f"estimator={estimator!r} not in {list(self.estimators.keys())}")
+            raise ValueError(f"{estimator=} not in {list(self.estimators.keys())}")
         return est
 
     def _apply_estimator_params(self, estimator: Estimator, **kwargs) -> Dict[str, Any]:
