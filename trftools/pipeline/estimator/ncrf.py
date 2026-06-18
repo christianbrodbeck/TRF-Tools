@@ -23,7 +23,16 @@ class NCRFEstimator(Estimator):
     in_place
         Allow in-place operations during fitting.
     """
-    def __init__(self, *, mu: float | str = 'auto', n_iter: int = None, n_iterf: int = None, n_iterc: int = None, normalize: bool = True, in_place: bool = True):
+    def __init__(
+        self,
+        *,
+        mu: float | str = 'auto',
+        n_iter: int = None,
+        n_iterf: int = None,
+        n_iterc: int = None,
+        normalize: bool = True,
+        in_place: bool = True,
+    ):
         self.mu = mu
         self.n_iter = n_iter
         self.n_iterf = n_iterf
