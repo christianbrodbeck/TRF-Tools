@@ -22,8 +22,26 @@ class BoostingEstimator(Estimator):
     """
     Boosting estimator configuration.
 
-    Boosting builds the TRF incrementally, unlike NCRF which solves a
-    regularized inverse problem.
+    Parameters
+    ----------
+    delta
+        Boosting step size.
+    mindelta
+        Minimum boosting step size.
+    error
+        Error function passed to boosting.
+    basis
+        Basis window width in seconds.
+    partitions
+        Number of partitions used for fitting.
+    test
+        Whether to use cross-validation during fitting.
+    selective_stopping
+        Stop boosting each predictor separately.
+    partition_results
+        Keep partition-level fit results.
+    backward
+        Fit a backward model.
     """
     def __init__(
         self,
