@@ -191,7 +191,7 @@ class TRFExperiment(Pipeline):
         # TRF
         'trf-sdir': join('{cache-dir}', 'trf'),
         'trf-dir': join('{trf-sdir}', '{subject}'),
-        'trf-file': join('{trf-dir}', '{analysis}', '{epoch_basename} {test_options}.pickle'),
+        'trf-file': join('{trf-dir}', '{analysis}', '{epoch_basename} {epoch} {test_options}.pickle'),
         'trf-test-file': join('{cache-dir}', 'trf-test', '{analysis} {group}', '{folder}', '{epoch_basename} {test} {test_options}.pickle'),
         # model comparisons
         'model-test-file': join('{cache-dir}', 'model-test', '{analysis} {group}', '{folder}', '{epoch_basename} {test} {test_options}.pickle'),
@@ -2125,7 +2125,7 @@ class TRFExperiment(Pipeline):
             - ``z``:   z-transformed correlation
             - ``r1``:  1 correlation
             - ``z1``:  z-transformed l1 correlation
-            - ``residual``: Residual form model fit
+            - ``residual``: Residual from model fit
             - ``det``: Proportion of the explained variability
 
         smooth
