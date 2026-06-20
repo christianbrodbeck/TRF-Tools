@@ -1363,7 +1363,7 @@ class TRFExperiment(Pipeline):
         # load result(s)
         h = r = z = r1 = z1 = residual = det = tstep = res_partitions = mu = None
         for x_ in xs:
-            res = self.load_trf(x_, tstart, tstop, samplingrate, mask, filter_x, data, make=make, morph=True)
+            res = self.load_trf(x_, tstart, tstop, samplingrate, mask, filter_x, data, make=make, morph=True, estimator=estimator_name)
             # Fit metrics
             if tstep is None:  # (first iteration)
                 if is_ncrf:

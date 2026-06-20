@@ -264,7 +264,8 @@ class FilePredictor(FilePredictorBase):
                 if 'tstop' in x.info:
                     tstop = x.info['tstop']
                 else:
-                    tstop = x[-1, 'time'] + 0.5
+                    time_col = self._time_column(x)
+                    tstop = x[-1, time_col] + 0.5
                 n_samples = int((tstop - tmin) // tstep)
             uts = UTS(tmin, tstep, n_samples)
             x = self._ds_to_ndvar(x, uts, code)
@@ -323,6 +324,25 @@ class FilePredictor(FilePredictorBase):
             raise RuntimeError(f"{stim_type=}")
         return x
 
+    @staticmethod
+    def _time_column(ds: Dataset) -> str:
+        if 'time' in ds:
+            return 'time'
+        elif 'onset' in ds:
+            return 'onset'
+        elif 'i_start' in ds:
+            sfreq = ds.info.get('sfreq') or ds.info.get('sampling_rate')
+            if sfreq is None:
+                raise KeyError(
+                    "Predictor Dataset has 'i_start' (sample index) but no 'time'/'onset'. "
+                    "Add ds.info['sfreq'] or ds.info['sampling_rate'] to convert to seconds, "
+                    f"or provide a 'time' column. Columns: {list(ds)}"
+                )
+            ds['time'] = ds['i_start'].x.astype(float) / float(sfreq)
+            return 'time'
+        else:
+            raise KeyError(f"Predictor Dataset must have 'time', 'onset', or 'i_start' column; got {list(ds)}")
+
     def _ds_to_ndvar(self, ds: Dataset, uts: UTS, code: Code):
         if self.columns:
             column_key, mask_key = code.nuts_columns
@@ -333,23 +353,7 @@ class FilePredictor(FilePredictorBase):
             column_key = 'value'
             mask_key = 'mask' if 'mask' in ds else None
 
-        # Time column: prefer 'time', then 'onset', then derive from 'i_start' (sample index) if sfreq in info
-        if 'time' in ds:
-            time_col = 'time'
-        elif 'onset' in ds:
-            time_col = 'onset'
-        elif 'i_start' in ds:
-            sfreq = ds.info.get('sfreq') or ds.info.get('sampling_rate')
-            if sfreq is None:
-                raise KeyError(
-                    "Predictor Dataset has 'i_start' (sample index) but no 'time'/'onset'. "
-                    "Add ds.info['sfreq'] or ds.info['sampling_rate'] to convert to seconds, "
-                    f"or provide a 'time' column. Columns: {list(ds)}"
-                )
-            ds['time'] = ds['i_start'].x.astype(float) / float(sfreq)
-            time_col = 'time'
-        else:
-            raise KeyError(f"Predictor Dataset must have 'time', 'onset', or 'i_start' column; got {list(ds)}")
+        time_col = self._time_column(ds)
 
         # Value column: default 'value'; if missing, use unit impulse (1) when events have 'trigger'
         if column_key not in ds:
