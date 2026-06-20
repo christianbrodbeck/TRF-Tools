@@ -1026,7 +1026,7 @@ class TRFExperiment(Pipeline):
 
         self._log.info("Computing TRF:  %s %s %s %s", self.get('subject'), data.string, '->' if backward else '<-', x.name)
         job_state = {**locate_state}
-        func = self._trf_job(x, tstart, tstop, samplingrate, mask, filter_x, data, estimator_name, **job_state)
+        func = self._trf_job(x, tstart, tstop, samplingrate, mask, filter_x, data, **job_state)
         if func is None:
             res = load.unpickle(dst)  # _trf_job() created a link from an equivalent result (NCRF)
         else:
