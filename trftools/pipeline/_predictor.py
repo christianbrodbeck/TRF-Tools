@@ -264,8 +264,8 @@ class FilePredictor(FilePredictorBase):
                 if 'tstop' in x.info:
                     tstop = x.info['tstop']
                 else:
-                    time_col = self._time_column(x)
-                    tstop = x[-1, time_col] + 0.5
+                    self._check_time_column(x)
+                    tstop = x[-1, 'time'] + 0.5
                 n_samples = int((tstop - tmin) // tstep)
             uts = UTS(tmin, tstep, n_samples)
             x = self._ds_to_ndvar(x, uts, code)
@@ -325,23 +325,9 @@ class FilePredictor(FilePredictorBase):
         return x
 
     @staticmethod
-    def _time_column(ds: Dataset) -> str:
-        if 'time' in ds:
-            return 'time'
-        elif 'onset' in ds:
-            return 'onset'
-        elif 'i_start' in ds:
-            sfreq = ds.info.get('sfreq') or ds.info.get('sampling_rate')
-            if sfreq is None:
-                raise KeyError(
-                    "Predictor Dataset has 'i_start' (sample index) but no 'time'/'onset'. "
-                    "Add ds.info['sfreq'] or ds.info['sampling_rate'] to convert to seconds, "
-                    f"or provide a 'time' column. Columns: {list(ds)}"
-                )
-            ds['time'] = ds['i_start'].x.astype(float) / float(sfreq)
-            return 'time'
-        else:
-            raise KeyError(f"Predictor Dataset must have 'time', 'onset', or 'i_start' column; got {list(ds)}")
+    def _check_time_column(ds: Dataset):
+        if 'time' not in ds:
+            raise KeyError(f"Predictor Dataset must have a 'time' column in seconds; got {list(ds)}")
 
     def _ds_to_ndvar(self, ds: Dataset, uts: UTS, code: Code):
         if self.columns:
@@ -353,7 +339,7 @@ class FilePredictor(FilePredictorBase):
             column_key = 'value'
             mask_key = 'mask' if 'mask' in ds else None
 
-        time_col = self._time_column(ds)
+        self._check_time_column(ds)
 
         # Value column: default 'value'; if missing, use unit impulse (1) when events have 'trigger'
         if column_key not in ds:
@@ -420,17 +406,17 @@ class FilePredictor(FilePredictorBase):
 
         # fill in values
         dt = uts.tstep / 2
-        ds = ds[(ds[time_col] > uts.tmin - dt) & (ds[time_col] < uts.tmax + dt)]
+        ds = ds[(ds['time'] > uts.tmin - dt) & (ds['time'] < uts.tmax + dt)]
         if x_impulse is not None:
-            for t, v in ds.zip(time_col, column_key):
+            for t, v in ds.zip('time', column_key):
                 x_impulse[t] += v
         if x_step is not None:
-            t_stops = ds[1:, time_col]
+            t_stops = ds[1:, 'time']
             if ds[-1, column_key] != 0:
                 if 'tstop' not in ds.info:
                     raise code.error("For step representation, the predictor datasets needs to contain ds.info['tstop'] to determine the end of the last step", -1)
                 t_stops = chain(t_stops, [ds.info['tstop']])
-            for t0, t1, v in zip(ds[time_col], t_stops, ds[column_key]):
+            for t0, t1, v in zip(ds['time'], t_stops, ds[column_key]):
                 x_step[t0:t1] = v
         return x
 
