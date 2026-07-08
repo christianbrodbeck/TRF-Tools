@@ -231,6 +231,11 @@ class TRFExperiment(Pipeline):
             'partition_results': params.get('partition_results', False),
         }
 
+    @staticmethod
+    def is_ncrf(estimator: Estimator) -> bool:
+        """Whether an estimator uses NCRF result semantics."""
+        return isinstance(estimator, NCRFEstimator)
+
     def _collect_invalid_files(self, invalid_cache, new_state, cache_state):
         rm = Pipeline._collect_invalid_files(self, invalid_cache, new_state, cache_state)
 
@@ -1099,7 +1104,7 @@ class TRFExperiment(Pipeline):
         if not x:
             return
 
-        if isinstance(estimator_obj, NCRFEstimator):
+        if self.is_ncrf(estimator_obj):
             if backward:
                 raise ValueError("NCRFEstimator does not support backward models")
             return self._trf_job_ncrf_estimator(
@@ -1353,12 +1358,12 @@ class TRFExperiment(Pipeline):
         else:
             xs = x.multiple_permutations(permutations)
 
+        is_ncrf = self.is_ncrf(estimator)
         if data.source:
             inv = self.get('inv')
-            is_ncrf = bool(NCRF_RE.match(inv))
             is_vector_data = is_ncrf or inv.startswith('vec')
         else:
-            is_vector_data = is_ncrf = False
+            is_vector_data = is_ncrf
 
         # load result(s)
         h = r = z = r1 = z1 = residual = det = tstep = res_partitions = mu = None
