@@ -74,7 +74,7 @@ def assert_trf_jobs_equal(new_job, old_job):
                     continue
                 problems.append(f" state({name}) {k}: {v}")
     if new_job.args != old_job.args:
-        arg_names = list(inspect.signature(boosting).parameters)
+        arg_names = list(inspect.signature(new_job.experiment._trf_job).parameters)
         new = dict(zip(arg_names, new_job.args))
         old = dict(zip(arg_names, old_job.args))
         s_diff = dict_difference('new', new, 'old', old)

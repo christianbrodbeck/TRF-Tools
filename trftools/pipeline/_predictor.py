@@ -91,7 +91,7 @@ class FilePredictorBase:
             srate = int_srate if abs(int_srate - srate) < .001 else srate
             x = resample(x, srate)
         elif self.resample is None:
-            raise RuntimeError(f"{path.name} has tstep={x.time.tstep}, not {tstep}. Set the {self.__class__.__name__} resample parameter to enable automatic resampling.")
+            raise RuntimeError(f"{x.name} has tstep={x.time.tstep}, not {tstep}. Set the {self.__class__.__name__} resample parameter to enable automatic resampling.")
         else:
             raise RuntimeError(f"{self.resample=}")
         return x
@@ -264,6 +264,7 @@ class FilePredictor(FilePredictorBase):
                 if 'tstop' in x.info:
                     tstop = x.info['tstop']
                 else:
+                    self._check_time_column(x)
                     tstop = x[-1, 'time'] + 0.5
                 n_samples = int((tstop - tmin) // tstep)
             uts = UTS(tmin, tstep, n_samples)
@@ -323,6 +324,11 @@ class FilePredictor(FilePredictorBase):
             raise RuntimeError(f"{stim_type=}")
         return x
 
+    @staticmethod
+    def _check_time_column(ds: Dataset):
+        if 'time' not in ds:
+            raise KeyError(f"Predictor Dataset must have a 'time' column in seconds; got {list(ds)}")
+
     def _ds_to_ndvar(self, ds: Dataset, uts: UTS, code: Code):
         if self.columns:
             column_key, mask_key = code.nuts_columns
@@ -332,6 +338,15 @@ class FilePredictor(FilePredictorBase):
         else:
             column_key = 'value'
             mask_key = 'mask' if 'mask' in ds else None
+
+        self._check_time_column(ds)
+
+        # Value column: default 'value'; if missing, use unit impulse (1) when events have 'trigger'
+        if column_key not in ds:
+            if 'trigger' in ds:
+                ds[column_key] = Var(numpy.ones(ds.n_cases))  # unit impulse at each event
+            else:
+                raise KeyError(f"Predictor Dataset must have '{column_key}' or 'trigger' column; got {list(ds)}")
 
         if mask_key:
             mask = ds[mask_key].x
